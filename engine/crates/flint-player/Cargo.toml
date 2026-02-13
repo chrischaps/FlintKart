@@ -1,0 +1,38 @@
+[package]
+name = "flint-player"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Standalone player binary for Flint engine"
+
+[lib]
+name = "flint_player"
+path = "src/lib.rs"
+
+[[bin]]
+name = "flint-player"
+path = "src/main.rs"
+
+[dependencies]
+flint-core = { workspace = true }
+flint-asset = { workspace = true }
+flint-schema = { workspace = true }
+flint-ecs = { workspace = true }
+flint-scene = { workspace = true }
+flint-render = { workspace = true }
+flint-runtime = { workspace = true }
+flint-physics = { workspace = true }
+flint-import = { workspace = true }
+flint-audio = { workspace = true }
+flint-animation = { workspace = true }
+flint-script = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+toml = { workspace = true }
+winit = { workspace = true }
+wgpu = { workspace = true }
+pollster = { workspace = true }
+egui = { workspace = true }
+egui-wgpu = { workspace = true }
+egui-winit = { workspace = true }
+image = { workspace = true }
