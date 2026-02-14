@@ -42,8 +42,11 @@ flint play levels/tavern.scene.toml --schemas schemas --fullscreen
 |------|-------------|
 | `--schemas <path>` | Path to schemas directory (repeatable; later paths override earlier). Default: `schemas` |
 | `--fullscreen` | Launch in fullscreen mode |
+| `--input-config <path>` | Input config overlay path (highest priority, overrides all other layers) |
 
-### Player Controls
+### Player Controls (Defaults)
+
+These are the built-in defaults. Games can override any binding via input config files (see [Physics and Runtime: Input System](../concepts/physics-and-runtime.md#input-system)).
 
 | Input | Action |
 |-------|--------|
@@ -60,19 +63,23 @@ flint play levels/tavern.scene.toml --schemas schemas --fullscreen
 | F4 | Toggle shadows |
 | F11 | Toggle fullscreen |
 
+Gamepad controllers are also supported when connected. Bindings for gamepad buttons and axes can be configured in input config TOML files.
+
 The `play` command requires the scene to have a `player` archetype entity with a `character_controller` component. Physics colliders on other entities define the walkable geometry.
 
 ### Game Project Pattern
 
-Games that define their own schemas, scripts, and assets use multiple `--schemas` paths. The engine schemas come first, then the game-specific schemas overlay on top:
+Games that define their own schemas, scripts, and assets use multiple `--schemas` paths. Game projects typically live in their own repositories with the engine included as a git subtree at `engine/`. The engine schemas come first, then the game-specific schemas overlay on top:
 
 ```bash
-flint play games/doom_fps/scenes/fps_arena.scene.toml \
-  --schemas schemas \
-  --schemas games/doom_fps/schemas
+# From a game project root (engine at engine/)
+cargo run --manifest-path engine/Cargo.toml --bin flint-player -- \
+  scenes/level_1.scene.toml \
+  --schemas engine/schemas \
+  --schemas schemas
 ```
 
-This loads the engine's built-in components (transform, material, rigidbody, etc.) from `schemas/`, then adds game-specific components (health, weapon, enemy AI) from `games/doom_fps/schemas/`. See [Schemas: Game Project Schemas](../concepts/schemas.md#game-project-schemas) for directory structure details.
+This loads the engine's built-in components (transform, material, rigidbody, etc.) from `engine/schemas/`, then adds game-specific components (health, weapon, enemy AI) from the game's own `schemas/`. See [Schemas: Game Project Schemas](../concepts/schemas.md#game-project-schemas) for directory structure details and [Building a Game Project](../guides/building-a-game-project.md) for the full workflow.
 
 ### Standalone Player Binary
 
@@ -81,9 +88,9 @@ The player is also available as a standalone binary for distribution:
 ```bash
 cargo run --bin flint-player -- demo/phase4_runtime.scene.toml --schemas schemas
 
-# With game project schemas
-cargo run --bin flint-player -- games/doom_fps/scenes/fps_arena.scene.toml \
-  --schemas schemas --schemas games/doom_fps/schemas
+# With game project schemas (from a game repo with engine subtree)
+cargo run --manifest-path engine/Cargo.toml --bin flint-player -- \
+  scenes/level_1.scene.toml --schemas engine/schemas --schemas schemas
 ```
 
 ## The `asset generate` Command

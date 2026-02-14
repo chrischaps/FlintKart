@@ -8,16 +8,19 @@ use flint_animation::skeleton::Skeleton;
 use flint_animation::AnimationSystem;
 use flint_asset::{AssetCatalog, ContentStore};
 use flint_audio::AudioSystem;
-use flint_core::Vec3 as FlintVec3;
+use flint_core::{FlintError, Vec3 as FlintVec3};
 use flint_ecs::FlintWorld;
 use flint_import::import_gltf;
 use flint_physics::PhysicsSystem;
 use flint_render::{Camera, RenderContext, SceneRenderer};
-use flint_runtime::{GameClock, GameEvent, InputState, RuntimeSystem};
+use flint_runtime::{
+    Binding, GameClock, GameEvent, InputConfig, InputState, RebindMode, RuntimeSystem,
+};
 use flint_script::context::{DrawCommand, LogLevel, ScriptCommand};
 use flint_script::ScriptSystem;
+use gilrs::{EventType, Gilrs};
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -25,6 +28,19 @@ use winit::event::{DeviceEvent, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
+
+#[derive(Debug, Clone)]
+struct PendingRebind {
+    action: String,
+    mode: RebindMode,
+}
+
+#[derive(Debug, Clone)]
+struct InputConfigPaths {
+    game_default: Option<PathBuf>,
+    user_override: Option<PathBuf>,
+    cli_override: Option<PathBuf>,
+}
 
 pub struct PlayerApp {
     // Core state
@@ -64,10 +80,29 @@ pub struct PlayerApp {
     // Window options
     pub fullscreen: bool,
     cursor_captured: bool,
+
+    // Environment
+    pub skybox_path: Option<String>,
+
+    // Input config layering + remap persistence
+    input_config_override: Option<String>,
+    scene_input_config: Option<String>,
+    input_config_paths: Option<InputConfigPaths>,
+    user_override_config: InputConfig,
+    pending_rebind: Option<PendingRebind>,
+
+    // Optional gamepad backend
+    gilrs: Option<Gilrs>,
 }
 
 impl PlayerApp {
-    pub fn new(world: FlintWorld, scene_path: String, fullscreen: bool) -> Self {
+    pub fn new(
+        world: FlintWorld,
+        scene_path: String,
+        fullscreen: bool,
+        input_config_override: Option<String>,
+        scene_input_config: Option<String>,
+    ) -> Self {
         Self {
             world,
             scene_path,
@@ -91,6 +126,17 @@ impl PlayerApp {
             content_store: Some(ContentStore::new(".flint/assets")),
             fullscreen,
             cursor_captured: false,
+            skybox_path: None,
+            input_config_override,
+            scene_input_config,
+            input_config_paths: None,
+            user_override_config: InputConfig {
+                version: 1,
+                game_id: String::new(),
+                actions: Default::default(),
+            },
+            pending_rebind: None,
+            gilrs: None,
         }
     }
 
@@ -133,6 +179,13 @@ impl PlayerApp {
         );
         scene_renderer.update_from_world(&self.world, &render_context.device);
 
+        // Load input configs with deterministic layering.
+        self.configure_input_bindings()
+            .unwrap_or_else(|e| eprintln!("Input config load error: {e:#}"));
+
+        // Initialize gamepad backend (best-effort).
+        self.gilrs = Gilrs::new().ok();
+
         // Initialize egui for HUD overlay
         let egui_winit = egui_winit::State::new(
             self.egui_ctx.clone(),
@@ -151,6 +204,47 @@ impl PlayerApp {
         );
         self.egui_winit = Some(egui_winit);
         self.egui_renderer = Some(egui_renderer);
+
+        // Generate procedural geometry from spline + spline_mesh entities
+        crate::spline_gen::load_splines(
+            &self.scene_path,
+            &mut self.world,
+            &mut scene_renderer,
+            &mut self.physics,
+            &render_context.device,
+        );
+
+        // Refresh renderer with any new procedural meshes
+        scene_renderer.update_from_world(&self.world, &render_context.device);
+
+        // Load skybox if configured
+        if let Some(skybox_rel) = &self.skybox_path {
+            let scene_dir = Path::new(&self.scene_path)
+                .parent()
+                .unwrap_or_else(|| Path::new("."));
+
+            // Search scene dir first, then parent (game root)
+            let skybox_path = {
+                let p = scene_dir.join(skybox_rel);
+                if p.exists() {
+                    p
+                } else if let Some(parent) = scene_dir.parent() {
+                    parent.join(skybox_rel)
+                } else {
+                    p
+                }
+            };
+
+            if skybox_path.exists() {
+                scene_renderer.load_skybox(
+                    &render_context.device,
+                    &render_context.queue,
+                    &skybox_path,
+                );
+            } else {
+                eprintln!("Skybox file not found: {}", skybox_path.display());
+            }
+        }
 
         self.render_context = Some(render_context);
         self.scene_renderer = Some(scene_renderer);
@@ -178,9 +272,190 @@ impl PlayerApp {
             .initialize(&mut self.world)
             .unwrap_or_else(|e| eprintln!("Script init: {:?}", e));
 
-        // Capture cursor for first-person look
-        self.capture_cursor();
+        // Capture cursor for first-person look (only if FPS player exists)
+        if self.physics.character.player_entity().is_some() {
+            self.capture_cursor();
+        }
 
+        Ok(())
+    }
+
+    /// Start capture mode for "press next control to bind" remapping.
+    pub fn begin_rebind_capture(&mut self, action: impl Into<String>, mode: RebindMode) {
+        self.pending_rebind = Some(PendingRebind {
+            action: action.into(),
+            mode,
+        });
+    }
+
+    fn configure_input_bindings(&mut self) -> Result<()> {
+        self.input
+            .load_bindings(InputConfig::built_in_defaults())
+            .context("failed to load built-in input defaults")?;
+
+        let paths = resolve_input_paths(
+            Path::new(&self.scene_path),
+            self.scene_input_config.as_deref(),
+            self.input_config_override.as_deref(),
+        );
+
+        if let Some(path) = &paths.game_default {
+            if path.exists() {
+                let cfg = InputConfig::load_from_file(path).with_context(|| {
+                    format!("failed to load game input config '{}'", path.display())
+                })?;
+                self.input
+                    .merge_bindings(cfg)
+                    .context("failed to merge game input config")?;
+            }
+        }
+
+        if let Some(path) = &paths.user_override {
+            if path.exists() {
+                let cfg = InputConfig::load_from_file(path).with_context(|| {
+                    format!("failed to load user input config '{}'", path.display())
+                })?;
+                self.user_override_config = cfg.clone();
+                self.input
+                    .merge_bindings(cfg)
+                    .context("failed to merge user input config")?;
+            }
+        }
+
+        if let Some(path) = &paths.cli_override {
+            if path.exists() {
+                let cfg = InputConfig::load_from_file(path).with_context(|| {
+                    format!("failed to load CLI input config '{}'", path.display())
+                })?;
+                self.input
+                    .merge_bindings(cfg)
+                    .context("failed to merge CLI input config")?;
+            }
+        }
+
+        if self.user_override_config.version == 0 {
+            self.user_override_config.version = 1;
+        }
+        if self.user_override_config.game_id.trim().is_empty() {
+            self.user_override_config.game_id = self.input.config().game_id.clone();
+        }
+
+        self.input_config_paths = Some(paths);
+        Ok(())
+    }
+
+    fn poll_gamepad_events(&mut self) {
+        let mut events = Vec::new();
+        if let Some(gilrs) = &mut self.gilrs {
+            while let Some(event) = gilrs.next_event() {
+                events.push(event);
+            }
+        }
+
+        for event in events {
+            let gamepad = gamepad_id_to_u32(event.id);
+            match event.event {
+                EventType::ButtonPressed(button, _) => {
+                    let name = format!("{button:?}");
+                    if self.try_capture_rebind(Binding::GamepadButton {
+                        button: name.clone(),
+                        gamepad: flint_runtime::GamepadSelector::Any,
+                    }) {
+                        continue;
+                    }
+                    self.input.process_gamepad_button_down(gamepad, name);
+                }
+                EventType::ButtonReleased(button, _) => {
+                    let name = format!("{button:?}");
+                    self.input.process_gamepad_button_up(gamepad, name);
+                }
+                EventType::AxisChanged(axis, value, _) => {
+                    let name = format!("{axis:?}");
+                    if self.pending_rebind.is_some() && value.abs() >= 0.45 {
+                        let direction = if value < 0.0 {
+                            Some(flint_runtime::AxisDirection::Negative)
+                        } else {
+                            Some(flint_runtime::AxisDirection::Positive)
+                        };
+                        if self.try_capture_rebind(Binding::GamepadAxis {
+                            axis: name.clone(),
+                            gamepad: flint_runtime::GamepadSelector::Any,
+                            deadzone: 0.15,
+                            scale: 1.0,
+                            invert: false,
+                            threshold: Some(0.35),
+                            direction,
+                        }) {
+                            continue;
+                        }
+                    }
+                    self.input.process_gamepad_axis(gamepad, name, value);
+                }
+                EventType::Disconnected => {
+                    self.input.clear_gamepad(gamepad);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn try_capture_rebind(&mut self, binding: Binding) -> bool {
+        let Some(pending) = self.pending_rebind.take() else {
+            return false;
+        };
+
+        if let Err(e) = self
+            .input
+            .rebind_action(&pending.action, binding, pending.mode)
+        {
+            eprintln!("Failed to rebind action '{}': {:?}", pending.action, e);
+            return true;
+        }
+
+        if let Some(action_cfg) = self.input.action_config(&pending.action) {
+            self.user_override_config
+                .actions
+                .insert(pending.action.clone(), action_cfg);
+        }
+        if self.user_override_config.game_id.trim().is_empty() {
+            self.user_override_config.game_id = self.input.config().game_id.clone();
+        }
+
+        if let Err(e) = self.persist_user_overrides() {
+            eprintln!("Failed to save input overrides: {e:#}");
+        }
+
+        true
+    }
+
+    fn persist_user_overrides(&mut self) -> Result<()> {
+        let Some(paths) = &mut self.input_config_paths else {
+            return Ok(());
+        };
+
+        let mut target = paths.user_override.clone().unwrap_or_else(|| {
+            fallback_user_override_path(
+                Path::new(&self.scene_path),
+                &self.input.config().game_id,
+            )
+            .unwrap_or_else(|| PathBuf::from(".flint/input.user.toml"))
+        });
+
+        if let Err(err) = write_user_override_file(&target, &self.user_override_config) {
+            let Some(fallback) =
+                fallback_user_override_path(Path::new(&self.scene_path), &self.input.config().game_id)
+            else {
+                return Err(err);
+            };
+            if fallback != target {
+                write_user_override_file(&fallback, &self.user_override_config)?;
+                target = fallback;
+            } else {
+                return Err(err);
+            }
+        }
+
+        paths.user_override = Some(target);
         Ok(())
     }
 
@@ -236,15 +511,21 @@ impl PlayerApp {
     }
 
     fn tick(&mut self) {
+        self.poll_gamepad_events();
+
         // Advance game clock
         self.clock.tick();
+
+        let has_fps_player = self.physics.character.player_entity().is_some();
 
         // Fixed-timestep physics loop
         while self.clock.should_fixed_update() {
             let dt = self.clock.fixed_timestep;
 
-            // Update character controller with current input
-            self.physics.update_character(&self.input, &mut self.world, dt);
+            // Only update FPS character controller if a player entity exists
+            if has_fps_player {
+                self.physics.update_character(&self.input, &mut self.world, dt);
+            }
 
             // Step physics simulation
             self.physics
@@ -254,23 +535,23 @@ impl PlayerApp {
             self.clock.consume_fixed_step();
         }
 
-        // Update camera from player character position
-        let cam_pos = self.physics.character.camera_position(&self.world);
-        let cam_target = self.physics.character.camera_target(cam_pos);
-        self.camera.update_first_person(
-            cam_pos,
-            self.physics.character.yaw,
-            self.physics.character.pitch,
-        );
-        // Also set target explicitly for view matrix
-        self.camera.target = cam_target;
+        // Update camera from player character position (FPS mode)
+        if has_fps_player {
+            let cam_pos = self.physics.character.camera_position(&self.world);
+            let cam_target = self.physics.character.camera_target(cam_pos);
+            self.camera.update_first_person(
+                cam_pos,
+                self.physics.character.yaw,
+                self.physics.character.pitch,
+            );
+            self.camera.target = cam_target;
 
-        // Update audio listener to match camera
-        self.audio.update_listener(
-            cam_pos,
-            self.physics.character.yaw,
-            self.physics.character.pitch,
-        );
+            self.audio.update_listener(
+                cam_pos,
+                self.physics.character.yaw,
+                self.physics.character.pitch,
+            );
+        }
 
         // Process physics events — scripts + audio both consume them
         let mut game_events = self.physics.event_bus.drain();
@@ -278,6 +559,9 @@ impl PlayerApp {
         // Generate ActionPressed events from input (drives on_action / on_interact callbacks)
         for action in self.input.actions_just_pressed() {
             game_events.push(flint_runtime::GameEvent::ActionPressed(action));
+        }
+        for action in self.input.actions_just_released() {
+            game_events.push(flint_runtime::GameEvent::ActionReleased(action));
         }
 
         // Script system: provide physics + camera context, then run updates
@@ -298,6 +582,15 @@ impl PlayerApp {
         self.script
             .update(&mut self.world, self.clock.delta_time)
             .unwrap_or_else(|e| eprintln!("Script error: {:?}", e));
+
+        // Apply script camera overrides (for non-FPS camera modes like chase camera)
+        let (cam_pos_override, cam_target_override) = self.script.take_camera_overrides();
+        if let Some(pos) = cam_pos_override {
+            self.camera.position = flint_core::Vec3::new(pos[0], pos[1], pos[2]);
+        }
+        if let Some(target) = cam_target_override {
+            self.camera.target = flint_core::Vec3::new(target[0], target[1], target[2]);
+        }
 
         // Call on_draw_ui() for all scripts (generates draw commands)
         self.script.call_draw_uis(&mut self.world);
@@ -1104,4 +1397,87 @@ impl PlayerApp {
             self.load_ui_texture(&name);
         }
     }
+}
+
+// --- Input config helpers ---
+
+fn resolve_input_paths(
+    scene_path: &Path,
+    scene_input_config: Option<&str>,
+    cli_override: Option<&str>,
+) -> InputConfigPaths {
+    let scene_dir = scene_path.parent().unwrap_or_else(|| Path::new("."));
+
+    // Game default: look next to the scene or in a config/ sibling
+    let game_default = scene_input_config
+        .map(|name| scene_dir.join(name))
+        .or_else(|| {
+            let candidate = scene_dir.join("config").join("input.toml");
+            if candidate.exists() {
+                Some(candidate)
+            } else {
+                None
+            }
+        });
+
+    // User override: ~/.flint/input_{game_id}.toml (resolved later once game_id is known)
+    // For now, try the project-local fallback
+    let user_override = {
+        let local = scene_dir.join(".flint").join("input.user.toml");
+        if local.exists() {
+            Some(local)
+        } else {
+            dirs::config_dir().map(|d| d.join("flint").join("input.user.toml")).filter(|p| p.exists())
+        }
+    };
+
+    let cli = cli_override.map(PathBuf::from);
+
+    InputConfigPaths {
+        game_default,
+        user_override,
+        cli_override: cli,
+    }
+}
+
+fn fallback_user_override_path(scene_path: &Path, game_id: &str) -> Option<PathBuf> {
+    if let Some(config_dir) = dirs::config_dir() {
+        let dir = config_dir.join("flint");
+        let filename = if game_id.is_empty() || game_id == "flint" {
+            "input.user.toml".to_string()
+        } else {
+            format!("input_{game_id}.toml")
+        };
+        return Some(dir.join(filename));
+    }
+    // Fallback to project-local
+    let scene_dir = scene_path.parent().unwrap_or_else(|| Path::new("."));
+    Some(scene_dir.join(".flint").join("input.user.toml"))
+}
+
+fn write_user_override_file(path: &Path, config: &InputConfig) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            FlintError::RuntimeError(format!(
+                "failed to create directory '{}': {e}",
+                parent.display()
+            ))
+        })?;
+    }
+    let toml_str = toml::to_string_pretty(config).map_err(|e| {
+        FlintError::RuntimeError(format!("failed to serialize input config: {e}"))
+    })?;
+    std::fs::write(path, toml_str).map_err(|e| {
+        FlintError::RuntimeError(format!(
+            "failed to write input config '{}': {e}",
+            path.display()
+        ))
+    })?;
+    Ok(())
+}
+
+fn gamepad_id_to_u32(id: gilrs::GamepadId) -> u32 {
+    // gilrs GamepadId is opaque; convert via usize
+    let raw: usize = id.into();
+    raw as u32
 }
