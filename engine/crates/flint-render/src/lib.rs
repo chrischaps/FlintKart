@@ -65,6 +65,12 @@ mod tests {
     }
 
     #[test]
+    fn outline_shader_wgsl_parses() {
+        let source = include_str!("outline_shader.wgsl");
+        naga::front::wgsl::parse_str(source).expect("outline_shader.wgsl failed to parse");
+    }
+
+    #[test]
     fn skybox_shader_wgsl_parses() {
         let source = include_str!("skybox_shader.wgsl");
         naga::front::wgsl::parse_str(source).expect("skybox_shader.wgsl failed to parse");
