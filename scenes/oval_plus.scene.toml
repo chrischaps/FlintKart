@@ -1,0 +1,184 @@
+# ================================================================
+#  FLINT KART — Phase 1: Oval Plus
+# ================================================================
+#
+#  One kart, one track, three laps.
+#  The core racing loop proving the Flint engine can handle
+#  something beyond first-person shooters.
+#
+#  Launch: play.bat
+#
+#  Controls:
+#    W / Up     - Accelerate
+#    S / Down   - Brake
+#    A / Left   - Steer left
+#    D / Right  - Steer right
+#    R          - Restart race
+#    Escape     - Exit
+#    F1         - Debug modes
+# ================================================================
+
+[scene]
+name = "Flint Kart — Oval Plus"
+version = "1.0"
+description = "Phase 1: single kart racing prototype on the Oval Plus track"
+input_config = "config/input.toml"
+
+[environment]
+skybox = "textures/Panorama_Lush_01-2048x1024.png"
+
+
+# ============================================================
+#  KART — the vehicle the player controls
+# ============================================================
+
+[entities.kart]
+
+[entities.kart.transform]
+position = [0, 1.0, 5]
+rotation = [0, 0, 0]
+
+[entities.kart.rigidbody]
+body_type = "kinematic"
+mass = 800.0
+gravity_scale = 0.0
+
+[entities.kart.collider]
+shape = "box"
+size = [1.8, 1.0, 3.0]
+
+[entities.kart.kart_physics]
+max_speed = 30.0
+acceleration = 15.0
+brake_decel = 25.0
+drag = 0.5
+turn_rate_low = 180.0
+turn_rate_high = 60.0
+gravity = -20.0
+ground_ray_length = 2.0
+
+[entities.kart.kart_state]
+speed = 0.0
+velocity_x = 0.0
+velocity_y = 0.0
+velocity_z = 0.0
+forward_x = 0.0
+forward_y = 0.0
+forward_z = -1.0
+grounded = false
+surface_normal_x = 0.0
+surface_normal_y = 1.0
+surface_normal_z = 0.0
+yaw = 0.0
+input_enabled = false
+
+[entities.kart.race_progress]
+spline_t = 0.0
+prev_spline_t = 0.0
+current_lap = 0
+total_laps = 3
+lap_time = 0.0
+best_lap = 999.0
+race_time = 0.0
+passed_start = false
+
+[entities.kart.script]
+source = "kart_controller.rhai"
+
+
+# ============================================================
+#  CHASE CAMERA — follows the kart from behind
+# ============================================================
+
+[entities.chase_camera]
+
+[entities.chase_camera.transform]
+position = [0, 5, 10]
+
+[entities.chase_camera.script]
+source = "chase_camera.rhai"
+
+
+# ============================================================
+#  RACE MANAGER — state machine + lap tracking + HUD
+# ============================================================
+
+[entities.race_manager]
+
+[entities.race_manager.transform]
+position = [0, 0, 0]
+
+[entities.race_manager.race_state]
+state = "countdown"
+countdown_timer = 4.0
+countdown_display = ""
+
+[entities.race_manager.script]
+source = "race_manager.rhai"
+
+
+# ============================================================
+#  HUD — renders all 2D overlay elements
+# ============================================================
+
+[entities.hud]
+
+[entities.hud.transform]
+position = [0, 0, 0]
+
+[entities.hud.script]
+source = "hud.rhai"
+
+
+# ============================================================
+#  TRACK — spline path + swept cross-section meshes
+# ============================================================
+
+# Pure path data — no geometry
+[entities.track_path]
+[entities.track_path.spline]
+file = "splines/oval_plus.spline.toml"
+
+# Road surface — wide, thin slab centered on the spline
+[entities.track_road]
+[entities.track_road.spline_mesh]
+spline = "track_path"
+width = 12.0
+height = 0.3
+offset = [0.0, -0.15]
+color = [0.25, 0.25, 0.28, 1.0]
+friction = 0.8
+restitution = 0.1
+
+# Left wall — narrow, tall box at left edge
+[entities.track_wall_left]
+[entities.track_wall_left.spline_mesh]
+spline = "track_path"
+width = 0.5
+height = 1.5
+offset = [-6.25, 0.75]
+color = [0.7, 0.15, 0.15, 1.0]
+friction = 0.3
+restitution = 0.5
+
+# Right wall — narrow, tall box at right edge
+[entities.track_wall_right]
+[entities.track_wall_right.spline_mesh]
+spline = "track_path"
+width = 0.5
+height = 1.5
+offset = [6.25, 0.75]
+color = [0.15, 0.15, 0.7, 1.0]
+friction = 0.3
+restitution = 0.5
+
+
+# ============================================================
+#  SUN — directional light
+# ============================================================
+
+[entities.sun]
+
+[entities.sun.transform]
+position = [0, 50, 0]
+rotation = [-45, 30, 0]

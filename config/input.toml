@@ -1,0 +1,44 @@
+version = 1
+game_id = "flint_kart"
+
+[actions.accelerate]
+kind = "button"
+[[actions.accelerate.bindings]]
+type = "key"
+code = "KeyW"
+[[actions.accelerate.bindings]]
+type = "key"
+code = "ArrowUp"
+
+[actions.brake]
+kind = "button"
+[[actions.brake.bindings]]
+type = "key"
+code = "KeyS"
+[[actions.brake.bindings]]
+type = "key"
+code = "ArrowDown"
+
+[actions.steer_left]
+kind = "button"
+[[actions.steer_left.bindings]]
+type = "key"
+code = "KeyA"
+[[actions.steer_left.bindings]]
+type = "key"
+code = "ArrowLeft"
+
+[actions.steer_right]
+kind = "button"
+[[actions.steer_right.bindings]]
+type = "key"
+code = "KeyD"
+[[actions.steer_right.bindings]]
+type = "key"
+code = "ArrowRight"
+
+[actions.restart]
+kind = "button"
+[[actions.restart.bindings]]
+type = "key"
+code = "KeyR"
