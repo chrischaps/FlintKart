@@ -13,6 +13,7 @@ use std::collections::HashSet;
 pub struct InputSnapshot {
     pub actions_pressed: HashSet<String>,
     pub actions_just_pressed: HashSet<String>,
+    pub action_values: std::collections::HashMap<String, f64>,
     pub mouse_delta: (f64, f64),
 }
 
@@ -32,6 +33,7 @@ pub enum ScriptCommand {
     StopSound { name: String },
     FireEvent { name: String, data: toml::Value },
     Log { level: LogLevel, message: String },
+    EmitBurst { entity_id: i64, count: i64 },
 }
 
 /// 2D draw command issued by scripts each frame (immediate mode)

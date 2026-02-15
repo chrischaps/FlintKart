@@ -5,6 +5,7 @@ use crate::camera::{Camera, mat4_inverse, mat4_mul};
 use crate::context::RenderContext;
 use crate::debug::{DebugMode, DebugState};
 use crate::gpu_mesh::MeshCache;
+use crate::particle_pipeline::{ParticleDrawCall, ParticleDrawData, ParticlePipeline, ParticleUniforms};
 use crate::pipeline::{
     DirectionalLight, LightUniforms, MaterialUniforms, PointLight, RenderPipeline, SpotLight,
     TransformUniforms, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS,
@@ -17,6 +18,7 @@ use crate::primitives::{
     create_box_mesh, create_grid_mesh, create_wireframe_box_mesh, generate_normal_arrows,
     triangles_to_wireframe_indices, Mesh,
 };
+use flint_core::{Transform, Vec3};
 use flint_ecs::FlintWorld;
 use flint_import::ImportResult;
 use std::collections::HashMap;
@@ -99,6 +101,9 @@ pub struct SceneRenderer {
     skybox_uniform_buffer: Option<wgpu::Buffer>,
     skybox_uniform_bind_group: Option<wgpu::BindGroup>,
     skybox_texture_bind_group: Option<wgpu::BindGroup>,
+    // Particles
+    particle_pipeline: Option<ParticlePipeline>,
+    particle_draws: Vec<ParticleDrawCall>,
 }
 
 impl SceneRenderer {
@@ -137,6 +142,7 @@ impl SceneRenderer {
         );
 
         let billboard_pipeline = BillboardPipeline::new(&context.device, context.config.format);
+        let particle_pipeline = ParticlePipeline::new(&context.device, context.config.format);
         let skybox_pipeline = SkyboxPipeline::new(&context.device, context.config.format);
 
         Self {
@@ -163,6 +169,107 @@ impl SceneRenderer {
             skybox_uniform_buffer: None,
             skybox_uniform_bind_group: None,
             skybox_texture_bind_group: None,
+            particle_pipeline: Some(particle_pipeline),
+            particle_draws: Vec::new(),
+        }
+    }
+
+    /// Upload particle instance data from the simulation and create draw calls.
+    /// Called each frame after ParticleSystem::update().
+    pub fn update_particles(
+        &mut self,
+        device: &wgpu::Device,
+        draw_data: Vec<ParticleDrawData>,
+    ) {
+        self.particle_draws.clear();
+
+        let pp = match &self.particle_pipeline {
+            Some(pp) => pp,
+            None => return,
+        };
+
+        for data in &draw_data {
+            if data.instances.is_empty() {
+                continue;
+            }
+
+            // Create storage buffer with instance data
+            let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Particle Instance Buffer"),
+                contents: bytemuck::cast_slice(data.instances),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+
+            // Create instance bind group
+            let instance_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &pp.instance_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: instance_buffer.as_entire_binding(),
+                }],
+                label: Some("Particle Instance Bind Group"),
+            });
+
+            // Resolve texture (use white fallback if none specified)
+            let texture_bind_group = if !data.texture.is_empty() {
+                if let Some(tc) = &self.texture_cache {
+                    if let Some(tex) = tc.get(data.texture) {
+                        device.create_bind_group(&wgpu::BindGroupDescriptor {
+                            layout: &pp.texture_bind_group_layout,
+                            entries: &[
+                                wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: wgpu::BindingResource::TextureView(&tex.view),
+                                },
+                                wgpu::BindGroupEntry {
+                                    binding: 1,
+                                    resource: wgpu::BindingResource::Sampler(&tex.sampler),
+                                },
+                            ],
+                            label: Some("Particle Texture Bind Group"),
+                        })
+                    } else {
+                        self.create_white_particle_texture_bind_group(device, pp)
+                    }
+                } else {
+                    self.create_white_particle_texture_bind_group(device, pp)
+                }
+            } else {
+                self.create_white_particle_texture_bind_group(device, pp)
+            };
+
+            self.particle_draws.push(ParticleDrawCall {
+                instance_buffer,
+                instance_count: data.instances.len() as u32,
+                texture_bind_group,
+                instance_bind_group,
+                additive: data.additive,
+            });
+        }
+    }
+
+    fn create_white_particle_texture_bind_group(
+        &self,
+        device: &wgpu::Device,
+        pp: &ParticlePipeline,
+    ) -> wgpu::BindGroup {
+        if let Some(tc) = &self.texture_cache {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &pp.texture_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&tc.default_white.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&tc.default_white.sampler),
+                    },
+                ],
+                label: Some("Particle White Texture Bind Group"),
+            })
+        } else {
+            panic!("TextureCache required for particle rendering");
         }
     }
 
@@ -232,6 +339,8 @@ impl SceneRenderer {
             skybox_uniform_buffer: None,
             skybox_uniform_bind_group: None,
             skybox_texture_bind_group: None,
+            particle_pipeline: None, // No particles in headless mode
+            particle_draws: Vec::new(),
         }
     }
 
@@ -645,7 +754,9 @@ impl SceneRenderer {
                     default_size: [1.0, 1.0, 1.0],
                 });
 
-            let transform = world.get_transform(entity.id).unwrap_or_default();
+            let model_matrix = world.get_world_matrix(entity.id)
+                .unwrap_or_else(|| Transform::default().to_matrix());
+            let world_pos = [model_matrix[3][0], model_matrix[3][1], model_matrix[3][2]];
 
             // Check if entity has a model component
             let model_asset = world
@@ -660,7 +771,6 @@ impl SceneRenderer {
             if let Some(asset_name) = &model_asset {
                 // Check for skinned meshes first
                 if let Some(skinned_meshes) = self.mesh_cache.get_skinned(asset_name) {
-                    let model_matrix = transform.to_matrix();
                     let inv_transpose = mat4_inv_transpose(&model_matrix);
 
                     for gpu_mesh in skinned_meshes {
@@ -727,7 +837,6 @@ impl SceneRenderer {
                 }
 
                 if let Some(gpu_meshes) = self.mesh_cache.get(asset_name) {
-                    let model_matrix = transform.to_matrix();
                     let inv_transpose = mat4_inv_transpose(&model_matrix);
 
                     for gpu_mesh in gpu_meshes {
@@ -747,8 +856,23 @@ impl SceneRenderer {
                         let (mr_view, mr_sampler, has_mr) =
                             Self::resolve_texture(tex_cache_ref, gpu_mesh.material.metallic_roughness_texture.as_deref(), &tex_cache_ref.default_metallic_roughness);
 
+                        let base_color = if let Some(override_color) = world
+                            .get_components(entity.id)
+                            .and_then(|c| c.get("material"))
+                            .and_then(|m| {
+                                let r = m.get("base_color_r")?.as_float()? as f32;
+                                let g = m.get("base_color_g")?.as_float()? as f32;
+                                let b = m.get("base_color_b")?.as_float()? as f32;
+                                let a = m.get("base_color_a").and_then(|v| v.as_float()).unwrap_or(1.0) as f32;
+                                Some([r, g, b, a])
+                            }) {
+                            override_color
+                        } else {
+                            gpu_mesh.material.base_color
+                        };
+
                         let mut material_uniforms = MaterialUniforms::from_pbr(
-                            gpu_mesh.material.base_color,
+                            base_color,
                             gpu_mesh.material.metallic,
                             gpu_mesh.material.roughness,
                         );
@@ -870,7 +994,7 @@ impl SceneRenderer {
                                 .unwrap_or(true);
 
                             let sprite_instance = SpriteInstance {
-                                world_pos: [transform.position.x, transform.position.y, transform.position.z],
+                                world_pos,
                                 width,
                                 height,
                                 frame,
@@ -985,7 +1109,7 @@ impl SceneRenderer {
                 create_box_mesh(size[0], size[1], size[2], visual.color)
             };
 
-            let mut model = transform.to_matrix();
+            let mut model = model_matrix;
             // Apply bounds_center in local space so rotation pivots around entity position
             let rx = model[0][0] * bounds_center[0] + model[1][0] * bounds_center[1] + model[2][0] * bounds_center[2];
             let ry = model[0][1] * bounds_center[0] + model[1][1] * bounds_center[1] + model[2][1] * bounds_center[2];
@@ -1508,8 +1632,8 @@ impl SceneRenderer {
                     }
                     "point" => {
                         if (point_count as usize) < MAX_POINT_LIGHTS {
-                            let transform =
-                                world.get_transform(entity.id).unwrap_or_default();
+                            let light_pos = world.get_world_position(entity.id)
+                                .unwrap_or(Vec3::ZERO);
                             let radius = light
                                 .get("range")
                                 .or_else(|| light.get("radius"))
@@ -1519,9 +1643,9 @@ impl SceneRenderer {
                                 .unwrap_or(10.0) as f32;
                             points[point_count as usize] = PointLight {
                                 position: [
-                                    transform.position.x,
-                                    transform.position.y,
-                                    transform.position.z,
+                                    light_pos.x,
+                                    light_pos.y,
+                                    light_pos.z,
                                 ],
                                 radius,
                                 color,
@@ -1532,8 +1656,8 @@ impl SceneRenderer {
                     }
                     "spot" => {
                         if (spot_count as usize) < MAX_SPOT_LIGHTS {
-                            let transform =
-                                world.get_transform(entity.id).unwrap_or_default();
+                            let light_pos = world.get_world_position(entity.id)
+                                .unwrap_or(Vec3::ZERO);
                             let direction = Self::extract_light_vec3(&light, "direction")
                                 .unwrap_or([0.0, -1.0, 0.0]);
                             let radius = light
@@ -1557,9 +1681,9 @@ impl SceneRenderer {
                                 .unwrap_or(0.5) as f32;
                             spots[spot_count as usize] = SpotLight {
                                 position: [
-                                    transform.position.x,
-                                    transform.position.y,
-                                    transform.position.z,
+                                    light_pos.x,
+                                    light_pos.y,
+                                    light_pos.z,
                                 ],
                                 radius,
                                 direction,
@@ -1868,6 +1992,26 @@ impl SceneRenderer {
             }
         }
 
+        // Update particle uniforms with camera vectors
+        if let Some(pp) = &self.particle_pipeline {
+            if !self.particle_draws.is_empty() {
+                let cam_right = camera.right_vector();
+                let cam_up = camera.up_vector();
+                let particle_uniforms = ParticleUniforms {
+                    view_proj,
+                    camera_right: cam_right,
+                    _pad0: 0.0,
+                    camera_up: cam_up,
+                    _pad1: 0.0,
+                };
+                queue.write_buffer(
+                    &pp.uniform_buffer,
+                    0,
+                    bytemuck::cast_slice(&[particle_uniforms]),
+                );
+            }
+        }
+
         // Update normal arrow transforms
         for draw in &self.normal_arrow_draws {
             let uniforms = TransformUniforms {
@@ -2155,6 +2299,40 @@ impl SceneRenderer {
                                 wgpu::IndexFormat::Uint32,
                             );
                             render_pass.draw_indexed(0..6, 0, 0..1);
+                        }
+                    }
+                }
+
+                // Particle systems (after billboards, before wireframe overlay)
+                // Alpha-blended particles first, then additive
+                if let Some(pp) = &self.particle_pipeline {
+                    if !self.particle_draws.is_empty() {
+                        render_pass.set_index_buffer(
+                            pp.quad_index_buffer.slice(..),
+                            wgpu::IndexFormat::Uint32,
+                        );
+                        render_pass.set_bind_group(0, &pp.uniform_bind_group, &[]);
+
+                        // Alpha pass
+                        render_pass.set_pipeline(&pp.alpha_pipeline);
+                        for draw in &self.particle_draws {
+                            if draw.additive {
+                                continue;
+                            }
+                            render_pass.set_bind_group(1, &draw.instance_bind_group, &[]);
+                            render_pass.set_bind_group(2, &draw.texture_bind_group, &[]);
+                            render_pass.draw_indexed(0..6, 0, 0..draw.instance_count);
+                        }
+
+                        // Additive pass
+                        render_pass.set_pipeline(&pp.additive_pipeline);
+                        for draw in &self.particle_draws {
+                            if !draw.additive {
+                                continue;
+                            }
+                            render_pass.set_bind_group(1, &draw.instance_bind_group, &[]);
+                            render_pass.set_bind_group(2, &draw.texture_bind_group, &[]);
+                            render_pass.draw_indexed(0..6, 0, 0..draw.instance_count);
                         }
                     }
                 }

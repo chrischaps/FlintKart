@@ -19,6 +19,7 @@ pub fn register_all(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
     register_math_api(engine);
     register_event_api(engine, ctx.clone());
     register_ui_api(engine, ctx.clone());
+    register_particle_api(engine, ctx.clone());
     register_log_api(engine, ctx);
 }
 
@@ -249,6 +250,81 @@ fn register_entity_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) 
             let _ = world.despawn(EntityId::from_raw(id as u64));
         });
     }
+
+    // set_parent(child_id: i64, parent_id: i64)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_parent", move |child_id: i64, parent_id: i64| {
+            if child_id < 0 || parent_id < 0 { return; }
+            let c = ctx.lock().unwrap();
+            let world = unsafe { c.world_mut() };
+            let _ = world.set_parent(
+                EntityId::from_raw(child_id as u64),
+                EntityId::from_raw(parent_id as u64),
+            );
+        });
+    }
+
+    // get_parent(id: i64) -> i64
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("get_parent", move |id: i64| -> i64 {
+            if id < 0 { return -1; }
+            let c = ctx.lock().unwrap();
+            let world = unsafe { c.world_ref() };
+            world.get_parent(EntityId::from_raw(id as u64))
+                .map(|pid| pid.raw() as i64)
+                .unwrap_or(-1)
+        });
+    }
+
+    // get_children(id: i64) -> Array
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("get_children", move |id: i64| -> rhai::Array {
+            if id < 0 { return vec![]; }
+            let c = ctx.lock().unwrap();
+            let world = unsafe { c.world_ref() };
+            world.get_children(EntityId::from_raw(id as u64))
+                .into_iter()
+                .map(|cid| Dynamic::from(cid.raw() as i64))
+                .collect()
+        });
+    }
+
+    // get_world_position(id: i64) -> Map #{x,y,z}
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("get_world_position", move |id: i64| -> Map {
+            let mut map = Map::new();
+            if id < 0 { return map; }
+            let c = ctx.lock().unwrap();
+            let world = unsafe { c.world_ref() };
+            if let Some(pos) = world.get_world_position(EntityId::from_raw(id as u64)) {
+                map.insert("x".into(), Dynamic::from(pos.x as f64));
+                map.insert("y".into(), Dynamic::from(pos.y as f64));
+                map.insert("z".into(), Dynamic::from(pos.z as f64));
+            }
+            map
+        });
+    }
+
+    // set_material_color(entity_id: i64, r: f64, g: f64, b: f64, a: f64)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_material_color", move |id: i64, r: f64, g: f64, b: f64, a: f64| {
+            if id < 0 { return; }
+            let c = ctx.lock().unwrap();
+            let world = unsafe { c.world_mut() };
+            let eid = EntityId::from_raw(id as u64);
+            if let Some(comps) = world.get_components_mut(eid) {
+                comps.set_field("material", "base_color_r", toml::Value::Float(r));
+                comps.set_field("material", "base_color_g", toml::Value::Float(g));
+                comps.set_field("material", "base_color_b", toml::Value::Float(b));
+                comps.set_field("material", "base_color_a", toml::Value::Float(a));
+            }
+        });
+    }
 }
 
 // ─── Input API ───────────────────────────────────────────
@@ -269,6 +345,15 @@ fn register_input_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
         engine.register_fn("is_action_just_pressed", move |action: &str| -> bool {
             let c = ctx.lock().unwrap();
             c.input.actions_just_pressed.contains(action)
+        });
+    }
+
+    // action_value(action: &str) -> f64
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("action_value", move |action: &str| -> f64 {
+            let c = ctx.lock().unwrap();
+            c.input.action_values.get(action).copied().unwrap_or(0.0)
         });
     }
 
@@ -613,6 +698,65 @@ fn register_event_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
                 name: name.to_string(),
                 data: toml_data,
             });
+        });
+    }
+}
+
+// ─── Particle API ─────────────────────────────────────────
+
+fn register_particle_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
+    // emit_burst(entity_id, count) — fire N particles immediately
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("emit_burst", move |entity_id: i64, count: i64| {
+            let mut c = ctx.lock().unwrap();
+            c.commands.push(ScriptCommand::EmitBurst {
+                entity_id,
+                count,
+            });
+        });
+    }
+
+    // start_emitter(entity_id) — set playing = true in ECS
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("start_emitter", move |entity_id: i64| {
+            let mut c = ctx.lock().unwrap();
+            let world = unsafe { &mut *c.world };
+            let eid = EntityId(entity_id as u64);
+            if let Some(comps) = world.get_components_mut(eid) {
+                comps.set_field("particle_emitter", "playing", toml::Value::Boolean(true));
+            }
+        });
+    }
+
+    // stop_emitter(entity_id) — set playing = false in ECS
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("stop_emitter", move |entity_id: i64| {
+            let mut c = ctx.lock().unwrap();
+            let world = unsafe { &mut *c.world };
+            let eid = EntityId(entity_id as u64);
+            if let Some(comps) = world.get_components_mut(eid) {
+                comps.set_field("particle_emitter", "playing", toml::Value::Boolean(false));
+            }
+        });
+    }
+
+    // set_emission_rate(entity_id, rate) — update emission rate in ECS
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_emission_rate", move |entity_id: i64, rate: f64| {
+            let mut c = ctx.lock().unwrap();
+            let world = unsafe { &mut *c.world };
+            let eid = EntityId(entity_id as u64);
+            if let Some(comps) = world.get_components_mut(eid) {
+                comps.set_field(
+                    "particle_emitter",
+                    "emission_rate",
+                    toml::Value::Float(rate),
+                );
+            }
         });
     }
 }
