@@ -1,8 +1,9 @@
-// kart_visuals.rhai — Animates kart child entities
+// kart_visuals.rhai — Animates kart child entities and particle effects
 //
-// Reads kart_visual_state from the kart entity and applies:
+// Reads kart_visual_state and kart_state from the kart entity and applies:
 //   - Wheel rolling (X rotation) and steering (Y rotation, front only)
 //   - Brake/reverse light color changes
+//   - Exhaust smoke, tire dust, brake sparks (particle emitters)
 
 let wheel_fl = -1;
 let wheel_fr = -1;
@@ -11,6 +12,12 @@ let wheel_rr = -1;
 let light_l = -1;
 let light_r = -1;
 
+let fx_exhaust = -1;
+let fx_dust_rl = -1;
+let fx_dust_rr = -1;
+let fx_sparks = -1;
+let fx_boost = -1;
+
 fn on_init() {
     wheel_fl = get_entity("kart_wheel_fl");
     wheel_fr = get_entity("kart_wheel_fr");
@@ -18,29 +25,47 @@ fn on_init() {
     wheel_rr = get_entity("kart_wheel_rr");
     light_l = get_entity("kart_light_l");
     light_r = get_entity("kart_light_r");
+
+    fx_exhaust = get_entity("fx_exhaust");
+    fx_dust_rl = get_entity("fx_dust_rl");
+    fx_dust_rr = get_entity("fx_dust_rr");
+    fx_sparks = get_entity("fx_sparks");
+    fx_boost = get_entity("fx_boost");
+
+    // Start emitters (playing=true) so they respond to emission_rate changes
+    if fx_exhaust >= 0 { start_emitter(fx_exhaust); }
+    if fx_dust_rl >= 0 { start_emitter(fx_dust_rl); }
+    if fx_dust_rr >= 0 { start_emitter(fx_dust_rr); }
+    if fx_sparks >= 0 { start_emitter(fx_sparks); }
+    // fx_boost stays stopped until boost mechanic exists
 }
 
 fn on_update() {
     let kart = get_entity("kart");
     if kart < 0 { return; }
 
+    // ── Visual state ──
     let steering = get_field(kart, "kart_visual_state", "steering");
     let braking = get_field(kart, "kart_visual_state", "braking");
     let reversing = get_field(kart, "kart_visual_state", "reversing");
     let spin = get_field(kart, "kart_visual_state", "wheel_spin");
+    let throttle = get_field(kart, "kart_visual_state", "throttle");
 
-    // Visual steering angle (degrees)
+    // ── Physics state ──
+    let speed = get_field(kart, "kart_state", "speed");
+    let grounded = get_field(kart, "kart_state", "grounded");
+    let fwd_x = get_field(kart, "kart_state", "forward_x");
+    let fwd_z = get_field(kart, "kart_state", "forward_z");
+
+    // ── Wheels ──
     let steer_angle = -steering * 25.0;
 
-    // Front wheels: roll (X) + steer (Y)
     if wheel_fl >= 0 {
         set_rotation(wheel_fl, spin, steer_angle, 0.0);
     }
     if wheel_fr >= 0 {
         set_rotation(wheel_fr, spin, steer_angle, 0.0);
     }
-
-    // Rear wheels: roll only
     if wheel_rl >= 0 {
         set_rotation(wheel_rl, spin, 0.0, 0.0);
     }
@@ -48,20 +73,130 @@ fn on_update() {
         set_rotation(wheel_rr, spin, 0.0, 0.0);
     }
 
-    // Lights: change color based on state
+    // ── Lights ──
     if light_l >= 0 && light_r >= 0 {
         if braking {
-            // Bright red brake lights
             set_material_color(light_l, 1.0, 0.15, 0.1, 1.0);
             set_material_color(light_r, 1.0, 0.15, 0.1, 1.0);
         } else if reversing {
-            // White reverse lights
             set_material_color(light_l, 1.0, 1.0, 0.9, 1.0);
             set_material_color(light_r, 1.0, 1.0, 0.9, 1.0);
         } else {
-            // Off state: dark red
             set_material_color(light_l, 0.35, 0.08, 0.08, 1.0);
             set_material_color(light_r, 0.35, 0.08, 0.08, 1.0);
         }
     }
+
+    // ── Particle emitter positioning ──
+    // Emitters are standalone entities (not parented) because the particle
+    // system reads raw transform.position as world-space spawn origin.
+    // We compute world positions from kart position + heading each frame.
+
+    let kart_pos = get_position(kart);
+    let kx = kart_pos["x"];
+    let ky = kart_pos["y"];
+    let kz = kart_pos["z"];
+
+    // Right vector from forward (Y-up): right = (-fwd_z, 0, fwd_x)
+    let rx = -fwd_z;
+    let rz = fwd_x;
+
+    // Position helper: world = kart + right*ox - forward*oz + up*oy
+    // Local +Z is behind the kart, so we ADD forward*oz to go rearward
+
+    // fx_exhaust: local [0, 0.30, 1.5] — center rear, exhaust pipe height
+    if fx_exhaust >= 0 {
+        let ex = kx + fwd_x * 1.5;
+        let ey = ky + 0.30;
+        let ez = kz + fwd_z * 1.5;
+        set_position(fx_exhaust, ex, ey, ez);
+    }
+
+    // fx_dust_rl: local [-0.70, 0.05, 0.85] — left rear wheel contact
+    if fx_dust_rl >= 0 {
+        let dx = kx + rx * (-0.70) + fwd_x * 0.85;
+        let dy = ky + 0.05;
+        let dz = kz + rz * (-0.70) + fwd_z * 0.85;
+        set_position(fx_dust_rl, dx, dy, dz);
+    }
+
+    // fx_dust_rr: local [0.70, 0.05, 0.85] — right rear wheel contact
+    if fx_dust_rr >= 0 {
+        let dx = kx + rx * 0.70 + fwd_x * 0.85;
+        let dy = ky + 0.05;
+        let dz = kz + rz * 0.70 + fwd_z * 0.85;
+        set_position(fx_dust_rr, dx, dy, dz);
+    }
+
+    // fx_sparks: local [0, 0.10, 1.3] — low center rear
+    if fx_sparks >= 0 {
+        let sx = kx + fwd_x * 1.3;
+        let sy = ky + 0.10;
+        let sz = kz + fwd_z * 1.3;
+        set_position(fx_sparks, sx, sy, sz);
+    }
+
+    // fx_boost: local [0, 0.45, 1.1] — center body rear (dormant)
+    if fx_boost >= 0 {
+        let bx = kx + fwd_x * 1.1;
+        let by = ky + 0.45;
+        let bz = kz + fwd_z * 1.1;
+        set_position(fx_boost, bx, by, bz);
+    }
+
+    // ── Emission control ──
+
+    // Exhaust: scales with throttle, off when stopped
+    if fx_exhaust >= 0 {
+        let exhaust_rate = 0.0;
+        if speed > 0.5 {
+            exhaust_rate = 3.0 + throttle * 22.0;
+        }
+        set_emission_rate(fx_exhaust, exhaust_rate);
+    }
+
+    // Tire dust: kicks up during hard acceleration, drifting, or braking
+    let dust_rate = 0.0;
+    if grounded {
+        if throttle > 0.6 && speed > 2.0 {
+            // Acceleration dust
+            dust_rate = 15.0 + throttle * 20.0;
+        }
+        if steering > 0.4 || steering < -0.4 {
+            if speed > 10.0 {
+                // Drift dust — add to any existing rate
+                let steer_intensity = steering;
+                if steer_intensity < 0.0 { steer_intensity = -steer_intensity; }
+                dust_rate = dust_rate + steer_intensity * 40.0;
+            }
+        }
+        if braking && speed > 8.0 {
+            // Braking dust
+            dust_rate = dust_rate + 20.0 + speed * 0.5;
+        }
+    }
+
+    if fx_dust_rl >= 0 {
+        set_emission_rate(fx_dust_rl, dust_rate);
+    }
+    if fx_dust_rr >= 0 {
+        set_emission_rate(fx_dust_rr, dust_rate);
+    }
+
+    // Brake sparks: burst-driven, staccato showers while braking at speed
+    if fx_sparks >= 0 {
+        if braking && speed > 8.0 && grounded {
+            // Burst size scales with speed: 3 at low speed, up to 8 at high speed
+            let burst = 3 + ((speed - 8.0) / 22.0 * 5.0).to_int();
+            if burst > 8 { burst = 8; }
+            emit_burst(fx_sparks, burst);
+        }
+    }
+
+    // Boost: dormant — future mechanic will read a "boosting" state field
+    // if fx_boost >= 0 {
+    //     let boosting = get_field(kart, "kart_state", "boosting");
+    //     if boosting { set_emission_rate(fx_boost, 150.0); }
+    //     else { set_emission_rate(fx_boost, 0.0); }
+    // }
 }
