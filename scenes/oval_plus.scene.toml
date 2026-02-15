@@ -38,6 +38,9 @@ skybox = "textures/Panorama_Lush_01-2048x1024.png"
 position = [0, 1.0, 5]
 rotation = [0, 0, 0]
 
+[entities.kart.model]
+asset = "kart_body"
+
 [entities.kart.rigidbody]
 body_type = "kinematic"
 mass = 800.0
@@ -72,6 +75,13 @@ surface_normal_z = 0.0
 yaw = 0.0
 input_enabled = false
 
+[entities.kart.kart_visual_state]
+steering = 0.0
+braking = false
+reversing = false
+wheel_spin = 0.0
+throttle = 0.0
+
 [entities.kart.race_progress]
 spline_t = 0.0
 prev_spline_t = 0.0
@@ -84,6 +94,71 @@ passed_start = false
 
 [entities.kart.script]
 source = "kart_controller.rhai"
+
+
+# ── Kart child entities (positioned relative to kart via hierarchy) ──
+
+[entities.kart_wheel_fl]
+parent = "kart"
+[entities.kart_wheel_fl.transform]
+position = [-0.70, 0.22, -1.0]
+[entities.kart_wheel_fl.model]
+asset = "kart_wheel"
+
+[entities.kart_wheel_fr]
+parent = "kart"
+[entities.kart_wheel_fr.transform]
+position = [0.70, 0.22, -1.0]
+[entities.kart_wheel_fr.model]
+asset = "kart_wheel"
+
+[entities.kart_wheel_rl]
+parent = "kart"
+[entities.kart_wheel_rl.transform]
+position = [-0.70, 0.22, 0.85]
+[entities.kart_wheel_rl.model]
+asset = "kart_wheel"
+
+[entities.kart_wheel_rr]
+parent = "kart"
+[entities.kart_wheel_rr.transform]
+position = [0.70, 0.22, 0.85]
+[entities.kart_wheel_rr.model]
+asset = "kart_wheel"
+
+[entities.kart_driver]
+parent = "kart"
+[entities.kart_driver.transform]
+position = [0.0, 0.12, 0.15]
+[entities.kart_driver.model]
+asset = "kart_driver"
+
+[entities.kart_light_l]
+parent = "kart"
+[entities.kart_light_l.transform]
+position = [-0.35, 0.22, 1.28]
+[entities.kart_light_l.model]
+asset = "kart_light"
+
+[entities.kart_light_r]
+parent = "kart"
+[entities.kart_light_r.transform]
+position = [0.35, 0.22, 1.28]
+[entities.kart_light_r.model]
+asset = "kart_light"
+
+
+# ============================================================
+#  KART VISUALS — animates wheels, lights, etc.
+# ============================================================
+
+[entities.kart_visuals]
+
+[entities.kart_visuals.transform]
+position = [0, 0, 0]
+
+[entities.kart_visuals.script]
+source = "kart_visuals.rhai"
 
 
 # ============================================================

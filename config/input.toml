@@ -1,44 +1,89 @@
 version = 1
 game_id = "flint_kart"
 
+# --- Steering: analog axis for smooth gamepad control ---
+# Keyboard keys produce -1.0 / +1.0, gamepad stick gives graduated values.
+[actions.steering]
+kind = "axis1d"
+[[actions.steering.bindings]]
+type = "key"
+code = "KeyA"
+scale = -1.0
+[[actions.steering.bindings]]
+type = "key"
+code = "ArrowLeft"
+scale = -1.0
+[[actions.steering.bindings]]
+type = "key"
+code = "KeyD"
+[[actions.steering.bindings]]
+type = "key"
+code = "ArrowRight"
+[[actions.steering.bindings]]
+type = "gamepad_axis"
+axis = "LeftStickX"
+gamepad = "any"
+deadzone = 0.15
+scale = 1.0
+
+# --- Accelerate: RT trigger + A button + keyboard ---
+# Both button and axis bindings for triggers: Windows Xbox drivers report
+# triggers as buttons (RightTrigger2), other platforms may report as analog
+# axes (RightZ). Including both ensures cross-platform compatibility.
 [actions.accelerate]
-kind = "button"
+kind = "axis1d"
 [[actions.accelerate.bindings]]
 type = "key"
 code = "KeyW"
 [[actions.accelerate.bindings]]
 type = "key"
 code = "ArrowUp"
+[[actions.accelerate.bindings]]
+type = "gamepad_button"
+button = "South"
+gamepad = "any"
+[[actions.accelerate.bindings]]
+type = "gamepad_button"
+button = "RightTrigger2"
+gamepad = "any"
+[[actions.accelerate.bindings]]
+type = "gamepad_axis"
+axis = "RightZ"
+gamepad = "any"
+deadzone = 0.05
+scale = 1.0
 
+# --- Brake: LT trigger + B button + keyboard ---
 [actions.brake]
-kind = "button"
+kind = "axis1d"
 [[actions.brake.bindings]]
 type = "key"
 code = "KeyS"
 [[actions.brake.bindings]]
 type = "key"
 code = "ArrowDown"
+[[actions.brake.bindings]]
+type = "gamepad_button"
+button = "East"
+gamepad = "any"
+[[actions.brake.bindings]]
+type = "gamepad_button"
+button = "LeftTrigger2"
+gamepad = "any"
+[[actions.brake.bindings]]
+type = "gamepad_axis"
+axis = "LeftZ"
+gamepad = "any"
+deadzone = 0.05
+scale = 1.0
 
-[actions.steer_left]
-kind = "button"
-[[actions.steer_left.bindings]]
-type = "key"
-code = "KeyA"
-[[actions.steer_left.bindings]]
-type = "key"
-code = "ArrowLeft"
-
-[actions.steer_right]
-kind = "button"
-[[actions.steer_right.bindings]]
-type = "key"
-code = "KeyD"
-[[actions.steer_right.bindings]]
-type = "key"
-code = "ArrowRight"
-
+# --- Restart ---
 [actions.restart]
 kind = "button"
 [[actions.restart.bindings]]
 type = "key"
 code = "KeyR"
+[[actions.restart.bindings]]
+type = "gamepad_button"
+button = "North"
+gamepad = "any"

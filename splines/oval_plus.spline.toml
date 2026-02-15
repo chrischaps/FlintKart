@@ -1,0 +1,81 @@
+# Oval Plus — Phase 1 track layout
+# A closed loop with straights, curves, a gentle hill, and a banked turn.
+# ~400m total length. Control points define a Catmull-Rom spline.
+
+[spline]
+name = "Oval Plus"
+closed = true
+
+[sampling]
+spacing = 2.0
+
+# Start/finish straight (heading -Z)
+[[control_points]]
+position = [0, 0, 0]
+twist = 0.0
+
+[[control_points]]
+position = [0, 0, -50]
+twist = 0.0
+
+# Entry to first turn (right-hander)
+[[control_points]]
+position = [0, 0, -100]
+twist = 0.0
+
+# First turn apex
+[[control_points]]
+position = [50, 0, -140]
+twist = 5.0
+
+# Exit first turn
+[[control_points]]
+position = [100, 0, -100]
+twist = 0.0
+
+# Hill section — rise
+[[control_points]]
+position = [100, 0, -50]
+twist = 0.0
+
+[[control_points]]
+position = [100, 6, 0]
+twist = 0.0
+
+# Hill crest
+[[control_points]]
+position = [100, 8, 30]
+twist = 0.0
+
+# Hill descent
+[[control_points]]
+position = [100, 4, 60]
+twist = 0.0
+
+[[control_points]]
+position = [100, 0, 90]
+twist = 0.0
+
+# Entry to banked turn (right-hander)
+[[control_points]]
+position = [80, 0, 120]
+twist = 0.0
+
+# Banked turn apex
+[[control_points]]
+position = [50, 0, 140]
+twist = 15.0
+
+# Banked turn exit
+[[control_points]]
+position = [20, 0, 120]
+twist = 5.0
+
+# Back straight
+[[control_points]]
+position = [0, 0, 90]
+twist = 0.0
+
+[[control_points]]
+position = [0, 0, 50]
+twist = 0.0

@@ -1,0 +1,22 @@
+[component.kart_visual_state]
+description = "Bridge between kart_controller and kart_visuals for visual feedback"
+
+[component.kart_visual_state.fields.steering]
+type = "float"
+default = 0.0
+
+[component.kart_visual_state.fields.braking]
+type = "bool"
+default = false
+
+[component.kart_visual_state.fields.reversing]
+type = "bool"
+default = false
+
+[component.kart_visual_state.fields.wheel_spin]
+type = "float"
+default = 0.0
+
+[component.kart_visual_state.fields.throttle]
+type = "float"
+default = 0.0

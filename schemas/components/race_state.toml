@@ -1,0 +1,14 @@
+[component.race_state]
+description = "Global race state machine (attached to race_manager entity)"
+
+[component.race_state.fields.state]
+type = "string"
+default = "countdown"
+
+[component.race_state.fields.countdown_timer]
+type = "float"
+default = 4.0
+
+[component.race_state.fields.countdown_display]
+type = "string"
+default = ""

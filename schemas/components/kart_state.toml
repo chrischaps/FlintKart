@@ -1,0 +1,54 @@
+[component.kart_state]
+description = "Kart runtime state (written each frame by kart_controller.rhai)"
+
+[component.kart_state.fields.speed]
+type = "float"
+default = 0.0
+
+[component.kart_state.fields.velocity_x]
+type = "float"
+default = 0.0
+
+[component.kart_state.fields.velocity_y]
+type = "float"
+default = 0.0
+
+[component.kart_state.fields.velocity_z]
+type = "float"
+default = 0.0
+
+[component.kart_state.fields.forward_x]
+type = "float"
+default = 0.0
+
+[component.kart_state.fields.forward_y]
+type = "float"
+default = 0.0
+
+[component.kart_state.fields.forward_z]
+type = "float"
+default = -1.0
+
+[component.kart_state.fields.grounded]
+type = "bool"
+default = false
+
+[component.kart_state.fields.surface_normal_x]
+type = "float"
+default = 0.0
+
+[component.kart_state.fields.surface_normal_y]
+type = "float"
+default = 1.0
+
+[component.kart_state.fields.surface_normal_z]
+type = "float"
+default = 0.0
+
+[component.kart_state.fields.yaw]
+type = "float"
+default = 0.0
+
+[component.kart_state.fields.input_enabled]
+type = "bool"
+default = false

@@ -1,0 +1,36 @@
+[component.kart_physics]
+description = "Kart vehicle physics tuning parameters"
+
+[component.kart_physics.fields.max_speed]
+type = "float"
+default = 30.0
+
+[component.kart_physics.fields.acceleration]
+type = "float"
+default = 15.0
+
+[component.kart_physics.fields.brake_decel]
+type = "float"
+default = 25.0
+
+[component.kart_physics.fields.drag]
+type = "float"
+default = 0.5
+
+[component.kart_physics.fields.turn_rate_low]
+type = "float"
+default = 180.0
+description = "Turn rate in degrees/sec at low speed"
+
+[component.kart_physics.fields.turn_rate_high]
+type = "float"
+default = 60.0
+description = "Turn rate in degrees/sec at max speed"
+
+[component.kart_physics.fields.gravity]
+type = "float"
+default = -20.0
+
+[component.kart_physics.fields.ground_ray_length]
+type = "float"
+default = 2.0
