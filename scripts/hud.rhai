@@ -17,6 +17,40 @@ fn on_draw_ui() {
     let sh = screen_height();
     let state = get_field(manager_id, "race_state", "state");
 
+    // --- Race Position (top-center) ---
+    if has_component(kart_id, "race_position") && state == "racing" {
+        let pos = get_field(kart_id, "race_position", "position");
+        let total = get_field(kart_id, "race_position", "total_racers");
+
+        // Ordinal suffix
+        let suffix = "th";
+        if pos == 1 { suffix = "st"; }
+        if pos == 2 { suffix = "nd"; }
+        if pos == 3 { suffix = "rd"; }
+
+        let pos_str = "" + pos + suffix;
+        let pos_size = 48.0;
+        let pos_w = measure_text(pos_str, pos_size);
+        let pos_x = (sw - pos_w["width"]) / 2.0;
+
+        // Background
+        draw_rect_ex(pos_x - 20.0, 10.0, pos_w["width"] + 40.0, 58.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
+
+        // Position number — gold for 1st, silver for 2nd, bronze for 3rd
+        if pos == 1 {
+            draw_text(pos_x, 14.0, pos_str, pos_size, 1.0, 0.85, 0.2, 1.0);
+        } else if pos == 2 {
+            draw_text(pos_x, 14.0, pos_str, pos_size, 0.8, 0.8, 0.85, 1.0);
+        } else {
+            draw_text(pos_x, 14.0, pos_str, pos_size, 0.8, 0.55, 0.3, 1.0);
+        }
+
+        // "of N" subtitle
+        let of_str = "of " + total;
+        let of_w = measure_text(of_str, 16.0);
+        draw_text((sw - of_w["width"]) / 2.0, 52.0, of_str, 16.0, 0.6, 0.6, 0.6, 1.0);
+    }
+
     // --- Lap Counter (top-left) ---
     let current_lap = get_field(kart_id, "race_progress", "current_lap");
     let total_laps = get_field(kart_id, "race_progress", "total_laps");

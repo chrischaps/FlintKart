@@ -74,6 +74,10 @@ fn on_update() {
         }
 
         steering = clamp(action_value("steering"), -1.0, 1.0);
+    } else if has_component(me, "ai_input") {
+        throttle = clamp(get_field(me, "ai_input", "throttle"), -1.0, 1.0);
+        steering = clamp(get_field(me, "ai_input", "steering"), -1.0, 1.0);
+        brake_amount = clamp(get_field(me, "ai_input", "brake"), 0.0, 1.0);
     }
 
     // --- Steering ---

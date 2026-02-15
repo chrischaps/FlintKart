@@ -1,0 +1,10 @@
+[component.race_position]
+description = "Computed race standing for each kart"
+
+[component.race_position.fields.position]
+type = "int"
+default = 1
+
+[component.race_position.fields.total_racers]
+type = "int"
+default = 1

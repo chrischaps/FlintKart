@@ -1,0 +1,14 @@
+[component.ai_input]
+description = "Virtual input bridge for AI-controlled karts"
+
+[component.ai_input.fields.throttle]
+type = "float"
+default = 0.0
+
+[component.ai_input.fields.steering]
+type = "float"
+default = 0.0
+
+[component.ai_input.fields.brake]
+type = "float"
+default = 0.0

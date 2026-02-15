@@ -1,0 +1,26 @@
+[component.ai_driver]
+description = "AI driver personality and tuning parameters"
+
+[component.ai_driver.fields.kart]
+type = "string"
+default = ""
+
+[component.ai_driver.fields.skill]
+type = "float"
+default = 0.7
+
+[component.ai_driver.fields.line_offset]
+type = "float"
+default = 0.0
+
+[component.ai_driver.fields.lookahead]
+type = "float"
+default = 15.0
+
+[component.ai_driver.fields.speed_factor]
+type = "float"
+default = 0.92
+
+[component.ai_driver.fields.cornering_caution]
+type = "float"
+default = 0.35

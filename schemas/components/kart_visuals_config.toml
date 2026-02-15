@@ -1,0 +1,10 @@
+[component.kart_visuals_config]
+description = "Configurable visual animation target for kart child entities"
+
+[component.kart_visuals_config.fields.kart]
+type = "string"
+default = ""
+
+[component.kart_visuals_config.fields.prefix]
+type = "string"
+default = ""
