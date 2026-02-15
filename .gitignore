@@ -1,0 +1,8 @@
+# Temporary render outputs
+render_test*.png
+
+# Windows artifact
+nul
+
+# Claude Code local config
+.claude/
