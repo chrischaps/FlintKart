@@ -308,6 +308,125 @@ fn on_update() {
         drift_direction = 0.0;
     }
 
+    // ── Wall Collision (radial raycasts) ──
+    let wall_ray_len = 1.3;
+    let wall_radius = 0.9;
+    let wall_speed_loss = 0.5;
+    let wall_bounce = 0.3;
+    let ray_y = py + 0.5;
+
+    let push_wx = 0.0;
+    let push_wz = 0.0;
+    let wall_impact = 0.0;
+
+    // 8 radial directions (45° apart in XZ)
+    let dir_x = [1.0, 0.707, 0.0, -0.707, -1.0, -0.707, 0.0, 0.707];
+    let dir_z = [0.0, 0.707, 1.0, 0.707, 0.0, -0.707, -1.0, -0.707];
+
+    let i = 0;
+    while i < 8 {
+        let wh = raycast(px, ray_y, pz, dir_x[i], 0.0, dir_z[i], wall_ray_len);
+        if wh != () {
+            let hit_ent = wh["entity"];
+            // Only respond to non-kart entities (walls, barriers)
+            if !has_component(hit_ent, "kart_state") {
+                let dist = wh["distance"];
+                if dist < wall_radius {
+                    let pen = wall_radius - dist;
+                    let nx = wh["normal_x"];
+                    let nz = wh["normal_z"];
+                    push_wx = push_wx + nx * pen;
+                    push_wz = push_wz + nz * pen;
+
+                    // How head-on is the impact? (dot of velocity with inward normal)
+                    let impact_dot = -(vx * nx + vz * nz);
+                    if impact_dot > wall_impact {
+                        wall_impact = impact_dot;
+                    }
+                    // Small velocity reflection off wall
+                    if impact_dot > 0.0 {
+                        vx = vx + nx * impact_dot * wall_bounce;
+                        vz = vz + nz * impact_dot * wall_bounce;
+                    }
+                }
+            }
+        }
+        i = i + 1;
+    }
+
+    px = px + push_wx;
+    pz = pz + push_wz;
+
+    // Speed penalty for wall impact
+    if wall_impact > 0.0 {
+        let speed_abs = speed;
+        if speed_abs < 0.0 { speed_abs = -speed_abs; }
+        if speed_abs > 0.01 {
+            let loss = clamp(wall_impact / speed_abs, 0.0, 1.0) * wall_speed_loss;
+            speed = speed * (1.0 - loss);
+        }
+    }
+
+    // ── Kart-to-Kart Bumping (proximity) ──
+    let kart_radius = 1.2;
+    let min_sep = kart_radius * 2.0;
+    let kart_push_factor = 0.5;
+    let kart_speed_loss = 0.3;
+    let kart_spin = 2.0;
+
+    let all_karts = find_entities_with("kart_state");
+    let k = 0;
+    while k < all_karts.len() {
+        let other = all_karts[k];
+        if other != me {
+            let opos = get_position(other);
+            let dx = px - opos["x"];
+            let dz = pz - opos["z"];
+            let dist_sq = dx * dx + dz * dz;
+            let dist = sqrt(dist_sq);
+
+            if dist < min_sep && dist > 0.01 {
+                let overlap = min_sep - dist;
+                // Normalized push direction (me away from other)
+                let inv_dist = 1.0 / dist;
+                let pdx = dx * inv_dist;
+                let pdz = dz * inv_dist;
+
+                // Each kart resolves half the overlap
+                px = px + pdx * overlap * kart_push_factor;
+                pz = pz + pdz * overlap * kart_push_factor;
+
+                // Speed response: dot of velocity with push direction
+                let vel_dot = vx * pdx + vz * pdz;
+                if vel_dot < 0.0 {
+                    // Approaching — reduce speed
+                    let abs_dot = -vel_dot;
+                    speed = speed * (1.0 - clamp(abs_dot / (abs(speed) + 0.1), 0.0, 1.0) * kart_speed_loss);
+                }
+
+                // Yaw nudge: cross product of forward with push direction
+                let cross = fwd_x * pdz - fwd_z * pdx;
+                yaw = yaw + cross * kart_spin;
+            } else if dist <= 0.01 {
+                // Near-zero distance: break symmetry using entity IDs
+                if me > other {
+                    px = px + 0.5;
+                } else {
+                    px = px - 0.5;
+                }
+            }
+        }
+        k = k + 1;
+    }
+
+    // Recompute forward + velocity from adjusted speed/yaw after collisions
+    let col_fwd = forward_from_yaw(yaw);
+    fwd_x = col_fwd["x"];
+    fwd_z = col_fwd["z"];
+    let col_travel = forward_from_yaw(yaw + drift_angle);
+    vx = col_travel["x"] * speed;
+    vz = col_travel["z"] * speed;
+
     // Write position
     set_position(me, px, py, pz);
 

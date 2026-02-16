@@ -79,6 +79,105 @@ fn on_draw_ui() {
         draw_text(sw - 150.0, 68.0, format_time(best_lap), 20.0, 0.5, 1.0, 0.5, 1.0);
     }
 
+    // --- Leaderboard (right side, during racing/countdown) ---
+    if state == "racing" || state == "countdown" {
+        let all_karts = find_entities_with("race_position");
+        let num = all_karts.len();
+        if num > 0 {
+            // Sort by position (insertion sort)
+            let sorted = [];
+            let si = 0;
+            while si < num {
+                sorted.push(all_karts[si]);
+                si += 1;
+            }
+            let sa = 1;
+            while sa < sorted.len() {
+                let key = sorted[sa];
+                let key_pos = get_field(key, "race_position", "position");
+                let sb = sa - 1;
+                let sdone = false;
+                while sb >= 0 && !sdone {
+                    let cmp_pos = get_field(sorted[sb], "race_position", "position");
+                    if cmp_pos > key_pos {
+                        sorted[sb + 1] = sorted[sb];
+                        sb -= 1;
+                    } else {
+                        sdone = true;
+                    }
+                }
+                sorted[sb + 1] = key;
+                sa += 1;
+            }
+
+            // Leaderboard panel
+            let lb_w = 170.0;
+            let row_h = 30.0;
+            let lb_h = 24.0 + num * row_h;
+            let lb_x = sw - 220.0;
+            let lb_y = 105.0;
+            if best_lap < 900.0 { lb_y = 105.0; }
+
+            draw_rect_ex(lb_x, lb_y, lb_w, lb_h, 0.0, 0.0, 0.0, 0.5, 8.0, -1);
+
+            // Header
+            draw_text(lb_x + 10.0, lb_y + 4.0, "STANDINGS", 14.0, 0.6, 0.6, 0.6, 1.0);
+
+            // Rows
+            let ri = 0;
+            while ri < sorted.len() {
+                let eid = sorted[ri];
+                let rpos = get_field(eid, "race_position", "position");
+                let ry = lb_y + 22.0 + ri * row_h;
+
+                // Highlight player row
+                let is_player = !has_component(eid, "ai_input");
+                if is_player {
+                    draw_rect_ex(lb_x + 2.0, ry - 1.0, lb_w - 4.0, row_h - 2.0, 1.0, 1.0, 1.0, 0.08, 4.0, -1);
+                }
+
+                // Position number with medal color
+                let pos_r = 0.8;
+                let pos_g = 0.8;
+                let pos_b = 0.8;
+                if rpos == 1 { pos_r = 1.0; pos_g = 0.85; pos_b = 0.2; }
+                if rpos == 2 { pos_r = 0.8; pos_g = 0.8; pos_b = 0.85; }
+                if rpos == 3 { pos_r = 0.8; pos_g = 0.55; pos_b = 0.3; }
+                draw_text(lb_x + 10.0, ry + 3.0, "" + rpos, 18.0, pos_r, pos_g, pos_b, 1.0);
+
+                // Color dot
+                let cr = 0.9;
+                let cg = 0.9;
+                let cb = 0.9;
+                if has_component(eid, "racer_info") {
+                    cr = get_field(eid, "racer_info", "color_r");
+                    cg = get_field(eid, "racer_info", "color_g");
+                    cb = get_field(eid, "racer_info", "color_b");
+                }
+                draw_circle(lb_x + 38.0, ry + 12.0, 5.0, cr, cg, cb, 1.0);
+
+                // Name
+                let rname = "Racer";
+                if has_component(eid, "racer_info") {
+                    rname = get_field(eid, "racer_info", "name");
+                }
+                let name_alpha = 0.9;
+                if is_player { name_alpha = 1.0; }
+                draw_text(lb_x + 50.0, ry + 3.0, rname, 16.0, 1.0, 1.0, 1.0, name_alpha);
+
+                // Lap indicator
+                let rlap = get_field(eid, "race_progress", "current_lap");
+                let rtotal = get_field(eid, "race_progress", "total_laps");
+                let rlap_d = rlap;
+                if rlap_d < 1 { rlap_d = 1; }
+                if rlap_d > rtotal { rlap_d = rtotal; }
+                draw_text(lb_x + 130.0, ry + 5.0, "L" + rlap_d, 13.0, 0.5, 0.5, 0.5, 1.0);
+
+                ri += 1;
+            }
+        }
+    }
+
     // --- Speed (bottom-right) ---
     let speed = get_field(kart_id, "kart_state", "speed");
     let kmh = floor(abs(speed) * 3.6); // m/s to km/h
@@ -116,9 +215,39 @@ fn on_draw_ui() {
         // Dark overlay
         draw_rect(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, 0.5);
 
-        // Results panel
-        let panel_w = 400.0;
-        let panel_h = 250.0;
+        // Get all racers for standings
+        let finish_karts = find_entities_with("race_position");
+        let fnum = finish_karts.len();
+
+        // Sort by position
+        let fsorted = [];
+        let fi = 0;
+        while fi < fnum {
+            fsorted.push(finish_karts[fi]);
+            fi += 1;
+        }
+        let fa = 1;
+        while fa < fsorted.len() {
+            let fkey = fsorted[fa];
+            let fkey_pos = get_field(fkey, "race_position", "position");
+            let fb = fa - 1;
+            let fdone = false;
+            while fb >= 0 && !fdone {
+                let fcmp_pos = get_field(fsorted[fb], "race_position", "position");
+                if fcmp_pos > fkey_pos {
+                    fsorted[fb + 1] = fsorted[fb];
+                    fb -= 1;
+                } else {
+                    fdone = true;
+                }
+            }
+            fsorted[fb + 1] = fkey;
+            fa += 1;
+        }
+
+        // Results panel — sized for standings table
+        let panel_w = 420.0;
+        let panel_h = 180.0 + fnum * 32.0;
         let panel_x = (sw - panel_w) / 2.0;
         let panel_y = (sh - panel_h) / 2.0;
         draw_rect_ex(panel_x, panel_y, panel_w, panel_h, 0.1, 0.1, 0.15, 0.9, 12.0, 1);
@@ -128,22 +257,85 @@ fn on_draw_ui() {
         let title_w = measure_text(title, 36.0);
         draw_text((sw - title_w["width"]) / 2.0, panel_y + 20.0, title, 36.0, 1.0, 0.85, 0.2, 1.0);
 
-        // Final time
-        let final_time_str = "Time: " + format_time(race_time);
-        let ftw = measure_text(final_time_str, 28.0);
-        draw_text((sw - ftw["width"]) / 2.0, panel_y + 80.0, final_time_str, 28.0, 1.0, 1.0, 1.0, 1.0);
+        // Player stats line
+        let final_time_str = "Your Time: " + format_time(race_time);
+        let ftw = measure_text(final_time_str, 22.0);
+        draw_text((sw - ftw["width"]) / 2.0, panel_y + 65.0, final_time_str, 22.0, 1.0, 1.0, 1.0, 1.0);
 
-        // Best lap
         if best_lap < 900.0 {
             let best_str = "Best Lap: " + format_time(best_lap);
-            let bw = measure_text(best_str, 24.0);
-            draw_text((sw - bw["width"]) / 2.0, panel_y + 120.0, best_str, 24.0, 0.5, 1.0, 0.5, 1.0);
+            let bw = measure_text(best_str, 18.0);
+            draw_text((sw - bw["width"]) / 2.0, panel_y + 92.0, best_str, 18.0, 0.5, 1.0, 0.5, 1.0);
+        }
+
+        // Standings table
+        let table_y = panel_y + 120.0;
+        let frow_h = 32.0;
+
+        let fri = 0;
+        while fri < fsorted.len() {
+            let feid = fsorted[fri];
+            let fpos = get_field(feid, "race_position", "position");
+            let fry = table_y + fri * frow_h;
+            let f_is_player = !has_component(feid, "ai_input");
+
+            // Highlight player row
+            if f_is_player {
+                draw_rect_ex(panel_x + 10.0, fry - 2.0, panel_w - 20.0, frow_h - 2.0, 1.0, 1.0, 1.0, 0.1, 4.0, -1);
+            }
+
+            // Position with medal color
+            let fp_r = 0.7;
+            let fp_g = 0.7;
+            let fp_b = 0.7;
+            if fpos == 1 { fp_r = 1.0; fp_g = 0.85; fp_b = 0.2; }
+            if fpos == 2 { fp_r = 0.8; fp_g = 0.8; fp_b = 0.85; }
+            if fpos == 3 { fp_r = 0.8; fp_g = 0.55; fp_b = 0.3; }
+
+            let fsuffix = "th";
+            if fpos == 1 { fsuffix = "st"; }
+            if fpos == 2 { fsuffix = "nd"; }
+            if fpos == 3 { fsuffix = "rd"; }
+
+            draw_text(panel_x + 20.0, fry + 2.0, "" + fpos + fsuffix, 20.0, fp_r, fp_g, fp_b, 1.0);
+
+            // Color dot
+            let fcr = 0.9;
+            let fcg = 0.9;
+            let fcb = 0.9;
+            if has_component(feid, "racer_info") {
+                fcr = get_field(feid, "racer_info", "color_r");
+                fcg = get_field(feid, "racer_info", "color_g");
+                fcb = get_field(feid, "racer_info", "color_b");
+            }
+            draw_circle(panel_x + 75.0, fry + 12.0, 6.0, fcr, fcg, fcb, 1.0);
+
+            // Name
+            let fname = "Racer";
+            if has_component(feid, "racer_info") {
+                fname = get_field(feid, "racer_info", "name");
+            }
+            let fname_a = 0.85;
+            if f_is_player { fname_a = 1.0; }
+            draw_text(panel_x + 90.0, fry + 2.0, fname, 18.0, 1.0, 1.0, 1.0, fname_a);
+
+            // Race time
+            let ftime = get_field(feid, "race_progress", "race_time");
+            draw_text(panel_x + 260.0, fry + 4.0, format_time(ftime), 16.0, 0.7, 0.7, 0.7, 1.0);
+
+            // Best lap
+            let fbest = get_field(feid, "race_progress", "best_lap");
+            if fbest < 900.0 {
+                draw_text(panel_x + 340.0, fry + 4.0, format_time(fbest), 16.0, 0.45, 0.7, 0.45, 1.0);
+            }
+
+            fri += 1;
         }
 
         // Restart prompt
         let restart_str = "Press R to restart";
         let rw = measure_text(restart_str, 20.0);
-        draw_text((sw - rw["width"]) / 2.0, panel_y + 190.0, restart_str, 20.0, 0.7, 0.7, 0.7, 1.0);
+        draw_text((sw - rw["width"]) / 2.0, panel_y + panel_h - 30.0, restart_str, 20.0, 0.7, 0.7, 0.7, 1.0);
     }
 
     // --- Drift Meter (bottom-center) ---

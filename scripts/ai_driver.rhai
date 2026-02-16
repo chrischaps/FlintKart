@@ -12,9 +12,12 @@ fn on_init() {
     kart_id = get_entity(kart_name);
     track_id = get_entity("track_path");
 
-    // Tint the AI kart body blue
+    // Tint the AI kart body using personality color
     if kart_id >= 0 {
-        set_material_color(kart_id, 0.15, 0.3, 0.85, 1.0);
+        let cr = get_field(me, "ai_driver", "color_r");
+        let cg = get_field(me, "ai_driver", "color_g");
+        let cb = get_field(me, "ai_driver", "color_b");
+        set_material_color(kart_id, cr, cg, cb, 1.0);
     }
 
     log("AI driver initialized for " + kart_name);

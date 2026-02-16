@@ -24,3 +24,19 @@ default = 0.92
 [component.ai_driver.fields.cornering_caution]
 type = "float"
 default = 0.35
+
+[component.ai_driver.fields.color_r]
+type = "float"
+default = 0.5
+
+[component.ai_driver.fields.color_g]
+type = "float"
+default = 0.5
+
+[component.ai_driver.fields.color_b]
+type = "float"
+default = 0.5
+
+[component.ai_driver.fields.name]
+type = "string"
+default = "AI"

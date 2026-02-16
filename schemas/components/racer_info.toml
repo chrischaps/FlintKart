@@ -1,0 +1,18 @@
+[component.racer_info]
+description = "Display name and color for HUD leaderboard"
+
+[component.racer_info.fields.name]
+type = "string"
+default = "Racer"
+
+[component.racer_info.fields.color_r]
+type = "float"
+default = 1.0
+
+[component.racer_info.fields.color_g]
+type = "float"
+default = 1.0
+
+[component.racer_info.fields.color_b]
+type = "float"
+default = 1.0

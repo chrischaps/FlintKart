@@ -258,20 +258,31 @@ fn update_finished(me) {
 fn restart_race(me) {
     let karts = find_all_karts();
 
-    // Reset each kart
-    let i = 0;
-    let grid_pos = 0;
-    while i < karts.len() {
-        let kid = karts[i];
-        let is_ai = has_component(kid, "ai_input");
-
-        // Determine starting position: player at [0,1,5], AI at [3,1,10]
-        let start_x = 0.0;
-        let start_z = 5.0;
-        if is_ai {
-            start_x = 3.0;
-            start_z = 10.0;
+    // Build ordered grid: player first, then AI karts
+    let player_id = find_player_kart();
+    let ordered = [];
+    if player_id >= 0 {
+        ordered.push(player_id);
+    }
+    let ai = 0;
+    while ai < karts.len() {
+        if karts[ai] != player_id {
+            ordered.push(karts[ai]);
         }
+        ai += 1;
+    }
+
+    // Reset each kart in grid formation (2-wide x N-deep)
+    let i = 0;
+    while i < ordered.len() {
+        let kid = ordered[i];
+
+        // Grid: row = i/2, col = i%2
+        let row = floor(i / 2.0);
+        let col = i - row * 2;
+        let start_x = -1.5;
+        if col == 1 { start_x = 1.5; }
+        let start_z = 5.0 + row * 5.0;
 
         set_position(kid, start_x, 1.0, start_z);
         set_rotation(kid, 0.0, 0.0, 0.0);
