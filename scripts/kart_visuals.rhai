@@ -1,9 +1,11 @@
 // kart_visuals.rhai — Animates kart child entities and particle effects
 //
-// Reads kart_visual_state and kart_state from the target kart and applies:
+// Reads kart_visual_state, kart_state, and drift_state from the target kart:
 //   - Wheel rolling (X rotation) and steering (Y rotation, front only)
 //   - Brake/reverse light color changes
 //   - Exhaust smoke, tire dust, brake sparks (particle emitters)
+//   - Drift sparks with tier-colored progression (white → orange → blue)
+//   - Boost trail activation
 //
 // Supports configurable target via kart_visuals_config component.
 // Falls back to hardcoded "kart" + "kart_" prefix if no config.
@@ -23,6 +25,12 @@ let fx_dust_rl = -1;
 let fx_dust_rr = -1;
 let fx_sparks = -1;
 let fx_boost = -1;
+let fx_drift_sparks_l = -1;
+let fx_drift_sparks_r = -1;
+
+// Track previous drift state for transition detection
+let prev_drift_state = "none";
+let prev_boost_tier = 0;
 
 fn on_init() {
     let me = this_entity();
@@ -45,6 +53,8 @@ fn on_init() {
     fx_dust_rr = get_entity("fx_dust_rr");
     fx_sparks = get_entity("fx_sparks");
     fx_boost = get_entity("fx_boost");
+    fx_drift_sparks_l = get_entity("fx_drift_sparks_l");
+    fx_drift_sparks_r = get_entity("fx_drift_sparks_r");
 
     // Only start particle emitters for the player kart (no prefix config)
     if !has_component(me, "kart_visuals_config") {
@@ -52,6 +62,9 @@ fn on_init() {
         if fx_dust_rl >= 0 { start_emitter(fx_dust_rl); }
         if fx_dust_rr >= 0 { start_emitter(fx_dust_rr); }
         if fx_sparks >= 0 { start_emitter(fx_sparks); }
+        if fx_boost >= 0 { start_emitter(fx_boost); }
+        if fx_drift_sparks_l >= 0 { start_emitter(fx_drift_sparks_l); }
+        if fx_drift_sparks_r >= 0 { start_emitter(fx_drift_sparks_r); }
     }
 }
 
@@ -71,6 +84,20 @@ fn on_update() {
     let grounded = get_field(kart, "kart_state", "grounded");
     let fwd_x = get_field(kart, "kart_state", "forward_x");
     let fwd_z = get_field(kart, "kart_state", "forward_z");
+
+    // ── Drift state ──
+    let drift_state = "none";
+    let drift_angle = 0.0;
+    let drift_timer = 0.0;
+    let boost_tier = 0;
+    let boost_time_remaining = 0.0;
+    if has_component(kart, "drift_state") {
+        drift_state = get_field(kart, "drift_state", "state");
+        drift_angle = get_field(kart, "drift_state", "drift_angle");
+        drift_timer = get_field(kart, "drift_state", "drift_timer");
+        boost_tier = get_field(kart, "drift_state", "boost_tier");
+        boost_time_remaining = get_field(kart, "drift_state", "boost_time_remaining");
+    }
 
     // ── Wheels ──
     let steer_angle = -steering * 25.0;
@@ -105,6 +132,8 @@ fn on_update() {
     // ── Particle effects (player kart only) ──
     if has_component(this_entity(), "kart_visuals_config") {
         // AI karts skip particles for now
+        prev_drift_state = drift_state;
+        prev_boost_tier = boost_tier;
         return;
     }
 
@@ -157,6 +186,22 @@ fn on_update() {
         set_position(fx_boost, bx, by, bz);
     }
 
+    // fx_drift_sparks_l: local [-0.70, 0.05, 0.85] (same as dust_rl)
+    if fx_drift_sparks_l >= 0 {
+        let dx = kx + rx * (-0.70) + fwd_x * 0.85;
+        let dy = ky + 0.05;
+        let dz = kz + rz * (-0.70) + fwd_z * 0.85;
+        set_position(fx_drift_sparks_l, dx, dy, dz);
+    }
+
+    // fx_drift_sparks_r: local [0.70, 0.05, 0.85] (same as dust_rr)
+    if fx_drift_sparks_r >= 0 {
+        let dx = kx + rx * 0.70 + fwd_x * 0.85;
+        let dy = ky + 0.05;
+        let dz = kz + rz * 0.70 + fwd_z * 0.85;
+        set_position(fx_drift_sparks_r, dx, dy, dz);
+    }
+
     // ── Emission control ──
 
     if fx_exhaust >= 0 {
@@ -182,6 +227,10 @@ fn on_update() {
         if braking && speed > 8.0 {
             dust_rate = dust_rate + 20.0 + speed * 0.5;
         }
+        // Double tire dust during drift
+        if drift_state == "drifting" {
+            dust_rate = dust_rate + 30.0;
+        }
     }
 
     if fx_dust_rl >= 0 {
@@ -198,4 +247,63 @@ fn on_update() {
             emit_burst(fx_sparks, burst);
         }
     }
+
+    // ── Drift spark effects ──
+    if fx_drift_sparks_l >= 0 && fx_drift_sparks_r >= 0 {
+        let drift_spark_rate = 0.0;
+
+        if drift_state == "drifting" && grounded {
+            // Spark intensity ramps with drift timer
+            drift_spark_rate = 20.0 + drift_timer * 15.0;
+            if drift_spark_rate > 80.0 { drift_spark_rate = 80.0; }
+
+            // Set spark color based on boost tier
+            if boost_tier >= 3 {
+                // Ultra — electric blue
+                set_field(fx_drift_sparks_l, "particle_emitter", "color_start", [0.3, 0.5, 1.0, 1.0]);
+                set_field(fx_drift_sparks_l, "particle_emitter", "color_end", [0.1, 0.3, 1.0, 0.0]);
+                set_field(fx_drift_sparks_r, "particle_emitter", "color_start", [0.3, 0.5, 1.0, 1.0]);
+                set_field(fx_drift_sparks_r, "particle_emitter", "color_end", [0.1, 0.3, 1.0, 0.0]);
+            } else if boost_tier >= 2 {
+                // Super — orange
+                set_field(fx_drift_sparks_l, "particle_emitter", "color_start", [1.0, 0.6, 0.1, 1.0]);
+                set_field(fx_drift_sparks_l, "particle_emitter", "color_end", [1.0, 0.3, 0.0, 0.0]);
+                set_field(fx_drift_sparks_r, "particle_emitter", "color_start", [1.0, 0.6, 0.1, 1.0]);
+                set_field(fx_drift_sparks_r, "particle_emitter", "color_end", [1.0, 0.3, 0.0, 0.0]);
+            } else {
+                // Mini (or tier 0 while building) — white/yellow
+                set_field(fx_drift_sparks_l, "particle_emitter", "color_start", [1.0, 1.0, 0.9, 1.0]);
+                set_field(fx_drift_sparks_l, "particle_emitter", "color_end", [1.0, 0.8, 0.3, 0.0]);
+                set_field(fx_drift_sparks_r, "particle_emitter", "color_start", [1.0, 1.0, 0.9, 1.0]);
+                set_field(fx_drift_sparks_r, "particle_emitter", "color_end", [1.0, 0.8, 0.3, 0.0]);
+            }
+        }
+
+        set_emission_rate(fx_drift_sparks_l, drift_spark_rate);
+        set_emission_rate(fx_drift_sparks_r, drift_spark_rate);
+    }
+
+    // ── Boost trail ──
+    if fx_boost >= 0 {
+        let boost_rate = 0.0;
+        if drift_state == "boost" {
+            boost_rate = 60.0 + boost_time_remaining * 40.0;
+
+            // Color based on tier
+            if boost_tier >= 3 {
+                set_field(fx_boost, "particle_emitter", "color_start", [0.3, 0.5, 1.0, 0.9]);
+                set_field(fx_boost, "particle_emitter", "color_end", [0.1, 0.2, 1.0, 0.0]);
+            } else if boost_tier >= 2 {
+                set_field(fx_boost, "particle_emitter", "color_start", [1.0, 0.5, 0.1, 0.9]);
+                set_field(fx_boost, "particle_emitter", "color_end", [1.0, 0.3, 0.0, 0.0]);
+            } else {
+                set_field(fx_boost, "particle_emitter", "color_start", [1.0, 1.0, 0.8, 0.8]);
+                set_field(fx_boost, "particle_emitter", "color_end", [1.0, 0.8, 0.4, 0.0]);
+            }
+        }
+        set_emission_rate(fx_boost, boost_rate);
+    }
+
+    prev_drift_state = drift_state;
+    prev_boost_tier = boost_tier;
 }

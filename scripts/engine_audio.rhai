@@ -1,8 +1,8 @@
 // engine_audio.rhai — Dynamic audio modulation for kart engine, tires, wind, events
 //
-// Reads kart_state + kart_visual_state each frame, modulates audio_source
-// volume/pitch on sound entities via set_field. The engine's AudioSync
-// propagates these to Kira handles each frame.
+// Reads kart_state + kart_visual_state + drift_state each frame, modulates
+// audio_source volume/pitch on sound entities via set_field. The engine's
+// AudioSync propagates these to Kira handles each frame.
 //
 // Supports configurable target via kart_audio_config component.
 // Player kart: prefix="snd", AI kart: prefix="snd_ai"
@@ -25,6 +25,7 @@ let smooth_rpm = 0.0;
 // Previous frame state for event detection
 let prev_grounded = true;
 let prev_position = -1;
+let prev_drift_state = "none";
 
 fn on_init() {
     let me = this_entity();
@@ -69,15 +70,32 @@ fn on_update() {
     let braking = get_field(kart, "kart_visual_state", "braking");
     let throttle = get_field(kart, "kart_visual_state", "throttle");
 
+    // ── Read drift state ──
+    let drift_state = "none";
+    let drift_timer = 0.0;
+    let boost_tier = 0;
+    let boost_time_remaining = 0.0;
+    if has_component(kart, "drift_state") {
+        drift_state = get_field(kart, "drift_state", "state");
+        drift_timer = get_field(kart, "drift_state", "drift_timer");
+        boost_tier = get_field(kart, "drift_state", "boost_tier");
+        boost_time_remaining = get_field(kart, "drift_state", "boost_time_remaining");
+    }
+
     let abs_speed = speed;
     if abs_speed < 0.0 { abs_speed = -abs_speed; }
     let speed_ratio = abs_speed / max_speed;
     if speed_ratio > 1.0 { speed_ratio = 1.0; }
 
     // ── Engine RPM model ──
-    // target_rpm = speed_ratio + throttle boost (rev response)
     let target_rpm = speed_ratio + throttle * 0.25;
     if target_rpm > 1.0 { target_rpm = 1.0; }
+
+    // During boost, push RPM toward 1.0 for dramatic high-rev sound
+    if drift_state == "boost" {
+        let boost_rpm = 0.85 + boost_tier * 0.05;
+        if boost_rpm > target_rpm { target_rpm = boost_rpm; }
+    }
 
     // Asymmetric smoothing: fast rise (4.0/s), slower fall (2.0/s)
     if target_rpm > smooth_rpm {
@@ -89,25 +107,18 @@ fn on_update() {
     let rpm = smooth_rpm;
 
     // ── Three-layer engine crossfade ──
-    // Idle: full at rpm 0, fades out by 0.35
-    // Mid: fades in 0.20–0.45, fades out 0.55–0.75
-    // High: fades in at 0.55, full by 0.75+
-
     let idle_vol = 1.0 - smoothstep(0.15, 0.35, rpm);
     let mid_vol = smoothstep(0.20, 0.45, rpm) * (1.0 - smoothstep(0.55, 0.75, rpm));
     let high_vol = smoothstep(0.55, 0.75, rpm);
 
-    // Scale volumes
     idle_vol = idle_vol * 0.6;
     mid_vol = mid_vol * 0.7;
     high_vol = high_vol * 0.8;
 
-    // Pitch modulation within each band
     let idle_pitch = 0.8 + rpm * 0.3;
     let mid_pitch = 0.85 + rpm * 0.25;
     let high_pitch = 0.9 + rpm * 0.2;
 
-    // Apply to engine sound entities
     if id_engine_idle >= 0 {
         set_field(id_engine_idle, "audio_source", "volume", idle_vol);
         set_field(id_engine_idle, "audio_source", "pitch", idle_pitch);
@@ -124,6 +135,7 @@ fn on_update() {
     // ── Player-only sounds ──
     if !is_player {
         prev_grounded = grounded;
+        prev_drift_state = drift_state;
         return;
     }
 
@@ -154,14 +166,29 @@ fn on_update() {
                 let brake_skid = speed_ratio * 0.4;
                 if brake_skid > skid_vol { skid_vol = brake_skid; }
             }
+            // Boost skid volume during drift
+            if drift_state == "drifting" {
+                let drift_skid = 0.4 + drift_timer * 0.1;
+                if drift_skid > 0.8 { drift_skid = 0.8; }
+                if drift_skid > skid_vol { skid_vol = drift_skid; }
+            }
+        }
+        let skid_pitch = 0.8 + speed_ratio * 0.4;
+        if drift_state == "drifting" {
+            skid_pitch = skid_pitch + 0.15; // slightly higher pitch during drift
         }
         set_field(id_tire_skid, "audio_source", "volume", skid_vol);
-        set_field(id_tire_skid, "audio_source", "pitch", 0.8 + speed_ratio * 0.4);
+        set_field(id_tire_skid, "audio_source", "pitch", skid_pitch);
     }
 
     // ── Wind rush (quadratic for dramatic high-speed feel) ──
     if id_wind >= 0 {
         let wind_vol = speed_ratio * speed_ratio * 0.4;
+        // Extra wind rush during boost
+        if drift_state == "boost" {
+            let boost_wind = 0.5 + boost_tier * 0.1;
+            if boost_wind > wind_vol { wind_vol = boost_wind; }
+        }
         set_field(id_wind, "audio_source", "volume", wind_vol);
         set_field(id_wind, "audio_source", "pitch", 0.8 + speed_ratio * 0.4);
     }
@@ -173,6 +200,14 @@ fn on_update() {
         play_sound("audio/landing_thud.ogg", 0.5);
     }
     prev_grounded = grounded;
+
+    // Boost whoosh: transition to boost state
+    if drift_state == "boost" && prev_drift_state != "boost" {
+        let whoosh_vol = 0.4 + boost_tier * 0.15;
+        if whoosh_vol > 0.9 { whoosh_vol = 0.9; }
+        play_sound("audio/boost_whoosh.ogg", whoosh_vol);
+    }
+    prev_drift_state = drift_state;
 
     // Position change: improved position
     if has_component(kart, "race_position") {

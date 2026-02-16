@@ -12,3 +12,7 @@ default = 0.0
 [component.ai_input.fields.brake]
 type = "float"
 default = 0.0
+
+[component.ai_input.fields.drift]
+type = "bool"
+default = false

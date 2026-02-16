@@ -1,0 +1,34 @@
+[component.drift_state]
+description = "Drift state machine (written by kart_controller.rhai, read by visuals/audio/HUD)"
+
+[component.drift_state.fields.state]
+type = "string"
+default = "none"
+
+[component.drift_state.fields.drift_angle]
+type = "float"
+default = 0.0
+
+[component.drift_state.fields.drift_direction]
+type = "float"
+default = 0.0
+
+[component.drift_state.fields.drift_timer]
+type = "float"
+default = 0.0
+
+[component.drift_state.fields.boost_tier]
+type = "int"
+default = 0
+
+[component.drift_state.fields.boost_time_remaining]
+type = "float"
+default = 0.0
+
+[component.drift_state.fields.boost_speed_bonus]
+type = "float"
+default = 0.0
+
+[component.drift_state.fields.hop_timer]
+type = "float"
+default = 0.0

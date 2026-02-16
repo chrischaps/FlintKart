@@ -132,8 +132,37 @@ fn on_update() {
         throttle = 0.0;
     }
 
+    // --- Drift decision ---
+    // Drift when approaching sharp curves at high speed
+    let drift_input = false;
+    if far_sample != () {
+        let dot = target["fwd_x"] * far_sample["fwd_x"] + target["fwd_z"] * far_sample["fwd_z"];
+        let abs_steer = steering;
+        if abs_steer < 0.0 { abs_steer = -abs_steer; }
+
+        // Check current drift state
+        let current_drift = "none";
+        if has_component(kart_id, "drift_state") {
+            current_drift = get_field(kart_id, "drift_state", "state");
+        }
+
+        if current_drift == "drifting" || current_drift == "hop" {
+            // Maintain drift while curve continues
+            if dot < 0.9 {
+                drift_input = true;
+            }
+            // Otherwise release to get boost
+        } else {
+            // Initiate drift on sharp upcoming curves at speed
+            if dot < 0.75 && speed > max_speed * 0.4 && abs_steer > 0.25 {
+                drift_input = true;
+            }
+        }
+    }
+
     // Write virtual input to kart
     set_field(kart_id, "ai_input", "throttle", throttle);
     set_field(kart_id, "ai_input", "steering", steering);
     set_field(kart_id, "ai_input", "brake", brake);
+    set_field(kart_id, "ai_input", "drift", drift_input);
 }

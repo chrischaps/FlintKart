@@ -348,6 +348,54 @@ def gen_landing_thud():
     write_ogg("landing_thud.ogg", sig)
 
 
+# ─── Drift / Boost ────────────────────────────────────────────────────
+
+def gen_boost_whoosh():
+    """Rising noise sweep with harmonic shimmer — boost release sound."""
+    dur = 0.4
+    n = int(SAMPLE_RATE * dur)
+    t = np.linspace(0, dur, n, endpoint=False)
+
+    # Rising filtered noise sweep (400 → 4000 Hz)
+    noise = np.random.randn(n)
+    fft = np.fft.rfft(noise)
+    freqs = np.fft.rfftfreq(n, 1.0 / SAMPLE_RATE)
+
+    # Time-varying bandpass via chunked processing
+    sig = np.zeros(n)
+    num_chunks = 12
+    chunk_size = n // num_chunks
+    for i in range(num_chunks):
+        s = i * chunk_size
+        e = min(s + chunk_size, n)
+        ratio = i / (num_chunks - 1)
+        center = 400 + (4000 - 400) * ratio
+        bandwidth = 400 + ratio * 600
+        chunk = noise[s:e]
+        cfft = np.fft.rfft(chunk)
+        cfreqs = np.fft.rfftfreq(len(chunk), 1.0 / SAMPLE_RATE)
+        mask = np.exp(-((cfreqs - center) ** 2) / (2 * bandwidth ** 2))
+        cfft *= mask
+        sig[s:e] = np.fft.irfft(cfft, len(chunk))
+
+    # Harmonic shimmer — ascending tones
+    shimmer = np.sin(2 * np.pi * 800 * t + t * 2000 * np.pi) * 0.15
+    shimmer += np.sin(2 * np.pi * 1200 * t + t * 3000 * np.pi) * 0.10
+    shimmer += np.sin(2 * np.pi * 1600 * t + t * 4000 * np.pi) * 0.06
+    sig = sig * 0.7 + shimmer
+
+    # Envelope: quick attack, sustain, smooth decay
+    env = np.ones_like(t)
+    attack = int(0.008 * SAMPLE_RATE)
+    env[:attack] = np.linspace(0, 1, attack)
+    decay_start = int(0.15 * SAMPLE_RATE)
+    env[decay_start:] = np.exp(-np.linspace(0, 5, len(env) - decay_start))
+    sig *= env
+
+    sig = normalize(sig, peak=0.85)
+    write_ogg("boost_whoosh.ogg", sig)
+
+
 # ─── Main ────────────────────────────────────────────────────────────
 
 def main():
@@ -374,6 +422,9 @@ def main():
     gen_race_finish()
     gen_position_change()
     gen_landing_thud()
+
+    print("\nDrift / Boost:")
+    gen_boost_whoosh()
 
     print(f"\nDone! {len(os.listdir(OUTPUT_DIR))} files in {OUTPUT_DIR}")
 

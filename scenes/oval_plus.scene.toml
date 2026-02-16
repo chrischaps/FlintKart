@@ -13,6 +13,7 @@
 #    S / Down   - Brake
 #    A / Left   - Steer left
 #    D / Right  - Steer right
+#    L.Shift    - Drift (hold while steering at speed)
 #    R          - Restart race
 #    Escape     - Exit
 #    F1         - Debug modes
@@ -95,6 +96,16 @@ passed_start = false
 [entities.kart.race_position]
 position = 1
 total_racers = 2
+
+[entities.kart.drift_state]
+state = "none"
+drift_angle = 0.0
+drift_direction = 0.0
+drift_timer = 0.0
+boost_tier = 0
+boost_time_remaining = 0.0
+boost_speed_bonus = 0.0
+hop_timer = 0.0
 
 [entities.kart.script]
 source = "kart_controller.rhai"
@@ -237,6 +248,17 @@ total_racers = 2
 throttle = 0.0
 steering = 0.0
 brake = 0.0
+drift = false
+
+[entities.ai1_kart.drift_state]
+state = "none"
+drift_angle = 0.0
+drift_direction = 0.0
+drift_timer = 0.0
+boost_tier = 0
+boost_time_remaining = 0.0
+boost_speed_bonus = 0.0
+hop_timer = 0.0
 
 [entities.ai1_kart.script]
 source = "kart_controller.rhai"
@@ -441,7 +463,7 @@ autoplay = false
 playing = false
 looping = true
 
-# Boost trail — dormant until boost mechanic is added
+# Boost trail — activated during drift boost phase
 [entities.fx_boost]
 [entities.fx_boost.transform]
 position = [0, 0.45, 1.1]
@@ -463,6 +485,58 @@ color_end = [0.1, 0.2, 1.0, 0.0]
 blend_mode = "additive"
 shape = "sphere"
 shape_radius = 0.2
+world_space = true
+autoplay = false
+playing = false
+looping = true
+
+# Drift sparks — left rear wheel, tier-colored (white → orange → blue)
+[entities.fx_drift_sparks_l]
+[entities.fx_drift_sparks_l.transform]
+position = [-0.70, 0.05, 0.85]
+[entities.fx_drift_sparks_l.particle_emitter]
+emission_rate = 0.0
+max_particles = 120
+lifetime_min = 0.1
+lifetime_max = 0.35
+speed_min = 2.0
+speed_max = 5.0
+direction = [0, 0.5, 0]
+spread = 50.0
+gravity = [0, -10.0, 0]
+damping = 0.3
+size_start = 0.02
+size_end = 0.005
+color_start = [1.0, 1.0, 1.0, 1.0]
+color_end = [1.0, 0.8, 0.3, 0.0]
+blend_mode = "additive"
+shape = "point"
+world_space = true
+autoplay = false
+playing = false
+looping = true
+
+# Drift sparks — right rear wheel, tier-colored (white → orange → blue)
+[entities.fx_drift_sparks_r]
+[entities.fx_drift_sparks_r.transform]
+position = [0.70, 0.05, 0.85]
+[entities.fx_drift_sparks_r.particle_emitter]
+emission_rate = 0.0
+max_particles = 120
+lifetime_min = 0.1
+lifetime_max = 0.35
+speed_min = 2.0
+speed_max = 5.0
+direction = [0, 0.5, 0]
+spread = 50.0
+gravity = [0, -10.0, 0]
+damping = 0.3
+size_start = 0.02
+size_end = 0.005
+color_start = [1.0, 1.0, 1.0, 1.0]
+color_end = [1.0, 0.8, 0.3, 0.0]
+blend_mode = "additive"
+shape = "point"
 world_space = true
 autoplay = false
 playing = false

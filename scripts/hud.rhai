@@ -146,6 +146,104 @@ fn on_draw_ui() {
         draw_text((sw - rw["width"]) / 2.0, panel_y + 190.0, restart_str, 20.0, 0.7, 0.7, 0.7, 1.0);
     }
 
+    // --- Drift Meter (bottom-center) ---
+    if has_component(kart_id, "drift_state") {
+        let d_state = get_field(kart_id, "drift_state", "state");
+        let d_timer = get_field(kart_id, "drift_state", "drift_timer");
+        let d_tier = get_field(kart_id, "drift_state", "boost_tier");
+        let d_boost_remaining = get_field(kart_id, "drift_state", "boost_time_remaining");
+        let d_boost_bonus = get_field(kart_id, "drift_state", "boost_speed_bonus");
+
+        if d_state == "drifting" || d_state == "boost" {
+            let bar_w = 200.0;
+            let bar_h = 14.0;
+            let bar_x = (sw - bar_w) / 2.0;
+            let bar_y = sh - 80.0;
+
+            // Background
+            draw_rect_ex(bar_x - 4.0, bar_y - 4.0, bar_w + 8.0, bar_h + 24.0, 0.0, 0.0, 0.0, 0.6, 6.0, -1);
+
+            if d_state == "drifting" {
+                // Three tier segments: tier1 0–0.8s, tier2 0.8–1.8s, tier3 1.8–3.5s
+                let seg1_w = bar_w * (0.8 / 3.5);
+                let seg2_w = bar_w * (1.0 / 3.5);
+                let seg3_w = bar_w * (1.7 / 3.5);
+
+                // Segment backgrounds (dark)
+                draw_rect(bar_x, bar_y, seg1_w, bar_h, 0.15, 0.15, 0.15, 0.8);
+                draw_rect(bar_x + seg1_w, bar_y, seg2_w, bar_h, 0.12, 0.12, 0.12, 0.8);
+                draw_rect(bar_x + seg1_w + seg2_w, bar_y, seg3_w, bar_h, 0.1, 0.1, 0.1, 0.8);
+
+                // Fill based on timer
+                let fill_ratio = d_timer / 3.5;
+                if fill_ratio > 1.0 { fill_ratio = 1.0; }
+                let fill_w = bar_w * fill_ratio;
+
+                // Color based on current tier
+                if d_tier >= 3 {
+                    // Ultra blue
+                    draw_rect(bar_x, bar_y, fill_w, bar_h, 0.3, 0.5, 1.0, 0.9);
+                } else if d_tier >= 2 {
+                    // Super orange
+                    draw_rect(bar_x, bar_y, fill_w, bar_h, 1.0, 0.6, 0.1, 0.9);
+                } else if d_tier >= 1 {
+                    // Mini white/yellow
+                    draw_rect(bar_x, bar_y, fill_w, bar_h, 1.0, 1.0, 0.8, 0.9);
+                } else {
+                    // Building (not yet tier 1) — dim white
+                    draw_rect(bar_x, bar_y, fill_w, bar_h, 0.6, 0.6, 0.6, 0.7);
+                }
+
+                // Tier label
+                let tier_label = "";
+                if d_tier >= 3 {
+                    tier_label = "ULTRA";
+                } else if d_tier >= 2 {
+                    tier_label = "SUPER";
+                } else if d_tier >= 1 {
+                    tier_label = "MINI";
+                }
+
+                if tier_label != "" {
+                    let lw = measure_text(tier_label, 14.0);
+                    let lx = (sw - lw["width"]) / 2.0;
+                    if d_tier >= 3 {
+                        draw_text(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 0.3, 0.5, 1.0, 1.0);
+                    } else if d_tier >= 2 {
+                        draw_text(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 1.0, 0.6, 0.1, 1.0);
+                    } else {
+                        draw_text(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 1.0, 1.0, 0.8, 1.0);
+                    }
+                }
+            } else if d_state == "boost" {
+                // Boost: bar drains as boost_time_remaining decreases
+                let max_boost_time = 0.5;
+                if d_tier >= 3 {
+                    max_boost_time = 1.2;
+                } else if d_tier >= 2 {
+                    max_boost_time = 0.8;
+                }
+                let drain_ratio = d_boost_remaining / max_boost_time;
+                if drain_ratio < 0.0 { drain_ratio = 0.0; }
+                if drain_ratio > 1.0 { drain_ratio = 1.0; }
+                let drain_w = bar_w * drain_ratio;
+
+                // Color based on tier
+                if d_tier >= 3 {
+                    draw_rect(bar_x, bar_y, drain_w, bar_h, 0.3, 0.5, 1.0, 0.9);
+                } else if d_tier >= 2 {
+                    draw_rect(bar_x, bar_y, drain_w, bar_h, 1.0, 0.6, 0.1, 0.9);
+                } else {
+                    draw_rect(bar_x, bar_y, drain_w, bar_h, 1.0, 1.0, 0.8, 0.9);
+                }
+
+                let boost_label = "BOOST!";
+                let blw = measure_text(boost_label, 14.0);
+                draw_text((sw - blw["width"]) / 2.0, bar_y + bar_h + 2.0, boost_label, 14.0, 1.0, 1.0, 1.0, 1.0);
+            }
+        }
+    }
+
     // --- Track position indicator (mini, bottom-left) ---
     if state == "racing" {
         let spline_t = get_field(kart_id, "race_progress", "spline_t");

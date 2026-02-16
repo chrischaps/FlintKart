@@ -88,6 +88,17 @@ type = "gamepad_button"
 button = "RightTrigger"
 gamepad = "any"
 
+# --- Drift (hold to initiate drift while steering) ---
+[actions.drift]
+kind = "button"
+[[actions.drift.bindings]]
+type = "key"
+code = "ShiftLeft"
+[[actions.drift.bindings]]
+type = "gamepad_button"
+button = "LeftTrigger"
+gamepad = "any"
+
 # --- Restart ---
 [actions.restart]
 kind = "button"

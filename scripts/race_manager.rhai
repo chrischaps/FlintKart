@@ -298,6 +298,18 @@ fn restart_race(me) {
         set_field(kid, "race_progress", "prev_spline_t", 0.0);
         set_field(kid, "race_progress", "passed_start", false);
 
+        // Reset drift state
+        if has_component(kid, "drift_state") {
+            set_field(kid, "drift_state", "state", "none");
+            set_field(kid, "drift_state", "drift_angle", 0.0);
+            set_field(kid, "drift_state", "drift_direction", 0.0);
+            set_field(kid, "drift_state", "drift_timer", 0.0);
+            set_field(kid, "drift_state", "boost_tier", 0);
+            set_field(kid, "drift_state", "boost_time_remaining", 0.0);
+            set_field(kid, "drift_state", "boost_speed_bonus", 0.0);
+            set_field(kid, "drift_state", "hop_timer", 0.0);
+        }
+
         i += 1;
     }
 
