@@ -470,6 +470,175 @@ looping = true
 
 
 # ============================================================
+#  AUDIO — engine layers, tire sounds, ambience, events
+# ============================================================
+
+# ── Player kart engine sound layers (spatial, looping, parented) ──
+
+[entities.snd_engine_idle]
+parent = "kart"
+[entities.snd_engine_idle.transform]
+position = [0, 0.3, 0]
+[entities.snd_engine_idle.audio_source]
+file = "audio/engine_idle.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.6
+pitch = 1.0
+min_distance = 2.0
+max_distance = 40.0
+
+[entities.snd_engine_mid]
+parent = "kart"
+[entities.snd_engine_mid.transform]
+position = [0, 0.3, 0]
+[entities.snd_engine_mid.audio_source]
+file = "audio/engine_mid.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 2.0
+max_distance = 40.0
+
+[entities.snd_engine_high]
+parent = "kart"
+[entities.snd_engine_high.transform]
+position = [0, 0.3, 0]
+[entities.snd_engine_high.audio_source]
+file = "audio/engine_high.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 2.0
+max_distance = 40.0
+
+# ── Player tire sounds ──
+
+[entities.snd_tire_roll]
+parent = "kart"
+[entities.snd_tire_roll.transform]
+position = [0, 0.1, 0]
+[entities.snd_tire_roll.audio_source]
+file = "audio/tire_roll.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 25.0
+
+[entities.snd_tire_skid]
+parent = "kart"
+[entities.snd_tire_skid.transform]
+position = [0, 0.1, 0]
+[entities.snd_tire_skid.audio_source]
+file = "audio/tire_skid.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 30.0
+
+# ── Ambient sounds (non-spatial) ──
+
+[entities.snd_wind]
+[entities.snd_wind.transform]
+position = [0, 0, 0]
+[entities.snd_wind.audio_source]
+file = "audio/wind_rush.ogg"
+spatial = false
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+
+[entities.snd_crowd]
+[entities.snd_crowd.transform]
+position = [0, 0, 0]
+[entities.snd_crowd.audio_source]
+file = "audio/crowd_ambient.ogg"
+spatial = false
+loop = true
+autoplay = true
+volume = 0.15
+pitch = 1.0
+
+# ── Player audio controller ──
+
+[entities.audio_ctrl]
+[entities.audio_ctrl.transform]
+position = [0, 0, 0]
+[entities.audio_ctrl.kart_audio_config]
+kart = "kart"
+prefix = "snd"
+[entities.audio_ctrl.script]
+source = "engine_audio.rhai"
+
+# ── AI kart 1 engine sound layers (spatial, looping, parented) ──
+
+[entities.snd_ai_engine_idle]
+parent = "ai1_kart"
+[entities.snd_ai_engine_idle.transform]
+position = [0, 0.3, 0]
+[entities.snd_ai_engine_idle.audio_source]
+file = "audio/engine_idle.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.6
+pitch = 1.0
+min_distance = 2.0
+max_distance = 40.0
+
+[entities.snd_ai_engine_mid]
+parent = "ai1_kart"
+[entities.snd_ai_engine_mid.transform]
+position = [0, 0.3, 0]
+[entities.snd_ai_engine_mid.audio_source]
+file = "audio/engine_mid.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 2.0
+max_distance = 40.0
+
+[entities.snd_ai_engine_high]
+parent = "ai1_kart"
+[entities.snd_ai_engine_high.transform]
+position = [0, 0.3, 0]
+[entities.snd_ai_engine_high.audio_source]
+file = "audio/engine_high.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 2.0
+max_distance = 40.0
+
+# ── AI audio controller ──
+
+[entities.ai_audio_ctrl]
+[entities.ai_audio_ctrl.transform]
+position = [0, 0, 0]
+[entities.ai_audio_ctrl.kart_audio_config]
+kart = "ai1_kart"
+prefix = "snd_ai"
+[entities.ai_audio_ctrl.script]
+source = "engine_audio.rhai"
+
+
+# ============================================================
 #  CHASE CAMERA — follows the kart from behind
 # ============================================================
 
@@ -477,6 +646,9 @@ looping = true
 
 [entities.chase_camera.transform]
 position = [0, 5, 10]
+
+[entities.chase_camera.audio_listener]
+active = true
 
 [entities.chase_camera.script]
 source = "chase_camera.rhai"

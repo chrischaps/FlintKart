@@ -77,6 +77,17 @@ gamepad = "any"
 deadzone = 0.05
 scale = 1.0
 
+# --- Look back (rear-view camera) ---
+[actions.look_back]
+kind = "button"
+[[actions.look_back.bindings]]
+type = "key"
+code = "KeyC"
+[[actions.look_back.bindings]]
+type = "gamepad_button"
+button = "RightTrigger"
+gamepad = "any"
+
 # --- Restart ---
 [actions.restart]
 kind = "button"

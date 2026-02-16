@@ -1,0 +1,10 @@
+[component.kart_audio_config]
+description = "Configurable audio target for kart sound entities"
+
+[component.kart_audio_config.fields.kart]
+type = "string"
+default = "kart"
+
+[component.kart_audio_config.fields.prefix]
+type = "string"
+default = "snd"

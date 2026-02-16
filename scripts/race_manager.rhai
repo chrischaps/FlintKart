@@ -4,6 +4,9 @@
 // Tracks all karts (player + AI) along the track spline for lap detection.
 // Uses find_entities_with() to discover karts dynamically.
 
+// Persistent state for audio event detection
+let prev_countdown = "";
+
 fn on_init() {
     let me = this_entity();
     set_field(me, "race_state", "state", "countdown");
@@ -18,10 +21,26 @@ fn on_update() {
 
     if state == "countdown" {
         update_countdown(me, dt);
+
+        // Detect countdown display transitions for sound (persistent scope visible here)
+        let display = get_field(me, "race_state", "countdown_display");
+        if display != prev_countdown {
+            if display == "3" || display == "2" || display == "1" {
+                play_sound("audio/countdown_beep.ogg", 0.8);
+            } else if display == "GO!" {
+                play_sound("audio/countdown_go.ogg", 1.0);
+            }
+            prev_countdown = display;
+        }
     } else if state == "racing" {
         update_racing(me, dt);
     } else if state == "finished" {
         update_finished(me);
+        // Reset prev_countdown after restart (state changes to "countdown")
+        let post_state = get_field(me, "race_state", "state");
+        if post_state == "countdown" {
+            prev_countdown = "";
+        }
     }
 }
 
@@ -200,6 +219,11 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
         let name = entity_name(kart_id);
         log(name + " lap " + current_lap + ": " + format_time(lap_time));
 
+        // Lap complete sound (player kart only)
+        if !has_component(kart_id, "ai_input") {
+            play_sound("audio/lap_complete.ogg", 0.7);
+        }
+
         set_field(kart_id, "race_progress", "lap_time", 0.0);
         set_field(kart_id, "race_progress", "passed_start", false);
 
@@ -208,6 +232,7 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
             let total_laps = get_field(kart_id, "race_progress", "total_laps");
             if current_lap >= total_laps {
                 set_field(manager, "race_state", "state", "finished");
+                play_sound("audio/race_finish.ogg", 1.0);
 
                 // Disable all kart inputs
                 let all = find_all_karts();
