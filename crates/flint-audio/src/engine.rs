@@ -4,7 +4,8 @@
 //! Degrades gracefully when no audio device is available.
 
 use flint_core::{Result, Vec3};
-use kira::sound::static_sound::StaticSoundData;
+use kira::effect::filter::{FilterBuilder, FilterHandle, FilterMode};
+use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle};
 use kira::track::{SpatialTrackBuilder, SpatialTrackDistances, SpatialTrackHandle};
 use kira::{AudioManager, DefaultBackend, Easing, Tween};
 use std::collections::HashMap;
@@ -17,6 +18,7 @@ pub struct AudioEngine {
     listener: Option<kira::listener::ListenerHandle>,
     sound_cache: HashMap<String, StaticSoundData>,
     master_volume: f64,
+    filter_handle: Option<FilterHandle>,
 }
 
 impl Default for AudioEngine {
@@ -27,16 +29,26 @@ impl Default for AudioEngine {
 
 impl AudioEngine {
     pub fn new() -> Self {
+        // Set up main track with a low-pass filter (fully open at 20 kHz by default)
+        let mut settings = kira::AudioManagerSettings::<DefaultBackend>::default();
+        let filter_handle = settings.main_track_builder.add_effect(
+            FilterBuilder::new()
+                .mode(FilterMode::LowPass)
+                .cutoff(20000.0)
+        );
+
         // Try to create the audio manager; gracefully fail if no device
-        let manager = AudioManager::<DefaultBackend>::new(kira::AudioManagerSettings::default())
+        let manager = AudioManager::<DefaultBackend>::new(settings)
             .map_err(|e| eprintln!("Audio: no device available ({e}), running silent"))
             .ok();
 
+        let has_audio = manager.is_some();
         Self {
             manager,
             listener: None,
             sound_cache: HashMap::new(),
             master_volume: 1.0,
+            filter_handle: if has_audio { Some(filter_handle) } else { None },
         }
     }
 
@@ -143,7 +155,7 @@ impl AudioEngine {
         volume: f64,
         pitch: f64,
         looping: bool,
-    ) -> Result<()> {
+    ) -> Result<StaticSoundHandle> {
         let sound_data = self
             .sound_cache
             .get(sound_name)
@@ -158,11 +170,11 @@ impl AudioEngine {
             data = data.loop_region(..);
         }
 
-        track
+        let handle = track
             .play(data)
             .map_err(|e| flint_core::FlintError::AudioError(format!("Failed to play '{sound_name}': {e}")))?;
 
-        Ok(())
+        Ok(handle)
     }
 
     /// Play a cached sound directly on the main track (non-spatial, e.g. ambient)
@@ -172,10 +184,14 @@ impl AudioEngine {
         volume: f64,
         pitch: f64,
         looping: bool,
-    ) -> Result<()> {
+    ) -> Result<StaticSoundHandle> {
         let manager = match &mut self.manager {
             Some(m) => m,
-            None => return Ok(()),
+            None => {
+                return Err(flint_core::FlintError::AudioError(
+                    "No audio device".into(),
+                ));
+            }
         };
 
         let sound_data = self
@@ -192,11 +208,11 @@ impl AudioEngine {
             data = data.loop_region(..);
         }
 
-        manager
+        let handle = manager
             .play(data)
             .map_err(|e| flint_core::FlintError::AudioError(format!("Failed to play '{sound_name}': {e}")))?;
 
-        Ok(())
+        Ok(handle)
     }
 
     /// Play a one-shot sound at a 3D position (creates a temporary spatial track)
@@ -207,7 +223,7 @@ impl AudioEngine {
         volume: f64,
     ) -> Result<()> {
         let mut track = self.create_spatial_track(position, 1.0, 25.0)?;
-        self.play_on_spatial_track(sound_name, &mut track, volume, 1.0, false)?;
+        let _handle = self.play_on_spatial_track(sound_name, &mut track, volume, 1.0, false)?;
         // Track handle is dropped but the sound continues playing until finished
         Ok(())
     }
@@ -215,6 +231,17 @@ impl AudioEngine {
     /// Check if a sound is already loaded
     pub fn has_sound(&self, name: &str) -> bool {
         self.sound_cache.contains_key(name)
+    }
+
+    /// Set the low-pass filter cutoff frequency (Hz). 20000 = fully open, lower = more muffled.
+    pub fn set_filter_cutoff(&mut self, hz: f32) {
+        if let Some(handle) = &mut self.filter_handle {
+            let tween = Tween {
+                duration: Duration::from_millis(16),
+                ..Default::default()
+            };
+            handle.set_cutoff(hz as f64, tween);
+        }
     }
 }
 
@@ -224,7 +251,7 @@ fn to_glam_vec3(v: Vec3) -> glam::Vec3 {
 }
 
 /// Convert linear amplitude (0.0–2.0) to decibels
-fn amplitude_to_db(amplitude: f64) -> kira::Decibels {
+pub fn amplitude_to_db(amplitude: f64) -> kira::Decibels {
     if amplitude <= 0.0 {
         kira::Decibels(-60.0) // silence
     } else {

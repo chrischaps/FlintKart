@@ -21,6 +21,9 @@ pub fn register_all(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
     register_event_api(engine, ctx.clone());
     register_ui_api(engine, ctx.clone());
     register_particle_api(engine, ctx.clone());
+    register_state_api(engine, ctx.clone());
+    register_scene_api(engine, ctx.clone());
+    register_persistence_api(engine, ctx.clone());
     register_log_api(engine, ctx);
 }
 
@@ -358,10 +361,10 @@ fn register_entity_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) 
 // ─── Spline API ──────────────────────────────────────────
 
 fn register_spline_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
-    // spline_closest_point(spline_entity, x, z) -> Map #{t, x, y, z, dist_sq}
+    // spline_closest_point(spline_entity, x, y, z) -> Map #{t, x, y, z, dist_sq}
     {
         let ctx = ctx.clone();
-        engine.register_fn("spline_closest_point", move |spline_id: i64, qx: f64, qz: f64| -> Dynamic {
+        engine.register_fn("spline_closest_point", move |spline_id: i64, qx: f64, qy: f64, qz: f64| -> Dynamic {
             if spline_id < 0 { return Dynamic::UNIT; }
             let c = ctx.lock().unwrap();
             let world = unsafe { c.world_ref() };
@@ -406,10 +409,12 @@ fn register_spline_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) 
 
             for i in 0..count.min(px_arr.len()).min(pz_arr.len()).min(t_arr.len()) {
                 let sx = px_arr[i].as_float().unwrap_or(0.0);
+                let sy = py_arr[i].as_float().unwrap_or(0.0);
                 let sz = pz_arr[i].as_float().unwrap_or(0.0);
                 let dx = qx - sx;
+                let dy = qy - sy;
                 let dz = qz - sz;
-                let dist_sq = dx * dx + dz * dz;
+                let dist_sq = dx * dx + dy * dy + dz * dz;
                 if dist_sq < best_dist_sq {
                     best_dist_sq = dist_sq;
                     best_idx = i;
@@ -557,6 +562,15 @@ fn register_input_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
         engine.register_fn("is_action_just_pressed", move |action: &str| -> bool {
             let c = ctx.lock().unwrap();
             c.input.actions_just_pressed.contains(action)
+        });
+    }
+
+    // is_action_just_released(action: &str) -> bool
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("is_action_just_released", move |action: &str| -> bool {
+            let c = ctx.lock().unwrap();
+            c.input.actions_just_released.contains(action)
         });
     }
 
@@ -802,6 +816,69 @@ fn register_physics_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>)
         engine.register_fn("set_camera_target", move |x: f64, y: f64, z: f64| {
             let mut c = ctx.lock().unwrap();
             c.camera_target_override = Some([x as f32, y as f32, z as f32]);
+        });
+    }
+
+    // set_camera_fov(fov) — override camera field of view from scripts
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_camera_fov", move |fov: f64| {
+            let mut c = ctx.lock().unwrap();
+            c.camera_fov_override = Some(fov as f32);
+        });
+    }
+
+    // set_vignette(intensity) — override vignette intensity from scripts
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_vignette", move |intensity: f64| {
+            let mut c = ctx.lock().unwrap();
+            c.postprocess_vignette_override = Some(intensity as f32);
+        });
+    }
+
+    // set_bloom_intensity(intensity) — override bloom intensity from scripts
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_bloom_intensity", move |intensity: f64| {
+            let mut c = ctx.lock().unwrap();
+            c.postprocess_bloom_override = Some(intensity as f32);
+        });
+    }
+
+    // set_exposure(value) — override exposure from scripts
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_exposure", move |value: f64| {
+            let mut c = ctx.lock().unwrap();
+            c.postprocess_exposure_override = Some(value as f32);
+        });
+    }
+
+    // set_chromatic_aberration(intensity) — override chromatic aberration from scripts
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_chromatic_aberration", move |intensity: f64| {
+            let mut c = ctx.lock().unwrap();
+            c.postprocess_chromatic_aberration_override = Some(intensity as f32);
+        });
+    }
+
+    // set_radial_blur(intensity) — override radial blur from scripts
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_radial_blur", move |intensity: f64| {
+            let mut c = ctx.lock().unwrap();
+            c.postprocess_radial_blur_override = Some(intensity as f32);
+        });
+    }
+
+    // set_audio_lowpass(cutoff_hz) — override audio low-pass filter cutoff from scripts
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("set_audio_lowpass", move |cutoff_hz: f64| {
+            let mut c = ctx.lock().unwrap();
+            c.audio_lowpass_cutoff_override = Some(cutoff_hz as f32);
         });
     }
 }
@@ -1295,6 +1372,301 @@ fn register_ui_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
                     Dynamic::from(map)
                 }
                 None => Dynamic::UNIT,
+            }
+        });
+    }
+}
+
+// ─── State Machine API ────────────────────────────────────
+
+fn register_state_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
+    // push_state(name: &str)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("push_state", move |name: &str| {
+            let mut c = ctx.lock().unwrap();
+            c.commands.push(ScriptCommand::PushState {
+                name: name.to_string(),
+            });
+        });
+    }
+
+    // pop_state()
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("pop_state", move || {
+            let mut c = ctx.lock().unwrap();
+            c.commands.push(ScriptCommand::PopState);
+        });
+    }
+
+    // replace_state(name: &str)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("replace_state", move |name: &str| {
+            let mut c = ctx.lock().unwrap();
+            c.commands.push(ScriptCommand::ReplaceState {
+                name: name.to_string(),
+            });
+        });
+    }
+
+    // current_state() -> String
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("current_state", move || -> String {
+            let c = ctx.lock().unwrap();
+            if c.state_machine.is_null() {
+                return "playing".to_string();
+            }
+            let sm = unsafe { &*c.state_machine };
+            sm.current_state().to_string()
+        });
+    }
+
+    // state_stack() -> Array
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("state_stack", move || -> rhai::Array {
+            let c = ctx.lock().unwrap();
+            if c.state_machine.is_null() {
+                return vec![Dynamic::from("playing".to_string())];
+            }
+            let sm = unsafe { &*c.state_machine };
+            sm.stack_names()
+                .into_iter()
+                .map(|s| Dynamic::from(s.to_string()))
+                .collect()
+        });
+    }
+
+    // register_state(name: &str, config: Map)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("register_state", move |name: &str, config: Map| {
+            let mut c = ctx.lock().unwrap();
+            if c.state_machine.is_null() {
+                return;
+            }
+            let sm = unsafe { &mut *c.state_machine };
+
+            let policy = |key: &str| -> flint_runtime::SystemPolicy {
+                match config.get(key).and_then(|v| v.clone().into_string().ok()).as_deref() {
+                    Some("pause") | Some("Pause") => flint_runtime::SystemPolicy::Pause,
+                    Some("hidden") | Some("Hidden") => flint_runtime::SystemPolicy::Hidden,
+                    _ => flint_runtime::SystemPolicy::Run,
+                }
+            };
+
+            let transparent = config
+                .get("transparent")
+                .and_then(|v| v.as_bool().ok())
+                .unwrap_or(false);
+
+            sm.register_state(
+                name,
+                flint_runtime::StateConfig {
+                    physics: policy("physics"),
+                    scripts: policy("scripts"),
+                    animation: policy("animation"),
+                    particles: policy("particles"),
+                    audio: policy("audio"),
+                    rendering: policy("rendering"),
+                    transparent,
+                },
+            );
+        });
+    }
+}
+
+// ─── Scene API ────────────────────────────────────────────
+
+fn register_scene_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
+    // load_scene(path: &str)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("load_scene", move |path: &str| {
+            let mut c = ctx.lock().unwrap();
+            c.commands.push(ScriptCommand::LoadScene {
+                path: path.to_string(),
+            });
+        });
+    }
+
+    // reload_scene()
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("reload_scene", move || {
+            let mut c = ctx.lock().unwrap();
+            c.commands.push(ScriptCommand::ReloadScene);
+        });
+    }
+
+    // current_scene() -> String
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("current_scene", move || -> String {
+            let c = ctx.lock().unwrap();
+            c.current_scene_path.clone()
+        });
+    }
+
+    // complete_transition()
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("complete_transition", move || {
+            let mut c = ctx.lock().unwrap();
+            c.commands.push(ScriptCommand::FireEvent {
+                name: "__transition_complete".to_string(),
+                data: toml::Value::Table(toml::map::Map::new()),
+            });
+        });
+    }
+
+    // transition_progress() -> f64
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("transition_progress", move || -> f64 {
+            let c = ctx.lock().unwrap();
+            c.transition_progress
+        });
+    }
+
+    // is_transitioning() -> bool
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("is_transitioning", move || -> bool {
+            let c = ctx.lock().unwrap();
+            c.transition_progress >= 0.0
+        });
+    }
+
+    // transition_phase() -> String ("idle", "exiting", "entering")
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("transition_phase", move || -> String {
+            let c = ctx.lock().unwrap();
+            c.transition_phase.clone()
+        });
+    }
+}
+
+// ─── Persistence API ──────────────────────────────────────
+
+fn register_persistence_api(engine: &mut Engine, ctx: Arc<Mutex<ScriptCallContext>>) {
+    // persist_set(key, value)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("persist_set", move |key: &str, val: Dynamic| {
+            let mut c = ctx.lock().unwrap();
+            if c.persistent_store.is_null() {
+                return;
+            }
+            let store = unsafe { &mut *c.persistent_store };
+            if let Some(tv) = crate::api::dynamic_to_toml(&val) {
+                store.set(key, tv);
+            }
+        });
+    }
+
+    // persist_get(key) -> Dynamic
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("persist_get", move |key: &str| -> Dynamic {
+            let c = ctx.lock().unwrap();
+            if c.persistent_store.is_null() {
+                return Dynamic::UNIT;
+            }
+            let store = unsafe { &*c.persistent_store };
+            match store.get(key) {
+                Some(val) => crate::api::toml_to_dynamic(val.clone()),
+                None => Dynamic::UNIT,
+            }
+        });
+    }
+
+    // persist_has(key) -> bool
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("persist_has", move |key: &str| -> bool {
+            let c = ctx.lock().unwrap();
+            if c.persistent_store.is_null() {
+                return false;
+            }
+            let store = unsafe { &*c.persistent_store };
+            store.has(key)
+        });
+    }
+
+    // persist_remove(key)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("persist_remove", move |key: &str| {
+            let mut c = ctx.lock().unwrap();
+            if c.persistent_store.is_null() {
+                return;
+            }
+            let store = unsafe { &mut *c.persistent_store };
+            store.remove(key);
+        });
+    }
+
+    // persist_clear()
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("persist_clear", move || {
+            let mut c = ctx.lock().unwrap();
+            if c.persistent_store.is_null() {
+                return;
+            }
+            let store = unsafe { &mut *c.persistent_store };
+            store.clear();
+        });
+    }
+
+    // persist_keys() -> Array
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("persist_keys", move || -> rhai::Array {
+            let c = ctx.lock().unwrap();
+            if c.persistent_store.is_null() {
+                return vec![];
+            }
+            let store = unsafe { &*c.persistent_store };
+            store
+                .keys()
+                .into_iter()
+                .map(|k| Dynamic::from(k.to_string()))
+                .collect()
+        });
+    }
+
+    // persist_save(path)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("persist_save", move |path: &str| {
+            let c = ctx.lock().unwrap();
+            if c.persistent_store.is_null() {
+                return;
+            }
+            let store = unsafe { &*c.persistent_store };
+            if let Err(e) = store.save_to_file(std::path::Path::new(path)) {
+                eprintln!("[persist] save error: {}", e);
+            }
+        });
+    }
+
+    // persist_load(path)
+    {
+        let ctx = ctx.clone();
+        engine.register_fn("persist_load", move |path: &str| {
+            let mut c = ctx.lock().unwrap();
+            if c.persistent_store.is_null() {
+                return;
+            }
+            let store = unsafe { &mut *c.persistent_store };
+            if let Err(e) = store.load_from_file(std::path::Path::new(path)) {
+                eprintln!("[persist] load error: {}", e);
             }
         });
     }

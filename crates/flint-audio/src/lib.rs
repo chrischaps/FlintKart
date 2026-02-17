@@ -39,13 +39,28 @@ impl AudioSystem {
         }
     }
 
+    /// Clear sync and trigger state for a scene transition.
+    /// Preserves the AudioEngine and its sound_cache (reusable across scenes).
+    pub fn clear(&mut self) {
+        self.sync.clear();
+        self.triggers = AudioTrigger::new();
+    }
+
     /// Update the listener position (called from PlayerApp after camera update)
     pub fn update_listener(&mut self, position: Vec3, yaw: f32, pitch: f32) {
         self.engine.update_listener(position, yaw, pitch);
     }
 
+    /// Set the low-pass filter cutoff frequency on the master bus (Hz)
+    pub fn set_filter_cutoff(&mut self, hz: f32) {
+        self.engine.set_filter_cutoff(hz);
+    }
+
     /// Process game events and execute resulting audio commands
     pub fn process_events(&mut self, events: &[GameEvent], world: &FlintWorld) {
+        if !self.engine.is_available() {
+            return;
+        }
         let commands = self.triggers.process_events(events, world);
 
         for cmd in commands {
@@ -62,6 +77,7 @@ impl AudioSystem {
                     } else if let Err(e) =
                         self.engine.play_non_spatial(&sound, volume, 1.0, false)
                     {
+                        // One-shot non-spatial: handle not needed
                         eprintln!("Audio: {:?}", e);
                     }
                 }
@@ -108,6 +124,9 @@ impl RuntimeSystem for AudioSystem {
 
         // Update spatial positions for moving sources
         self.sync.update_positions(world);
+
+        // Propagate per-frame pitch/volume changes from ECS to Kira handles
+        self.sync.update_parameters(world);
 
         // Reload trigger rules for any new entities
         self.triggers.load_rules(world);
