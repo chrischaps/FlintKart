@@ -27,6 +27,24 @@ let prev_race_position = 0;
 let position_flash_scale = 1.0;
 let position_flash_timer = 0.0;
 
+// Pause menu state
+let pause_selection = 0;
+let pause_options = ["Resume", "Restart Race", "Track Select", "Main Menu"];
+
+// Post-race menu state
+let finish_selection = 0;
+let finish_options = ["Restart", "Track Select", "Main Menu"];
+let finish_menu_active = false;  // becomes true after a short delay post-finish
+let prev_finish_steer = 0;      // edge detection for steering in finish menu
+
+// Transition fade
+let hud_fade_alpha = 0.0;
+let hud_scene_entered = true;
+
+// Data-driven UI handle
+let hud_ui_handle = -1;
+let hud_ui_loaded = false;
+
 // Minimap persistent cache — pre-transformed screen coords
 let minimap_ready = false;
 let minimap_pts_x = [];
@@ -40,15 +58,166 @@ let minimap_world_cz = 0.0;
 let minimap_cached_sw = 0.0;
 let minimap_cached_sh = 0.0;
 
-fn on_draw_ui() {
-    let kart_id = get_entity("kart");
-    let manager_id = get_entity("race_manager");
-    if kart_id < 0 || manager_id < 0 { return; }
+fn on_scene_enter() {
+    hud_fade_alpha = 1.0;
+    hud_scene_entered = true;
 
+    // Load data-driven HUD layout (also loads on first frame if scene_enter missed)
+    hud_ui_handle = load_ui("ui/race_hud.ui.toml");
+    hud_ui_loaded = hud_ui_handle >= 0;
+}
+
+fn on_init() {
+    // Initial scene load — also try loading UI
+    if !hud_ui_loaded {
+        hud_ui_handle = load_ui("ui/race_hud.ui.toml");
+        hud_ui_loaded = hud_ui_handle >= 0;
+    }
+}
+
+fn on_draw_ui() {
     let sw = screen_width();
     let sh = screen_height();
-    let state = get_field(manager_id, "race_state", "state");
     let dt = delta_time();
+
+    // ── Transition fades ──
+    let phase = transition_phase();
+    if phase == "exiting" {
+        hud_fade_alpha = transition_progress();
+        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 10);
+        if hud_fade_alpha >= 1.0 {
+            complete_transition();
+        }
+        return;
+    }
+    if phase == "entering" {
+        hud_fade_alpha = 1.0 - transition_progress();
+    }
+    if hud_scene_entered && phase == "idle" {
+        hud_fade_alpha = hud_fade_alpha - dt * 3.0;
+        if hud_fade_alpha <= 0.0 {
+            hud_fade_alpha = 0.0;
+            hud_scene_entered = false;
+        }
+    }
+
+    // ── Pause system ──
+    let cur_state = current_state();
+    if cur_state == "paused" {
+        // Dark overlay
+        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.05, 0.7, 0.0, 0);
+
+        // "PAUSED" title
+        let p_title = "PAUSED";
+        let p_title_m = measure_text(p_title, 56.0);
+        draw_text((sw - p_title_m["width"]) / 2.0, sh * 0.25, p_title, 56.0, 1.0, 1.0, 1.0, 1.0);
+
+        // Menu options (vertical list)
+        let menu_y = sh * 0.42;
+        let row_h = 48.0;
+        let pi = 0;
+        while pi < pause_options.len() {
+            let label = pause_options[pi];
+            let label_m = measure_text(label, 24.0);
+            let lx = (sw - label_m["width"]) / 2.0;
+            let ly = menu_y + pi * row_h;
+
+            if pi == pause_selection {
+                // Selected: gold highlight bar + bright text
+                draw_rect_ex(lx - 20.0, ly - 6.0, label_m["width"] + 40.0, 36.0,
+                             1.0, 0.85, 0.2, 0.15, 8.0, 0);
+                draw_text(lx, ly, label, 24.0, 1.0, 0.85, 0.2, 1.0);
+                // Selection arrow
+                let p_time = total_time();
+                let arr_alpha = 0.5 + sin(p_time * 4.0) * 0.3;
+                draw_text(lx - 36.0, ly, ">", 24.0, 1.0, 0.85, 0.2, arr_alpha);
+            } else {
+                draw_text(lx, ly, label, 24.0, 0.6, 0.6, 0.65, 0.8);
+            }
+            pi += 1;
+        }
+
+        // Controls hint
+        let p_hint = "W/S to navigate  |  ENTER to select  |  ESC to resume";
+        let p_hint_m = measure_text(p_hint, 13.0);
+        draw_text((sw - p_hint_m["width"]) / 2.0, sh * 0.82, p_hint, 13.0, 0.4, 0.4, 0.45, 0.6);
+
+        // Input handling
+        if is_action_just_pressed("pause") {
+            pop_state();
+        } else {
+            if is_action_just_pressed("menu_up") && pause_selection > 0 {
+                pause_selection -= 1;
+                play_sound("audio/countdown_beep.ogg", 0.15);
+            }
+            if is_action_just_pressed("menu_down") && pause_selection < pause_options.len() - 1 {
+                pause_selection += 1;
+                play_sound("audio/countdown_beep.ogg", 0.15);
+            }
+            if is_action_just_pressed("menu_confirm") {
+                if pause_selection == 0 {
+                    // Resume
+                    pop_state();
+                } else if pause_selection == 1 {
+                    // Restart Race
+                    pop_state();
+                    play_sound("audio/countdown_beep.ogg", 0.3);
+                    reload_scene();
+                } else if pause_selection == 2 {
+                    // Track Select
+                    pop_state();
+                    persist_set("menu_screen", "select");
+                    play_sound("audio/countdown_beep.ogg", 0.3);
+                    load_scene("scenes/main_menu.scene.toml");
+                } else if pause_selection == 3 {
+                    // Main Menu
+                    pop_state();
+                    play_sound("audio/countdown_beep.ogg", 0.3);
+                    load_scene("scenes/main_menu.scene.toml");
+                }
+            }
+        }
+
+        // Draw fade on top if active
+        if hud_fade_alpha > 0.01 {
+            draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 10);
+        }
+        return;
+    }
+
+    // Pause toggle (only during gameplay, not during transitions)
+    if phase == "idle" {
+        let manager_id = get_entity("race_manager");
+        if manager_id >= 0 {
+            let race_state = get_field(manager_id, "race_state", "state");
+            if race_state == "racing" || race_state == "countdown" || race_state == "finished" {
+                if is_action_just_pressed("pause") {
+                    push_state("paused");
+                    pause_selection = 0;
+                    return;
+                }
+            }
+        }
+    }
+
+    let kart_id = get_entity("kart");
+    let manager_id = get_entity("race_manager");
+    if kart_id < 0 || manager_id < 0 {
+        // Draw fade overlay even without kart (loading)
+        if hud_fade_alpha > 0.01 {
+            draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 10);
+        }
+        return;
+    }
+
+    let state = get_field(manager_id, "race_state", "state");
+
+    // Reset finish menu state when not in finished state
+    if state != "finished" {
+        finish_menu_active = false;
+        finish_selection = 0;
+        prev_finish_steer = 0;
+    }
 
     // ── Visual juice effects (drawn behind HUD at layer -2) ──
 
@@ -219,31 +388,45 @@ fn on_draw_ui() {
         draw_text((sw - of_w["width"]) / 2.0, 52.0, of_str, 16.0, 0.6, 0.6, 0.6, 1.0);
     }
 
-    // --- Lap Counter (top-left) ---
+    // --- Lap Counter (top-left) — data-driven ---
     let current_lap = get_field(kart_id, "race_progress", "current_lap");
     let total_laps = get_field(kart_id, "race_progress", "total_laps");
     let lap_display = current_lap + 1;
     if lap_display > total_laps { lap_display = total_laps; }
 
-    // Background panel
-    draw_rect_ex(10.0, 10.0, 180.0, 50.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
-    draw_text(20.0, 18.0, "LAP", 16.0, 0.7, 0.7, 0.7, 1.0);
-    draw_text(70.0, 14.0, "" + lap_display + " / " + total_laps, 28.0, 1.0, 1.0, 1.0, 1.0);
+    if hud_ui_loaded {
+        ui_set_text("lap_value", "" + lap_display + " / " + total_laps);
+    } else {
+        draw_rect_ex(10.0, 10.0, 180.0, 50.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
+        draw_text(20.0, 18.0, "LAP", 16.0, 0.7, 0.7, 0.7, 1.0);
+        draw_text(70.0, 14.0, "" + lap_display + " / " + total_laps, 28.0, 1.0, 1.0, 1.0, 1.0);
+    }
 
-    // --- Race Timer (top-right) ---
+    // --- Race Timer (top-right) — data-driven ---
     let race_time = get_field(kart_id, "race_progress", "race_time");
     let timer_str = format_time(race_time);
 
-    draw_rect_ex(sw - 220.0, 10.0, 210.0, 50.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
-    draw_text(sw - 210.0, 18.0, "TIME", 16.0, 0.7, 0.7, 0.7, 1.0);
-    draw_text(sw - 150.0, 14.0, timer_str, 28.0, 1.0, 1.0, 1.0, 1.0);
+    if hud_ui_loaded {
+        ui_set_text("timer_value", timer_str);
+    } else {
+        draw_rect_ex(sw - 220.0, 10.0, 210.0, 50.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
+        draw_text(sw - 210.0, 18.0, "TIME", 16.0, 0.7, 0.7, 0.7, 1.0);
+        draw_text(sw - 150.0, 14.0, timer_str, 28.0, 1.0, 1.0, 1.0, 1.0);
+    }
 
-    // --- Best Lap (below timer) ---
+    // --- Best Lap (below timer) — data-driven ---
     let best_lap = get_field(kart_id, "race_progress", "best_lap");
     if best_lap < 900.0 {
-        draw_rect_ex(sw - 220.0, 65.0, 210.0, 30.0, 0.0, 0.0, 0.0, 0.4, 8.0, -1);
-        draw_text(sw - 210.0, 70.0, "BEST", 14.0, 0.5, 0.8, 0.5, 1.0);
-        draw_text(sw - 150.0, 68.0, format_time(best_lap), 20.0, 0.5, 1.0, 0.5, 1.0);
+        if hud_ui_loaded {
+            ui_show("best_panel");
+            ui_set_text("best_value", format_time(best_lap));
+        } else {
+            draw_rect_ex(sw - 220.0, 65.0, 210.0, 30.0, 0.0, 0.0, 0.0, 0.4, 8.0, -1);
+            draw_text(sw - 210.0, 70.0, "BEST", 14.0, 0.5, 0.8, 0.5, 1.0);
+            draw_text(sw - 150.0, 68.0, format_time(best_lap), 20.0, 0.5, 1.0, 0.5, 1.0);
+        }
+    } else if hud_ui_loaded {
+        ui_hide("best_panel");
     }
 
     // --- Leaderboard (right side, during racing/countdown/finishing) ---
@@ -344,13 +527,17 @@ fn on_draw_ui() {
         }
     }
 
-    // --- Speed (bottom-right) ---
+    // --- Speed (bottom-right) — data-driven ---
     let speed = get_field(kart_id, "kart_state", "speed");
     let kmh = floor(abs(speed) * 3.6); // m/s to km/h
 
-    draw_rect_ex(sw - 180.0, sh - 70.0, 170.0, 60.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
-    draw_text(sw - 170.0, sh - 60.0, "" + kmh, 36.0, 1.0, 1.0, 1.0, 1.0);
-    draw_text(sw - 60.0, sh - 46.0, "km/h", 16.0, 0.7, 0.7, 0.7, 1.0);
+    if hud_ui_loaded {
+        ui_set_text("speed_value", "" + kmh);
+    } else {
+        draw_rect_ex(sw - 180.0, sh - 70.0, 170.0, 60.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
+        draw_text(sw - 170.0, sh - 60.0, "" + kmh, 36.0, 1.0, 1.0, 1.0, 1.0);
+        draw_text(sw - 60.0, sh - 46.0, "km/h", 16.0, 0.7, 0.7, 0.7, 1.0);
+    }
 
     // --- Countdown Overlay ---
     let countdown_display = get_field(manager_id, "race_state", "countdown_display");
@@ -537,10 +724,76 @@ fn on_draw_ui() {
             fri += 1;
         }
 
-        // Restart prompt
-        let restart_str = "Press R to restart";
-        let rw = measure_text(restart_str, 20.0);
-        draw_text((sw - rw["width"]) / 2.0, panel_y + panel_h - 32.0, restart_str, 20.0, 0.8, 0.8, 0.8, 1.0);
+        // ── Post-race menu options ──
+        let opt_y = panel_y + panel_h - 48.0;
+        let opt_gap = 160.0;
+        let total_opt_w = finish_options.len() * opt_gap;
+        let opt_start_x = (sw - total_opt_w) / 2.0 + opt_gap / 2.0;
+
+        // Activate menu after a brief delay so player doesn't accidentally skip
+        if !finish_menu_active {
+            finish_menu_active = true;
+            finish_selection = 0;
+        }
+
+        let oi = 0;
+        while oi < finish_options.len() {
+            let opt_x = opt_start_x + oi * opt_gap;
+            let opt_label = finish_options[oi];
+            let opt_m = measure_text(opt_label, 18.0);
+            let olx = opt_x - opt_m["width"] / 2.0;
+
+            if oi == finish_selection {
+                // Highlight background
+                draw_rect_ex(olx - 12.0, opt_y - 4.0, opt_m["width"] + 24.0, 28.0,
+                             1.0, 0.85, 0.2, 0.2, 6.0, -1);
+                draw_text(olx, opt_y, opt_label, 18.0, 1.0, 0.85, 0.2, 1.0);
+            } else {
+                draw_text(olx, opt_y, opt_label, 18.0, 0.6, 0.6, 0.6, 0.8);
+            }
+            oi += 1;
+        }
+
+        // Hint
+        let hint = "A/D to select  |  ENTER to confirm  |  R to quick restart";
+        let hint_m = measure_text(hint, 12.0);
+        draw_text((sw - hint_m["width"]) / 2.0, opt_y + 32.0, hint, 12.0, 0.4, 0.4, 0.45, 0.6);
+
+        // Navigation input — left/right via steering axis with edge detection
+        let f_steer = action_value("steering");
+        let f_dir = 0;
+        if f_steer > 0.5 { f_dir = 1; }
+        if f_steer < -0.5 { f_dir = -1; }
+
+        if f_dir != 0 && f_dir != prev_finish_steer {
+            if f_dir > 0 && finish_selection < finish_options.len() - 1 {
+                finish_selection += 1;
+                play_sound("audio/countdown_beep.ogg", 0.15);
+            }
+            if f_dir < 0 && finish_selection > 0 {
+                finish_selection -= 1;
+                play_sound("audio/countdown_beep.ogg", 0.15);
+            }
+        }
+        prev_finish_steer = f_dir;
+
+        // Confirm
+        if is_action_just_pressed("menu_confirm") && finish_menu_active {
+            if finish_selection == 0 {
+                // Restart
+                play_sound("audio/countdown_beep.ogg", 0.3);
+                reload_scene();
+            } else if finish_selection == 1 {
+                // Track Select
+                persist_set("menu_screen", "select");
+                play_sound("audio/countdown_beep.ogg", 0.3);
+                load_scene("scenes/main_menu.scene.toml");
+            } else if finish_selection == 2 {
+                // Main Menu
+                play_sound("audio/countdown_beep.ogg", 0.3);
+                load_scene("scenes/main_menu.scene.toml");
+            }
+        }
     }
 
     // --- Drift Meter (bottom-center) ---
@@ -779,6 +1032,11 @@ fn on_draw_ui() {
                 draw_circle(player_sx, player_sy, 4.0, 1.0, 1.0, 1.0, 1.0);
             }
         }
+    }
+
+    // ── Transition fade overlay (drawn on top of everything) ──
+    if hud_fade_alpha > 0.01 {
+        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 10);
     }
 }
 

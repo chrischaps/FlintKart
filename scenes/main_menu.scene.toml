@@ -1,0 +1,116 @@
+# ================================================================
+#  FLINT KART — Main Menu
+# ================================================================
+#
+#  Title screen and track selection. Lightweight scene with a
+#  display kart, ambient music, and the menu controller script.
+#
+#  Launch: play.bat
+# ================================================================
+
+[scene]
+name = "Flint Kart — Main Menu"
+version = "1.0"
+description = "Title screen and track selection menu"
+input_config = "config/input.toml"
+
+[environment]
+skybox = "textures/skybox_kart.png"
+
+[post_process]
+bloom_enabled = true
+bloom_intensity = 0.12
+bloom_threshold = 0.85
+vignette_enabled = true
+vignette_intensity = 0.5
+vignette_smoothness = 0.9
+exposure = 1.15
+
+
+# ============================================================
+#  DISPLAY KART — decorative kart for the title screen
+# ============================================================
+
+[entities.display_kart]
+[entities.display_kart.transform]
+position = [0, 0.5, 0]
+rotation = [0, -30, 0]
+[entities.display_kart.model]
+asset = "kart_body"
+
+[entities.display_kart_wheel_fl]
+parent = "display_kart"
+[entities.display_kart_wheel_fl.transform]
+position = [-0.70, 0.22, -1.0]
+[entities.display_kart_wheel_fl.model]
+asset = "kart_wheel"
+
+[entities.display_kart_wheel_fr]
+parent = "display_kart"
+[entities.display_kart_wheel_fr.transform]
+position = [0.70, 0.22, -1.0]
+[entities.display_kart_wheel_fr.model]
+asset = "kart_wheel"
+
+[entities.display_kart_wheel_rl]
+parent = "display_kart"
+[entities.display_kart_wheel_rl.transform]
+position = [-0.70, 0.22, 0.85]
+[entities.display_kart_wheel_rl.model]
+asset = "kart_wheel"
+
+[entities.display_kart_wheel_rr]
+parent = "display_kart"
+[entities.display_kart_wheel_rr.transform]
+position = [0.70, 0.22, 0.85]
+[entities.display_kart_wheel_rr.model]
+asset = "kart_wheel"
+
+[entities.display_kart_driver]
+parent = "display_kart"
+[entities.display_kart_driver.transform]
+position = [0.0, 0.12, 0.15]
+[entities.display_kart_driver.model]
+asset = "kart_driver"
+
+
+# ============================================================
+#  LIGHTING
+# ============================================================
+
+[entities.sun]
+[entities.sun.transform]
+position = [0, 50, 0]
+rotation = [-45, 30, 0]
+[entities.sun.light]
+type = "directional"
+direction = [-0.35, 0.71, 0.61]
+color = [1.0, 1.0, 0.98]
+intensity = 1.0
+
+
+# ============================================================
+#  MENU MUSIC — relaxed version of race theme
+# ============================================================
+
+[entities.snd_menu_music]
+[entities.snd_menu_music.transform]
+position = [0, 0, 0]
+[entities.snd_menu_music.audio_source]
+file = "audio/race_music.ogg"
+spatial = false
+loop = true
+autoplay = true
+volume = 0.25
+pitch = 0.9
+
+
+# ============================================================
+#  MENU CONTROLLER — drives the menu UI + camera orbit
+# ============================================================
+
+[entities.menu_controller]
+[entities.menu_controller.transform]
+position = [0, 0, 0]
+[entities.menu_controller.script]
+source = "menu.rhai"

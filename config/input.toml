@@ -109,3 +109,67 @@ code = "KeyR"
 type = "gamepad_button"
 button = "North"
 gamepad = "any"
+
+# --- Pause ---
+[actions.pause]
+kind = "button"
+[[actions.pause.bindings]]
+type = "key"
+code = "Escape"
+[[actions.pause.bindings]]
+type = "gamepad_button"
+button = "Start"
+gamepad = "any"
+
+# --- Menu Confirm ---
+[actions.menu_confirm]
+kind = "button"
+[[actions.menu_confirm.bindings]]
+type = "key"
+code = "Enter"
+[[actions.menu_confirm.bindings]]
+type = "key"
+code = "Space"
+[[actions.menu_confirm.bindings]]
+type = "gamepad_button"
+button = "South"
+gamepad = "any"
+
+# --- Menu Back ---
+[actions.menu_back]
+kind = "button"
+[[actions.menu_back.bindings]]
+type = "key"
+code = "Backspace"
+[[actions.menu_back.bindings]]
+type = "gamepad_button"
+button = "East"
+gamepad = "any"
+
+# --- Menu Up ---
+[actions.menu_up]
+kind = "button"
+[[actions.menu_up.bindings]]
+type = "key"
+code = "KeyW"
+[[actions.menu_up.bindings]]
+type = "key"
+code = "ArrowUp"
+[[actions.menu_up.bindings]]
+type = "gamepad_button"
+button = "DPadUp"
+gamepad = "any"
+
+# --- Menu Down ---
+[actions.menu_down]
+kind = "button"
+[[actions.menu_down.bindings]]
+type = "key"
+code = "KeyS"
+[[actions.menu_down.bindings]]
+type = "key"
+code = "ArrowDown"
+[[actions.menu_down.bindings]]
+type = "gamepad_button"
+button = "DPadDown"
+gamepad = "any"

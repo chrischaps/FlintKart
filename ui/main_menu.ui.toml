@@ -1,0 +1,166 @@
+[ui]
+name = "Main Menu"
+style = "ui/main_menu.style.toml"
+
+# ── Screen containers (toggle visibility to switch screens) ──
+
+[elements.title_screen]
+type = "panel"
+anchor = "top-left"
+class = "screen-container"
+
+[elements.select_screen]
+type = "panel"
+anchor = "top-left"
+class = "screen-container"
+visible = false
+
+# ════════════════════════════════════════════════════════
+#  TITLE SCREEN
+# ════════════════════════════════════════════════════════
+
+[elements.title_shadow]
+type = "text"
+parent = "title_screen"
+class = "title-shadow"
+text = "FLINT KART"
+
+[elements.title_text]
+type = "text"
+parent = "title_screen"
+class = "title-text"
+text = "FLINT KART"
+
+[elements.subtitle]
+type = "text"
+parent = "title_screen"
+class = "subtitle"
+text = "KART RACING REDEFINED"
+
+[elements.prompt]
+type = "text"
+parent = "title_screen"
+class = "prompt"
+text = "Press ENTER"
+
+[elements.version]
+type = "text"
+parent = "title_screen"
+class = "version"
+text = "Built on the Flint Engine"
+
+# ════════════════════════════════════════════════════════
+#  TRACK SELECT SCREEN
+# ════════════════════════════════════════════════════════
+
+[elements.select_header]
+type = "text"
+parent = "select_screen"
+class = "select-header"
+text = "SELECT TRACK"
+
+# ── Card 1: Oval Plus ──
+
+[elements.card_1_border]
+type = "rect"
+parent = "select_screen"
+class = "card-border"
+
+[elements.card_1_bg]
+type = "rect"
+parent = "select_screen"
+class = "card-bg"
+
+[elements.card_1_number]
+type = "text"
+parent = "select_screen"
+class = "card-number"
+text = "1"
+
+[elements.card_1_name]
+type = "text"
+parent = "select_screen"
+class = "card-name"
+text = "Oval Plus"
+
+[elements.card_1_length]
+type = "text"
+parent = "select_screen"
+class = "card-length"
+text = "660m"
+
+[elements.card_1_desc1]
+type = "text"
+parent = "select_screen"
+class = "card-desc"
+text = "Wide oval with sweeping curves."
+
+[elements.card_1_desc2]
+type = "text"
+parent = "select_screen"
+class = "card-desc"
+text = "Perfect for learning drift boosts."
+
+# ── Card 2: Mountain Switchback ──
+
+[elements.card_2_border]
+type = "rect"
+parent = "select_screen"
+class = "card-border"
+
+[elements.card_2_bg]
+type = "rect"
+parent = "select_screen"
+class = "card-bg"
+
+[elements.card_2_number]
+type = "text"
+parent = "select_screen"
+class = "card-number"
+text = "2"
+
+[elements.card_2_name]
+type = "text"
+parent = "select_screen"
+class = "card-name"
+text = "Mountain Switchback"
+
+[elements.card_2_length]
+type = "text"
+parent = "select_screen"
+class = "card-length"
+text = "886m"
+
+[elements.card_2_desc1]
+type = "text"
+parent = "select_screen"
+class = "card-desc"
+text = "Alpine hairpins, steep climbs, and a"
+
+[elements.card_2_desc2]
+type = "text"
+parent = "select_screen"
+class = "card-desc"
+text = "dramatic 29m summit flyover."
+
+# ── Selection arrows ──
+
+[elements.arrow_left]
+type = "text"
+parent = "select_screen"
+class = "arrow"
+text = ">"
+
+[elements.arrow_right]
+type = "text"
+parent = "select_screen"
+class = "arrow"
+text = "<"
+
+# ── Controls hint ──
+
+[elements.select_hint]
+type = "text"
+parent = "select_screen"
+class = "select-hint"
+text = "A/D to browse  |  ENTER to race  |  BACKSPACE for title"

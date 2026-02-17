@@ -62,10 +62,10 @@ def generate_kart_body():
     dark_grey = [0.18, 0.18, 0.22, 1.0]
     black = [0.06, 0.06, 0.06, 1.0]
 
-    # Floor pan
+    # Floor pan — thin sheet below all other parts to avoid z-fighting
     parts.append(colored_box(
-        [1.6, 0.12, 2.6], body_main,
-        translation(0, 0.06, 0), metallic=0.6, roughness=0.35
+        [1.6, 0.04, 2.6], body_main,
+        translation(0, 0.02, 0), metallic=0.6, roughness=0.35
     ))
 
     # Nose cowl
@@ -74,10 +74,10 @@ def generate_kart_body():
         translation(0, 0.18, -1.15), metallic=0.6, roughness=0.35
     ))
 
-    # Engine cover
+    # Engine cover (starts at z=0.5 to avoid overlap with seat)
     parts.append(colored_box(
-        [1.2, 0.35, 0.8], body_main,
-        translation(0, 0.24, 0.8), metallic=0.6, roughness=0.35
+        [1.2, 0.35, 0.7], body_main,
+        translation(0, 0.24, 0.85), metallic=0.6, roughness=0.35
     ))
 
     # Left sidepod
