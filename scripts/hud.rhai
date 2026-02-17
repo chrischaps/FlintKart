@@ -1,12 +1,44 @@
 // hud.rhai — Heads-up display rendering
 //
 // Renders via on_draw_ui() each frame:
+//   - Speed lines (radial streaks at high speed)
+//   - Boost flash overlay (screen flash on drift→boost)
+//   - Collision flash (red edge vignette on wall hits)
 //   - Lap counter (top-left)
 //   - Race timer (top-right)
 //   - Best lap time (below timer)
 //   - Speed indicator (bottom-right)
+//   - Minimap (bottom-left)
 //   - Countdown overlay (center)
 //   - Finish overlay (center)
+
+// Boost flash state
+let boost_flash_alpha = 0.0;
+let boost_flash_r = 1.0;
+let boost_flash_g = 1.0;
+let boost_flash_b = 1.0;
+let prev_drift_state = "none";
+
+// Collision flash state
+let collision_flash_alpha = 0.0;
+
+// Position change flash state
+let prev_race_position = 0;
+let position_flash_scale = 1.0;
+let position_flash_timer = 0.0;
+
+// Minimap persistent cache — pre-transformed screen coords
+let minimap_ready = false;
+let minimap_pts_x = [];
+let minimap_pts_y = [];
+let minimap_pt_count = 0;
+let minimap_scale = 1.0;
+let minimap_cx = 0.0;
+let minimap_cy = 0.0;
+let minimap_world_cx = 0.0;
+let minimap_world_cz = 0.0;
+let minimap_cached_sw = 0.0;
+let minimap_cached_sh = 0.0;
 
 fn on_draw_ui() {
     let kart_id = get_entity("kart");
@@ -16,11 +48,147 @@ fn on_draw_ui() {
     let sw = screen_width();
     let sh = screen_height();
     let state = get_field(manager_id, "race_state", "state");
+    let dt = delta_time();
+
+    // ── Visual juice effects (drawn behind HUD at layer -2) ──
+
+    let speed = get_field(kart_id, "kart_state", "speed");
+    let max_speed = get_field(kart_id, "kart_physics", "max_speed");
+    let abs_speed = speed;
+    if abs_speed < 0.0 { abs_speed = -abs_speed; }
+    let speed_ratio = clamp(abs_speed / max_speed, 0.0, 1.0);
+
+    // --- Speed Lines (radial streaks from edges toward center) ---
+    if speed_ratio > 0.45 && state == "racing" {
+        let cx = sw / 2.0;
+        let cy = sh / 2.0;
+        let time = total_time();
+
+        // Intensity ramps from 0 at 45% speed to full at 100%
+        let line_intensity = clamp((speed_ratio - 0.45) / 0.55, 0.0, 1.0);
+        let line_alpha = line_intensity * 0.05;
+
+        // 16 lines evenly spaced around the screen edge
+        let num_lines = 16;
+        let angle_step = 6.2832 / num_lines; // TAU / 16
+        let base_rotation = time * 0.15; // Slow drift rotation
+
+        let li = 0;
+        while li < num_lines {
+            let angle = li * angle_step + base_rotation;
+            let dx = cos(angle);
+            let dy = sin(angle);
+
+            // Line starts from outer edge, extends inward proportional to speed
+            let outer_dist = 0.55; // 55% of half-screen
+            let inner_dist = outer_dist - line_intensity * 0.25;
+
+            // Jitter length slightly per-line using angle as seed
+            let jitter = sin(angle * 7.0 + time * 3.0) * 0.03;
+            let out_d = outer_dist + jitter;
+            let in_d = inner_dist + jitter;
+
+            let half_w = if sw > sh { sw / 2.0 } else { sh / 2.0 };
+            let x1 = cx + dx * half_w * out_d;
+            let y1 = cy + dy * half_w * out_d;
+            let x2 = cx + dx * half_w * in_d;
+            let y2 = cy + dy * half_w * in_d;
+
+            // Alternate between white and light blue for depth
+            let lr = 0.9;
+            let lg = 0.95;
+            let lb = 1.0;
+            if li % 2 == 0 {
+                lr = 1.0;
+                lg = 1.0;
+                lb = 1.0;
+            }
+
+            draw_line(x1, y1, x2, y2, lr, lg, lb, line_alpha, 1.5);
+            li += 1;
+        }
+    }
+
+    // --- Boost Flash Overlay ---
+    let drift_state = "none";
+    let boost_tier = 0;
+    if has_component(kart_id, "drift_state") {
+        drift_state = get_field(kart_id, "drift_state", "state");
+        boost_tier = get_field(kart_id, "drift_state", "boost_tier");
+    }
+
+    // Detect drift→boost transition
+    if drift_state == "boost" && prev_drift_state != "boost" {
+        boost_flash_alpha = 0.35;
+        // Color by tier
+        if boost_tier >= 3 {
+            boost_flash_r = 0.4;
+            boost_flash_g = 0.6;
+            boost_flash_b = 1.0;
+        } else if boost_tier >= 2 {
+            boost_flash_r = 1.0;
+            boost_flash_g = 0.65;
+            boost_flash_b = 0.15;
+        } else {
+            boost_flash_r = 1.0;
+            boost_flash_g = 1.0;
+            boost_flash_b = 0.9;
+        }
+    }
+    prev_drift_state = drift_state;
+
+    // Draw and decay boost flash
+    if boost_flash_alpha > 0.01 {
+        draw_rect_ex(0.0, 0.0, sw, sh, boost_flash_r, boost_flash_g, boost_flash_b, boost_flash_alpha, 0.0, -2);
+        boost_flash_alpha = boost_flash_alpha - dt * 1.8;
+        if boost_flash_alpha < 0.0 { boost_flash_alpha = 0.0; }
+    }
+
+    // --- Collision Flash (red edge vignette) ---
+    let wall_impact = get_field(kart_id, "kart_state", "wall_impact");
+    if wall_impact > 2.0 {
+        let new_alpha = clamp(wall_impact * 0.04, 0.0, 0.5);
+        if new_alpha > collision_flash_alpha {
+            collision_flash_alpha = new_alpha;
+        }
+    }
+
+    if collision_flash_alpha > 0.01 {
+        let edge = 80.0;
+        // Top edge
+        draw_rect_ex(0.0, 0.0, sw, edge, 0.8, 0.1, 0.05, collision_flash_alpha * 0.7, 0.0, -2);
+        // Bottom edge
+        draw_rect_ex(0.0, sh - edge, sw, edge, 0.8, 0.1, 0.05, collision_flash_alpha * 0.7, 0.0, -2);
+        // Left edge
+        draw_rect_ex(0.0, 0.0, edge, sh, 0.8, 0.1, 0.05, collision_flash_alpha * 0.5, 0.0, -2);
+        // Right edge
+        draw_rect_ex(sw - edge, 0.0, edge, sh, 0.8, 0.1, 0.05, collision_flash_alpha * 0.5, 0.0, -2);
+
+        collision_flash_alpha = collision_flash_alpha - dt * 2.5;
+        if collision_flash_alpha < 0.0 { collision_flash_alpha = 0.0; }
+    }
 
     // --- Race Position (top-center) ---
     if has_component(kart_id, "race_position") && state == "racing" {
         let pos = get_field(kart_id, "race_position", "position");
         let total = get_field(kart_id, "race_position", "total_racers");
+
+        // Detect position change for flash effect
+        if pos != prev_race_position && prev_race_position > 0 {
+            position_flash_scale = 1.6;
+            position_flash_timer = 0.0;
+        }
+        prev_race_position = pos;
+
+        // Animate flash: ease-out from 1.6 → 1.0 over 0.4s
+        if position_flash_scale > 1.01 {
+            position_flash_timer = position_flash_timer + dt;
+            let flash_t = clamp(position_flash_timer / 0.4, 0.0, 1.0);
+            // Ease-out: 1 - (1-t)^2
+            let ease = 1.0 - (1.0 - flash_t) * (1.0 - flash_t);
+            position_flash_scale = 1.6 - ease * 0.6;
+            if position_flash_scale < 1.0 { position_flash_scale = 1.0; }
+        }
 
         // Ordinal suffix
         let suffix = "th";
@@ -29,7 +197,7 @@ fn on_draw_ui() {
         if pos == 3 { suffix = "rd"; }
 
         let pos_str = "" + pos + suffix;
-        let pos_size = 48.0;
+        let pos_size = 48.0 * position_flash_scale;
         let pos_w = measure_text(pos_str, pos_size);
         let pos_x = (sw - pos_w["width"]) / 2.0;
 
@@ -78,7 +246,7 @@ fn on_draw_ui() {
         draw_text(sw - 150.0, 68.0, format_time(best_lap), 20.0, 0.5, 1.0, 0.5, 1.0);
     }
 
-    // --- Leaderboard (right side, during racing/countdown) ---
+    // --- Leaderboard (right side, during racing/countdown/finishing) ---
     if state == "racing" || state == "countdown" {
         let all_karts = find_entities_with("race_position");
         let num = all_karts.len();
@@ -210,8 +378,8 @@ fn on_draw_ui() {
 
     // --- Finish Overlay ---
     if state == "finished" {
-        // Dark overlay
-        draw_rect(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, 0.5);
+        // Solid dark overlay at z=-1 so text at z=0 draws on top
+        draw_rect_ex(0.0, 0.0, sw, sh, 0.05, 0.05, 0.08, 0.92, 0.0, -1);
 
         // Get all racers for standings
         let finish_karts = find_entities_with("race_position");
@@ -243,13 +411,14 @@ fn on_draw_ui() {
             fa += 1;
         }
 
-        // Results panel — sized for standings table
-        let panel_w = 380.0;
-        let frow_h = 34.0;
-        let panel_h = 160.0 + fnum * frow_h;
+        // Results panel with subtle border (z=-1 so text at z=0 draws on top)
+        let panel_w = 400.0;
+        let frow_h = 36.0;
+        let panel_h = 170.0 + fnum * frow_h;
         let panel_x = (sw - panel_w) / 2.0;
         let panel_y = (sh - panel_h) / 2.0;
-        draw_rect_ex(panel_x, panel_y, panel_w, panel_h, 0.1, 0.1, 0.15, 0.9, 12.0, 1);
+        draw_rect_ex(panel_x - 1.0, panel_y - 1.0, panel_w + 2.0, panel_h + 2.0, 0.3, 0.3, 0.35, 0.5, 13.0, -1);
+        draw_rect_ex(panel_x, panel_y, panel_w, panel_h, 0.10, 0.10, 0.14, 1.0, 12.0, -1);
 
         // Title
         let title = "RACE COMPLETE";
@@ -266,11 +435,20 @@ fn on_draw_ui() {
         if best_lap < 900.0 {
             let best_str = "Best Lap: " + format_time(best_lap);
             let bw = measure_text(best_str, 18.0);
-            draw_text((sw - bw["width"]) / 2.0, panel_y + 92.0, best_str, 18.0, 0.5, 1.0, 0.5, 1.0);
+            draw_text((sw - bw["width"]) / 2.0, panel_y + 92.0, best_str, 18.0, 0.4, 0.9, 0.4, 1.0);
         }
 
         // Standings table
-        let table_y = panel_y + 118.0;
+        let table_y = panel_y + 124.0;
+
+        // Get winner's finish time for gap calculation
+        let winner_ft = 0.0;
+        if fsorted.len() > 0 {
+            winner_ft = get_field(fsorted[0], "race_progress", "finish_time");
+            if winner_ft == () || winner_ft <= 0.0 {
+                winner_ft = get_field(fsorted[0], "race_progress", "race_time");
+            }
+        }
 
         let fri = 0;
         while fri < fsorted.len() {
@@ -279,25 +457,30 @@ fn on_draw_ui() {
             let fry = table_y + fri * frow_h;
             let f_is_player = !has_component(feid, "ai_input");
 
+            // Alternating row backgrounds for readability
+            if fri % 2 == 0 {
+                draw_rect_ex(panel_x + 8.0, fry - 2.0, panel_w - 16.0, frow_h - 2.0, 1.0, 1.0, 1.0, 0.04, 4.0, -1);
+            }
+
             // Highlight player row
             if f_is_player {
-                draw_rect_ex(panel_x + 10.0, fry - 2.0, panel_w - 20.0, frow_h - 2.0, 1.0, 1.0, 1.0, 0.1, 4.0, -1);
+                draw_rect_ex(panel_x + 8.0, fry - 2.0, panel_w - 16.0, frow_h - 2.0, 0.4, 0.6, 1.0, 0.12, 4.0, -1);
             }
 
             // Position with medal color
-            let fp_r = 0.7;
-            let fp_g = 0.7;
-            let fp_b = 0.7;
+            let fp_r = 0.85;
+            let fp_g = 0.85;
+            let fp_b = 0.85;
             if fpos == 1 { fp_r = 1.0; fp_g = 0.85; fp_b = 0.2; }
-            if fpos == 2 { fp_r = 0.8; fp_g = 0.8; fp_b = 0.85; }
-            if fpos == 3 { fp_r = 0.8; fp_g = 0.55; fp_b = 0.3; }
+            if fpos == 2 { fp_r = 0.78; fp_g = 0.78; fp_b = 0.85; }
+            if fpos == 3 { fp_r = 0.85; fp_g = 0.6; fp_b = 0.3; }
 
             let fsuffix = "th";
             if fpos == 1 { fsuffix = "st"; }
             if fpos == 2 { fsuffix = "nd"; }
             if fpos == 3 { fsuffix = "rd"; }
 
-            draw_text(panel_x + 20.0, fry + 4.0, "" + fpos + fsuffix, 20.0, fp_r, fp_g, fp_b, 1.0);
+            draw_text(panel_x + 20.0, fry + 5.0, "" + fpos + fsuffix, 20.0, fp_r, fp_g, fp_b, 1.0);
 
             // Color dot
             let fcr = 0.9;
@@ -308,25 +491,48 @@ fn on_draw_ui() {
                 fcg = get_field(feid, "racer_info", "color_g");
                 fcb = get_field(feid, "racer_info", "color_b");
             }
-            draw_circle(panel_x + 75.0, fry + 14.0, 6.0, fcr, fcg, fcb, 1.0);
+            draw_circle(panel_x + 78.0, fry + 15.0, 6.0, fcr, fcg, fcb, 1.0);
 
-            // Name
+            // Name — bright white
             let fname = "Racer";
             if has_component(feid, "racer_info") {
                 fname = get_field(feid, "racer_info", "name");
             }
-            let fname_a = 0.85;
-            if f_is_player { fname_a = 1.0; }
-            draw_text(panel_x + 90.0, fry + 4.0, fname, 18.0, 1.0, 1.0, 1.0, fname_a);
+            draw_text(panel_x + 94.0, fry + 5.0, fname, 18.0, 1.0, 1.0, 1.0, 1.0);
 
-            // Finish time (or race_time if not finished)
+            // Finish time display
             let ftime = get_field(feid, "race_progress", "finish_time");
-            if ftime == () || ftime <= 0.0 {
-                ftime = get_field(feid, "race_progress", "race_time");
+            let has_finished = ftime != () && ftime > 0.0;
+
+            let ftime_str = "";
+            let ftime_r = 0.9;
+            let ftime_g = 0.9;
+            let ftime_b = 0.9;
+
+            if !has_finished {
+                // Kart hasn't crossed the line yet — show "---"
+                ftime_str = "---";
+                ftime_r = 0.45;
+                ftime_g = 0.45;
+                ftime_b = 0.45;
+            } else if fpos == 1 {
+                // Winner: full time in bright white
+                ftime_str = format_time(ftime);
+            } else {
+                // Others: show gap from winner
+                let gap = ftime - winner_ft;
+                if gap < 0.01 {
+                    ftime_str = format_time(ftime);
+                } else {
+                    ftime_str = "+" + format_time(gap);
+                    ftime_r = 0.7;
+                    ftime_g = 0.8;
+                    ftime_b = 0.7;
+                }
             }
-            let ftime_str = format_time(ftime);
+
             let ftime_w = measure_text(ftime_str, 16.0);
-            draw_text(panel_x + panel_w - 20.0 - ftime_w["width"], fry + 6.0, ftime_str, 16.0, 0.7, 0.7, 0.7, 1.0);
+            draw_text(panel_x + panel_w - 22.0 - ftime_w["width"], fry + 7.0, ftime_str, 16.0, ftime_r, ftime_g, ftime_b, 1.0);
 
             fri += 1;
         }
@@ -334,7 +540,7 @@ fn on_draw_ui() {
         // Restart prompt
         let restart_str = "Press R to restart";
         let rw = measure_text(restart_str, 20.0);
-        draw_text((sw - rw["width"]) / 2.0, panel_y + panel_h - 30.0, restart_str, 20.0, 0.7, 0.7, 0.7, 1.0);
+        draw_text((sw - rw["width"]) / 2.0, panel_y + panel_h - 32.0, restart_str, 20.0, 0.8, 0.8, 0.8, 1.0);
     }
 
     // --- Drift Meter (bottom-center) ---
@@ -435,20 +641,143 @@ fn on_draw_ui() {
         }
     }
 
-    // --- Track position indicator (mini, bottom-left) ---
-    if state == "racing" {
-        let spline_t = get_field(kart_id, "race_progress", "spline_t");
-        let bar_w = 200.0;
-        let bar_h = 8.0;
-        let bar_x = 10.0;
-        let bar_y = sh - 20.0;
+    // --- Minimap (bottom-left) ---
+    if state == "racing" || state == "countdown" {
+        let map_w = 180.0;
+        let map_h = 190.0;
+        let map_x = 10.0;
+        let map_y = sh - map_h - 10.0;
 
-        // Background bar
-        draw_rect_ex(bar_x, bar_y, bar_w, bar_h, 0.2, 0.2, 0.2, 0.6, 4.0, -1);
-        // Progress fill
-        let fill_w = bar_w * spline_t;
-        if fill_w > 0.0 {
-            draw_rect_ex(bar_x, bar_y, fill_w, bar_h, 0.3, 0.7, 1.0, 0.8, 4.0, 0);
+        // Lazy-init: cache track points as screen coords (once, or on resize)
+        if !minimap_ready || minimap_cached_sw != sw || minimap_cached_sh != sh {
+            let track_id = get_entity("track_path");
+            if track_id >= 0 && has_component(track_id, "spline_data") {
+                let count = get_field(track_id, "spline_data", "sample_count");
+                let px = get_field(track_id, "spline_data", "positions_x");
+                let pz = get_field(track_id, "spline_data", "positions_z");
+
+                if count > 0 {
+                    // Compute world-space bounding box
+                    let min_x = px[0];
+                    let max_x = px[0];
+                    let min_z = pz[0];
+                    let max_z = pz[0];
+                    let bi = 1;
+                    while bi < count {
+                        if px[bi] < min_x { min_x = px[bi]; }
+                        if px[bi] > max_x { max_x = px[bi]; }
+                        if pz[bi] < min_z { min_z = pz[bi]; }
+                        if pz[bi] > max_z { max_z = pz[bi]; }
+                        bi += 1;
+                    }
+
+                    minimap_world_cx = (min_x + max_x) / 2.0;
+                    minimap_world_cz = (min_z + max_z) / 2.0;
+
+                    // Drawing area with margins
+                    let draw_w = map_w - 24.0;
+                    let draw_h = map_h - 34.0;
+                    minimap_cx = map_x + map_w / 2.0;
+                    minimap_cy = map_y + 22.0 + draw_h / 2.0;
+
+                    // Scale to fit (uniform)
+                    let range_x = max_x - min_x;
+                    let range_z = max_z - min_z;
+                    if range_x < 1.0 { range_x = 1.0; }
+                    if range_z < 1.0 { range_z = 1.0; }
+                    let sx = draw_w / range_x;
+                    let sz = draw_h / range_z;
+                    if sx < sz { minimap_scale = sx; } else { minimap_scale = sz; }
+
+                    // Pre-transform all points to screen coords
+                    minimap_pts_x = [];
+                    minimap_pts_y = [];
+                    let ti = 0;
+                    while ti < count {
+                        minimap_pts_x.push(minimap_cx + (px[ti] - minimap_world_cx) * minimap_scale);
+                        minimap_pts_y.push(minimap_cy + (pz[ti] - minimap_world_cz) * minimap_scale);
+                        ti += 1;
+                    }
+                    minimap_pt_count = count;
+                    minimap_cached_sw = sw;
+                    minimap_cached_sh = sh;
+                    minimap_ready = true;
+                }
+            }
+        }
+
+        if minimap_ready {
+            // Panel background
+            draw_rect_ex(map_x, map_y, map_w, map_h, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
+            draw_text(map_x + 10.0, map_y + 4.0, "MAP", 14.0, 0.6, 0.6, 0.6, 1.0);
+
+            // Track outline — pass 1: shadow
+            let si = 0;
+            while si < minimap_pt_count - 1 {
+                draw_line(minimap_pts_x[si], minimap_pts_y[si],
+                          minimap_pts_x[si + 1], minimap_pts_y[si + 1],
+                          0.15, 0.15, 0.2, 0.5, 4.0);
+                si += 1;
+            }
+            // Close the loop
+            draw_line(minimap_pts_x[minimap_pt_count - 1], minimap_pts_y[minimap_pt_count - 1],
+                      minimap_pts_x[0], minimap_pts_y[0],
+                      0.15, 0.15, 0.2, 0.5, 4.0);
+
+            // Track outline — pass 2: surface
+            let si2 = 0;
+            while si2 < minimap_pt_count - 1 {
+                draw_line(minimap_pts_x[si2], minimap_pts_y[si2],
+                          minimap_pts_x[si2 + 1], minimap_pts_y[si2 + 1],
+                          0.35, 0.35, 0.4, 0.9, 2.0);
+                si2 += 1;
+            }
+            draw_line(minimap_pts_x[minimap_pt_count - 1], minimap_pts_y[minimap_pt_count - 1],
+                      minimap_pts_x[0], minimap_pts_y[0],
+                      0.35, 0.35, 0.4, 0.9, 2.0);
+
+            // Start/finish marker — gold dot at index 0
+            draw_circle(minimap_pts_x[0], minimap_pts_y[0], 3.0, 1.0, 0.85, 0.2, 0.9);
+
+            // Racer dots
+            let all_karts = find_entities_with("kart_state");
+            let player_sx = 0.0;
+            let player_sy = 0.0;
+            let player_found = false;
+
+            let ki = 0;
+            while ki < all_karts.len() {
+                let eid = all_karts[ki];
+                let is_player = !has_component(eid, "ai_input");
+                let pos = get_position(eid);
+                let dot_x = minimap_cx + (pos["x"] - minimap_world_cx) * minimap_scale;
+                let dot_y = minimap_cy + (pos["z"] - minimap_world_cz) * minimap_scale;
+
+                if is_player {
+                    // Save player position for drawing last (on top)
+                    player_sx = dot_x;
+                    player_sy = dot_y;
+                    player_found = true;
+                } else {
+                    // AI kart — colored dot
+                    let cr = 0.8;
+                    let cg = 0.8;
+                    let cb = 0.8;
+                    if has_component(eid, "racer_info") {
+                        cr = get_field(eid, "racer_info", "color_r");
+                        cg = get_field(eid, "racer_info", "color_g");
+                        cb = get_field(eid, "racer_info", "color_b");
+                    }
+                    draw_circle(dot_x, dot_y, 3.5, cr, cg, cb, 1.0);
+                }
+                ki += 1;
+            }
+
+            // Player dot — drawn last so it's always on top
+            if player_found {
+                draw_circle_outline(player_sx, player_sy, 6.0, 1.0, 1.0, 1.0, 0.7, 1.5);
+                draw_circle(player_sx, player_sy, 4.0, 1.0, 1.0, 1.0, 1.0);
+            }
         }
     }
 }

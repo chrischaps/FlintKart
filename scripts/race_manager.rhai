@@ -7,6 +7,11 @@
 // Persistent state for audio event detection
 let prev_countdown = "";
 
+// Music volume target levels
+let MUSIC_VOL_COUNTDOWN = 0.25;
+let MUSIC_VOL_RACING = 0.4;
+let MUSIC_VOL_FINISHED = 0.15;
+
 fn on_init() {
     let me = this_entity();
     set_field(me, "race_state", "state", "countdown");
@@ -21,6 +26,7 @@ fn on_update() {
 
     if state == "countdown" {
         update_countdown(me, dt);
+        update_music(me, dt, MUSIC_VOL_COUNTDOWN);
 
         // Detect countdown display transitions for sound (persistent scope visible here)
         let display = get_field(me, "race_state", "countdown_display");
@@ -34,8 +40,10 @@ fn on_update() {
         }
     } else if state == "racing" {
         update_racing(me, dt);
+        update_music(me, dt, MUSIC_VOL_RACING);
     } else if state == "finished" {
-        update_finished(me);
+        update_finished(me, dt);
+        update_music(me, dt, MUSIC_VOL_FINISHED);
         // Reset prev_countdown after restart (state changes to "countdown")
         let post_state = get_field(me, "race_state", "state");
         if post_state == "countdown" {
@@ -134,8 +142,11 @@ fn update_racing(me, dt) {
     }
 
     // --- Position ranking ---
-    // Sort karts by (current_lap DESC, spline_t DESC)
-    // Simple insertion sort — N is small (2-4 karts)
+    rank_karts(karts);
+}
+
+fn rank_karts(karts) {
+    let total = karts.len();
     let sorted = [];
     let s = 0;
     while s < total {
@@ -148,13 +159,39 @@ fn update_racing(me, dt) {
         let key = sorted[a];
         let key_lap = get_field(key, "race_progress", "current_lap");
         let key_t = get_field(key, "race_progress", "spline_t");
+        let key_ft = get_field(key, "race_progress", "finish_time");
+        if key_ft == () { key_ft = 0.0; }
         let b = a - 1;
         let done = false;
         while b >= 0 && !done {
             let cmp_lap = get_field(sorted[b], "race_progress", "current_lap");
             let cmp_t = get_field(sorted[b], "race_progress", "spline_t");
-            // Higher lap or same lap + higher t should be ahead (lower position number)
-            if cmp_lap < key_lap || (cmp_lap == key_lap && cmp_t < key_t) {
+            let cmp_ft = get_field(sorted[b], "race_progress", "finish_time");
+            if cmp_ft == () { cmp_ft = 0.0; }
+
+            // Finished karts ranked by finish_time (lower = better)
+            // Unfinished karts ranked by (lap DESC, spline_t DESC)
+            // Finished karts always beat unfinished karts on the same lap
+            let key_ahead = false;
+            if key_lap > cmp_lap {
+                key_ahead = true;
+            } else if key_lap == cmp_lap {
+                if key_ft > 0.0 && cmp_ft > 0.0 {
+                    // Both finished: earlier time wins
+                    if key_ft < cmp_ft { key_ahead = true; }
+                } else if key_ft > 0.0 {
+                    // Key finished, cmp didn't: key ahead
+                    key_ahead = true;
+                } else if cmp_ft > 0.0 {
+                    // Cmp finished, key didn't: cmp stays ahead
+                    key_ahead = false;
+                } else {
+                    // Neither finished: higher spline_t ahead
+                    if key_t > cmp_t { key_ahead = true; }
+                }
+            }
+
+            if key_ahead {
                 sorted[b + 1] = sorted[b];
                 b -= 1;
             } else {
@@ -188,12 +225,13 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
     lap_time = lap_time + dt;
     set_field(kart_id, "race_progress", "lap_time", lap_time);
 
-    // Find nearest spline point using native API
+    // Find nearest spline point using native API (3D distance for elevation crossings)
     let kart_pos = get_position(kart_id);
     let kx = kart_pos["x"];
+    let ky = kart_pos["y"];
     let kz = kart_pos["z"];
 
-    let closest = spline_closest_point(track_id, kx, kz);
+    let closest = spline_closest_point(track_id, kx, ky, kz);
     if closest == () { return; }
 
     let best_t = closest["t"];
@@ -223,9 +261,20 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
         let name = entity_name(kart_id);
         log(name + " lap " + current_lap + ": " + format_time(lap_time));
 
-        // Lap complete sound (player kart only)
+        // Lap complete sound + celebration burst (player kart only)
         if !has_component(kart_id, "ai_input") {
             play_sound("audio/lap_complete.ogg", 0.7);
+
+            // Particle burst from all emitters for celebration
+            let burst_names = ["fx_exhaust", "fx_dust_rl", "fx_dust_rr", "fx_sparks", "fx_boost", "fx_drift_sparks_l", "fx_drift_sparks_r"];
+            let bi = 0;
+            while bi < burst_names.len() {
+                let beid = get_entity(burst_names[bi]);
+                if beid >= 0 {
+                    emit_burst(beid, 25);
+                }
+                bi += 1;
+            }
         }
 
         set_field(kart_id, "race_progress", "lap_time", 0.0);
@@ -237,26 +286,68 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
             set_field(kart_id, "race_progress", "finish_time", race_time);
             log(name + " finished: " + format_time(race_time));
 
-            // Player kart triggers race end
+            // Player kart triggers the results screen
             if !has_component(kart_id, "ai_input") {
                 set_field(manager, "race_state", "state", "finished");
+                set_field(manager, "race_state", "finishing_timer", 30.0);
                 play_sound("audio/race_finish.ogg", 1.0);
 
-                // Disable all kart inputs
-                let all = find_all_karts();
-                let i = 0;
-                while i < all.len() {
-                    set_field(all[i], "kart_state", "input_enabled", false);
-                    i += 1;
-                }
+                // Disable only the player's input — AI keeps racing
+                set_field(kart_id, "kart_state", "input_enabled", false);
             }
         }
     }
 }
 
-fn update_finished(me) {
+fn update_finished(me, dt) {
+    // Allow restart at any time
     if is_action_just_pressed("restart") {
         restart_race(me);
+        return;
+    }
+
+    // Keep AI racing until all finish or grace period expires
+    let timer = get_field(me, "race_state", "finishing_timer");
+    if timer > 0.0 {
+        timer = timer - dt;
+        set_field(me, "race_state", "finishing_timer", timer);
+
+        // Continue racing updates for AI karts
+        let karts = find_all_karts();
+        if karts.len() > 0 {
+            let track_id = get_entity("track_path");
+            if track_id >= 0 {
+                let total = karts.len();
+                let k = 0;
+                while k < total {
+                    let kid = karts[k];
+                    // Only update AI karts (player already finished)
+                    if has_component(kid, "ai_input") {
+                        update_kart_progress(me, kid, track_id, dt, total);
+                    }
+                    k += 1;
+                }
+
+                // Keep ranking updated
+                rank_karts(karts);
+            }
+
+            // Check if all karts have finished
+            let all_done = true;
+            let i = 0;
+            while i < karts.len() {
+                let ft = get_field(karts[i], "race_progress", "finish_time");
+                if ft == () || ft <= 0.0 {
+                    all_done = false;
+                }
+                i += 1;
+            }
+
+            // Stop grace period early if everyone finished
+            if all_done {
+                set_field(me, "race_state", "finishing_timer", 0.0);
+            }
+        }
     }
 }
 
@@ -333,8 +424,31 @@ fn restart_race(me) {
     set_field(me, "race_state", "state", "countdown");
     set_field(me, "race_state", "countdown_timer", 4.0);
     set_field(me, "race_state", "countdown_display", "");
+    set_field(me, "race_state", "finishing_timer", 0.0);
+    set_field(me, "race_state", "music_volume", 0.0);
 
     log("Race restarted!");
+}
+
+fn update_music(me, dt, target_vol) {
+    let music_id = get_entity("snd_music");
+    if music_id < 0 { return; }
+
+    let vol = get_field(me, "race_state", "music_volume");
+    if vol == () { vol = 0.0; }
+
+    // Smooth lerp toward target (0.8 units/sec)
+    let fade_speed = 0.8;
+    if vol < target_vol {
+        vol = vol + fade_speed * dt;
+        if vol > target_vol { vol = target_vol; }
+    } else if vol > target_vol {
+        vol = vol - fade_speed * dt;
+        if vol < target_vol { vol = target_vol; }
+    }
+
+    set_field(me, "race_state", "music_volume", vol);
+    set_field(music_id, "audio_source", "volume", vol);
 }
 
 fn format_time(seconds) {

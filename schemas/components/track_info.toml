@@ -1,0 +1,11 @@
+[component.track_info]
+description = "Track metadata: name, length, etc."
+
+[component.track_info.fields.length]
+type = "float"
+default = 660.0
+description = "Total track length in meters (sample_count * spacing)"
+
+[component.track_info.fields.name]
+type = "string"
+default = "Unknown Track"

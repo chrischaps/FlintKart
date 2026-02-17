@@ -1,9 +1,10 @@
-// chase_camera.rhai — Third-person chase camera
+// chase_camera.rhai — Third-person chase camera with visual juice
 //
 // Smoothly follows the kart from behind, looking slightly ahead.
 // Hold look_back (C key) to swing the camera to face behind the kart.
 // During drift: widens follow distance and adds lateral offset for drama.
 // During boost: briefly tightens for speed sensation.
+// Screen shake on wall impacts. Dynamic FOV based on speed/boost.
 
 // Camera tuning
 let follow_distance = 8.0;
@@ -24,6 +25,13 @@ let tgt_z = 0.0;
 let drift_dist_offset = 0.0;
 let drift_lateral_offset = 0.0;
 
+// Screen shake state
+let shake_intensity = 0.0;
+let shake_timer = 0.0;
+
+// Dynamic FOV state
+let current_fov = 60.0;
+
 fn on_update() {
     let dt = delta_time();
     if dt <= 0.0 { return; }
@@ -37,6 +45,8 @@ fn on_update() {
     let kz = kart_pos["z"];
 
     let yaw = get_field(kart_id, "kart_state", "yaw");
+    let kart_speed = get_field(kart_id, "kart_state", "speed");
+    let max_speed = get_field(kart_id, "kart_physics", "max_speed");
 
     // Forward direction of kart
     let fwd = forward_from_yaw(yaw);
@@ -53,27 +63,38 @@ fn on_update() {
     let dir = if looking_back { -1.0 } else { 1.0 };
     let speed = if looking_back { transition_speed } else { smooth_speed };
 
+    // ── Read drift/boost state ──
+    let drift_state = "none";
+    let drift_angle = 0.0;
+    let drift_direction = 0.0;
+    let boost_tier = 0;
+    let boost_time_remaining = 0.0;
+    let boost_speed_bonus = 0.0;
+
+    if has_component(kart_id, "drift_state") {
+        drift_state = get_field(kart_id, "drift_state", "state");
+        drift_angle = get_field(kart_id, "drift_state", "drift_angle");
+        drift_direction = get_field(kart_id, "drift_state", "drift_direction");
+        boost_tier = get_field(kart_id, "drift_state", "boost_tier");
+        boost_time_remaining = get_field(kart_id, "drift_state", "boost_time_remaining");
+        boost_speed_bonus = get_field(kart_id, "drift_state", "boost_speed_bonus");
+    }
+
     // ── Drift/Boost camera modulation ──
     let target_dist_offset = 0.0;
     let target_lateral_offset = 0.0;
 
-    if has_component(kart_id, "drift_state") {
-        let drift_state = get_field(kart_id, "drift_state", "state");
-        let drift_angle = get_field(kart_id, "drift_state", "drift_angle");
-        let drift_direction = get_field(kart_id, "drift_state", "drift_direction");
+    if drift_state == "drifting" {
+        // Widen follow distance proportional to drift angle
+        let abs_angle = drift_angle;
+        if abs_angle < 0.0 { abs_angle = -abs_angle; }
+        target_dist_offset = abs_angle / 40.0 * 1.5; // up to +1.5
 
-        if drift_state == "drifting" {
-            // Widen follow distance proportional to drift angle
-            let abs_angle = drift_angle;
-            if abs_angle < 0.0 { abs_angle = -abs_angle; }
-            target_dist_offset = abs_angle / 40.0 * 1.5; // up to +1.5
-
-            // Lateral offset opposite to drift direction for dramatic slide angle
-            target_lateral_offset = -drift_direction * abs_angle / 40.0 * 1.5;
-        } else if drift_state == "boost" {
-            // Tighten for speed sensation
-            target_dist_offset = -1.0;
-        }
+        // Lateral offset opposite to drift direction for dramatic slide angle
+        target_lateral_offset = -drift_direction * abs_angle / 40.0 * 1.5;
+    } else if drift_state == "boost" {
+        // Tighten for speed sensation
+        target_dist_offset = -1.0;
     }
 
     // Smooth the offsets
@@ -103,7 +124,165 @@ fn on_update() {
     tgt_y = lerp(tgt_y, ideal_tgt_y, t);
     tgt_z = lerp(tgt_z, ideal_tgt_z, t);
 
-    // Apply camera
-    set_camera_position(cam_x, cam_y, cam_z);
+    // ── Screen Shake ──
+    let wall_impact = get_field(kart_id, "kart_state", "wall_impact");
+    if wall_impact > 1.0 {
+        // New impact — set intensity proportional to force, capped
+        let new_intensity = clamp(wall_impact * 0.06, 0.0, 0.5);
+        if new_intensity > shake_intensity {
+            shake_intensity = new_intensity;
+            shake_timer = 0.0;
+        }
+    }
+
+    let shake_x = 0.0;
+    let shake_y = 0.0;
+    if shake_intensity > 0.01 {
+        shake_timer = shake_timer + dt;
+        // Rapid decay: intensity halves every 0.12s
+        let decay = 1.0 - clamp(shake_timer / 0.35, 0.0, 1.0);
+        decay = decay * decay; // quadratic falloff for snappy feel
+        let amplitude = shake_intensity * decay;
+
+        // High-frequency sinusoidal jitter (different frequencies for x/y)
+        let time = total_time();
+        shake_x = sin(time * 47.0) * amplitude;
+        shake_y = sin(time * 53.0 + 1.7) * amplitude * 0.7;
+
+        // Decay complete
+        if decay < 0.01 {
+            shake_intensity = 0.0;
+            shake_timer = 0.0;
+        }
+    }
+
+    // ── Dynamic FOV ──
+    let abs_speed = kart_speed;
+    if abs_speed < 0.0 { abs_speed = -abs_speed; }
+    let speed_ratio = clamp(abs_speed / max_speed, 0.0, 1.0);
+
+    // Check race state for countdown zoom
+    let manager_id = get_entity("race_manager");
+    let race_state = "";
+    let countdown_timer = 0.0;
+    if manager_id >= 0 {
+        race_state = get_field(manager_id, "race_state", "state");
+        countdown_timer = get_field(manager_id, "race_state", "countdown_timer");
+    }
+
+    let target_fov = 60.0;
+
+    if race_state == "countdown" {
+        // Wide establishing shot that narrows to race-ready during countdown
+        target_fov = 60.0 + (countdown_timer / 4.0) * 20.0;
+    } else {
+        // Base FOV widens with speed: 60 at rest → 78 at max
+        target_fov = 60.0 + speed_ratio * 18.0;
+
+        // Boost punch: extra FOV kick during boost
+        if drift_state == "boost" {
+            let boost_fov = 4.0;
+            if boost_tier >= 2 { boost_fov = 6.0; }
+            if boost_tier >= 3 { boost_fov = 9.0; }
+            target_fov = target_fov + boost_fov;
+        }
+
+        // Brake narrowing
+        let braking = get_field(kart_id, "kart_visual_state", "braking");
+        if braking && abs_speed > 5.0 {
+            target_fov = target_fov - 3.0;
+        }
+    }
+
+    // Smooth FOV transitions (fast attack, slower release for punch)
+    let fov_lerp = if target_fov > current_fov { 6.0 } else { 3.0 };
+    current_fov = current_fov + (target_fov - current_fov) * clamp(fov_lerp * dt, 0.0, 1.0);
+
+    // ── Post-Processing Overrides ──
+
+    // Speed vignette: edges darken at high speed (smoothness=0.9 in scene config)
+    let speed_vignette = 0.3; // baseline — gentle at rest
+    if speed_ratio > 0.3 {
+        let vig_t = (speed_ratio - 0.3) / 0.7;
+        speed_vignette = speed_vignette + vig_t * 0.7; // up to 1.0 at max
+    }
+
+    // Collision vignette pulse: spike on impact
+    if wall_impact > 1.0 {
+        let impact_vig = clamp(wall_impact * 0.08, 0.0, 0.4);
+        if speed_vignette < 0.3 + impact_vig {
+            speed_vignette = 0.3 + impact_vig;
+        }
+    }
+
+    set_vignette(speed_vignette);
+
+    // Boost bloom spike: brighter bloom during drift boost
+    let bloom_val = 0.05; // baseline
+    if drift_state == "boost" {
+        let boost_bloom = 0.06;
+        if boost_tier >= 2 { boost_bloom = 0.09; }
+        if boost_tier >= 3 { boost_bloom = 0.13; }
+        bloom_val = bloom_val + boost_bloom;
+    }
+    // Slight bloom lift at high speed (subtle heat haze feeling)
+    bloom_val = bloom_val + speed_ratio * 0.02;
+    set_bloom_intensity(bloom_val);
+
+    // Exposure: slight lift during boost for "blown out" speed feel
+    let exposure_val = 1.1; // baseline
+    if drift_state == "boost" {
+        exposure_val = exposure_val + 0.15;
+    }
+    set_exposure(exposure_val);
+
+    // Chromatic aberration: ramps with speed, boost adds more
+    let ca_val = 0.0;
+    if speed_ratio > 0.75 {
+        ca_val = (speed_ratio - 0.75) / 0.25 * 1.26;
+    }
+    if drift_state == "boost" {
+        let boost_ca = 1.0;
+        if boost_tier >= 2 { boost_ca = 2.0; }
+        if boost_tier >= 3 { boost_ca = 3.0; }
+        ca_val = ca_val + boost_ca;
+    }
+    set_chromatic_aberration(ca_val);
+
+    // Radial blur: ramps with speed, boost adds more
+    let rb_val = 0.0;
+    if speed_ratio > 0.6 {
+        rb_val = (speed_ratio - 0.6) / 0.4 * 1.9;
+    }
+    if drift_state == "boost" {
+        let boost_rb = 1.0;
+        if boost_tier >= 2 { boost_rb = 2.0; }
+        if boost_tier >= 3 { boost_rb = 3.0; }
+        rb_val = rb_val + boost_rb;
+    }
+    set_radial_blur(rb_val);
+
+    // ── Audio Focus: low-pass filter at high speed ──
+    let audio_cutoff = 20000.0;
+    if speed_ratio > 0.35 {
+        // Ramp from 20000 Hz down to 2500 Hz as speed goes 35% → 100%
+        let t = (speed_ratio - 0.35) / 0.65;
+        audio_cutoff = 20000.0 - t * t * 19000.0;
+    }
+    // Boost pushes even lower for "tunnel" feel
+    if drift_state == "boost" {
+        let boost_cut = 2000.0;
+        if boost_tier >= 2 { boost_cut = 3500.0; }
+        if boost_tier >= 3 { boost_cut = 5000.0; }
+        audio_cutoff = audio_cutoff - boost_cut;
+    }
+    // Clamp to safe range
+    if audio_cutoff < 800.0 { audio_cutoff = 800.0; }
+    if audio_cutoff > 20000.0 { audio_cutoff = 20000.0; }
+    set_audio_lowpass(audio_cutoff);
+
+    // Apply camera with shake offset
+    set_camera_position(cam_x + shake_x, cam_y + shake_y, cam_z);
     set_camera_target(tgt_x, tgt_y, tgt_z);
+    set_camera_fov(current_fov);
 }

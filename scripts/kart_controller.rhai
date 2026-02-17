@@ -435,6 +435,9 @@ fn on_update() {
     let rot_yaw = yaw;
     let rot_roll = 0.0;
 
+    // Body lean: visual roll from steering for weight-shift feel
+    let lean_degrees = -steering * 4.0 * clamp(abs_speed / max_speed, 0.0, 1.0);
+
     // Right axis = normalize(cross(forward, surface_normal))
     let cr_x = -fwd_z * surface_ny;
     let cr_y = fwd_z * surface_nx - fwd_x * surface_nz;
@@ -457,6 +460,9 @@ fn on_update() {
         rot_roll = rad_to_deg(atan2(ry, rx));
     }
 
+    // Apply body lean on top of surface-aligned roll
+    rot_roll = rot_roll + lean_degrees;
+
     set_rotation(me, rot_pitch, rot_yaw, rot_roll);
 
     // Write state back
@@ -472,6 +478,7 @@ fn on_update() {
     set_field(me, "kart_state", "surface_normal_y", surface_ny);
     set_field(me, "kart_state", "surface_normal_z", surface_nz);
     set_field(me, "kart_state", "yaw", yaw);
+    set_field(me, "kart_state", "wall_impact", wall_impact);
 
     // Write visual state for kart_visuals.rhai
     set_field(me, "kart_visual_state", "steering", steering);

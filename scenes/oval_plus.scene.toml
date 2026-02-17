@@ -28,6 +28,15 @@ input_config = "config/input.toml"
 [environment]
 skybox = "textures/skybox_kart.png"
 
+[post_process]
+bloom_enabled = true
+bloom_intensity = 0.05
+bloom_threshold = 0.9
+vignette_enabled = true
+vignette_intensity = 0.35
+vignette_smoothness = 0.9
+exposure = 1.1
+
 
 # ============================================================
 #  KART — the vehicle the player controls
@@ -1440,6 +1449,58 @@ autoplay = false
 playing = false
 looping = true
 
+# ── Skid marks (world-space, dark, slow-fading, nearly stationary) ──
+
+[entities.fx_skid_rl]
+[entities.fx_skid_rl.transform]
+position = [-0.70, 0.02, 0.85]
+[entities.fx_skid_rl.particle_emitter]
+emission_rate = 0.0
+max_particles = 300
+lifetime_min = 3.0
+lifetime_max = 5.0
+speed_min = 0.0
+speed_max = 0.05
+direction = [0, 1, 0]
+spread = 10.0
+gravity = [0, 0, 0]
+damping = 10.0
+size_start = 0.12
+size_end = 0.12
+color_start = [0.08, 0.06, 0.05, 0.6]
+color_end = [0.08, 0.06, 0.05, 0.0]
+blend_mode = "alpha"
+shape = "point"
+world_space = true
+autoplay = false
+playing = false
+looping = true
+
+[entities.fx_skid_rr]
+[entities.fx_skid_rr.transform]
+position = [0.70, 0.02, 0.85]
+[entities.fx_skid_rr.particle_emitter]
+emission_rate = 0.0
+max_particles = 300
+lifetime_min = 3.0
+lifetime_max = 5.0
+speed_min = 0.0
+speed_max = 0.05
+direction = [0, 1, 0]
+spread = 10.0
+gravity = [0, 0, 0]
+damping = 10.0
+size_start = 0.12
+size_end = 0.12
+color_start = [0.08, 0.06, 0.05, 0.6]
+color_end = [0.08, 0.06, 0.05, 0.0]
+blend_mode = "alpha"
+shape = "point"
+world_space = true
+autoplay = false
+playing = false
+looping = true
+
 
 # ============================================================
 #  AUDIO — engine layers, tire sounds, ambience, events
@@ -1543,6 +1604,19 @@ autoplay = true
 volume = 0.15
 pitch = 1.0
 
+# ── Background music (non-spatial, looping) ──
+
+[entities.snd_music]
+[entities.snd_music.transform]
+position = [0, 0, 0]
+[entities.snd_music.audio_source]
+file = "audio/race_music.ogg"
+spatial = false
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+
 # ── Player audio controller ──
 
 [entities.audio_ctrl]
@@ -1639,6 +1713,7 @@ position = [0, 0, 0]
 state = "countdown"
 countdown_timer = 4.0
 countdown_display = ""
+finishing_timer = 0.0
 
 [entities.race_manager.script]
 source = "race_manager.rhai"
@@ -1676,6 +1751,9 @@ asset = "finish_line"
 [entities.track_path]
 [entities.track_path.spline]
 file = "splines/oval_plus.spline.toml"
+[entities.track_path.track_info]
+length = 660.0
+name = "Oval Plus"
 
 # Road surface — wide, thin slab centered on the spline
 [entities.track_road]
@@ -1688,25 +1766,29 @@ color = [0.25, 0.25, 0.28, 1.0]
 friction = 0.8
 restitution = 0.1
 
-# Left wall — narrow, tall box at left edge
+# Left wall — red & white racing barrier stripes
 [entities.track_wall_left]
 [entities.track_wall_left.spline_mesh]
 spline = "track_path"
 width = 0.5
 height = 1.5
 offset = [-6.25, 0.75]
-color = [0.7, 0.15, 0.15, 1.0]
+color = [0.8, 0.12, 0.12, 1.0]
+stripe_color = [0.95, 0.95, 0.95, 1.0]
+stripe_width = 2.0
 friction = 0.3
 restitution = 0.5
 
-# Right wall — narrow, tall box at right edge
+# Right wall — blue & white racing barrier stripes
 [entities.track_wall_right]
 [entities.track_wall_right.spline_mesh]
 spline = "track_path"
 width = 0.5
 height = 1.5
 offset = [6.25, 0.75]
-color = [0.15, 0.15, 0.7, 1.0]
+color = [0.15, 0.15, 0.8, 1.0]
+stripe_color = [0.95, 0.95, 0.95, 1.0]
+stripe_width = 2.0
 friction = 0.3
 restitution = 0.5
 

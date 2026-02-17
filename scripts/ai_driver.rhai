@@ -71,19 +71,23 @@ fn on_update() {
     // Read kart state
     let kart_pos = get_position(kart_id);
     let kx = kart_pos["x"];
+    let ky = kart_pos["y"];
     let kz = kart_pos["z"];
     let yaw = get_field(kart_id, "kart_state", "yaw");
     let speed = get_field(kart_id, "kart_state", "speed");
     let max_speed = get_field(kart_id, "kart_physics", "max_speed");
 
-    // Find current position on spline
-    let closest = spline_closest_point(track_id, kx, kz);
+    // Find current position on spline (3D distance for elevation crossings)
+    let closest = spline_closest_point(track_id, kx, ky, kz);
     if closest == () { return; }
     let current_t = closest["t"];
 
     // Look ahead on spline — convert meters to t units
-    // Track is ~660m total (331 samples x 2m spacing)
-    let lookahead_t = lookahead / 660.0;
+    let track_length = 660.0;
+    if has_component(track_id, "track_info") {
+        track_length = get_field(track_id, "track_info", "length");
+    }
+    let lookahead_t = lookahead / track_length;
     // Increase lookahead at higher speeds for smoother cornering
     let speed_ratio = abs(speed) / max_speed;
     lookahead_t = lookahead_t * (1.0 + speed_ratio * 0.6);

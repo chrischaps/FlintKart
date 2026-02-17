@@ -27,6 +27,10 @@ let fx_sparks = -1;
 let fx_boost = -1;
 let fx_drift_sparks_l = -1;
 let fx_drift_sparks_r = -1;
+let fx_skid_rl = -1;
+let fx_skid_rr = -1;
+
+let driver = -1;
 
 // Track previous drift state for transition detection
 let prev_drift_state = "none";
@@ -55,6 +59,10 @@ fn on_init() {
     fx_boost = get_entity("fx_boost");
     fx_drift_sparks_l = get_entity("fx_drift_sparks_l");
     fx_drift_sparks_r = get_entity("fx_drift_sparks_r");
+    fx_skid_rl = get_entity("fx_skid_rl");
+    fx_skid_rr = get_entity("fx_skid_rr");
+
+    driver = get_entity(prefix + "_driver");
 
     // Only start particle emitters for the player kart (no prefix config)
     if !has_component(me, "kart_visuals_config") {
@@ -65,6 +73,8 @@ fn on_init() {
         if fx_boost >= 0 { start_emitter(fx_boost); }
         if fx_drift_sparks_l >= 0 { start_emitter(fx_drift_sparks_l); }
         if fx_drift_sparks_r >= 0 { start_emitter(fx_drift_sparks_r); }
+        if fx_skid_rl >= 0 { start_emitter(fx_skid_rl); }
+        if fx_skid_rr >= 0 { start_emitter(fx_skid_rr); }
     }
 }
 
@@ -127,6 +137,29 @@ fn on_update() {
             set_material_color(light_l, 0.35, 0.08, 0.08, 1.0);
             set_material_color(light_r, 0.35, 0.08, 0.08, 1.0);
         }
+    }
+
+    // ── Driver Lean ──
+    if driver >= 0 {
+        let abs_drift = drift_angle;
+        if abs_drift < 0.0 { abs_drift = -abs_drift; }
+
+        // Lean into drift direction (body pitch + roll)
+        let driver_lean_z = 0.0;
+        let driver_lean_x = 0.0;
+        if drift_state == "drifting" || drift_state == "hop" {
+            // Roll into the drift (lean sideways)
+            driver_lean_z = drift_angle * 0.4; // ~10° at max drift angle
+            // Slight forward lean during drift
+            driver_lean_x = abs_drift * 0.15;
+        } else if drift_state == "boost" {
+            // Lean back during boost (reaction to acceleration)
+            driver_lean_x = -8.0;
+        }
+        // Lean slightly with steering even when not drifting
+        driver_lean_z = driver_lean_z + steering * 3.0;
+
+        set_rotation(driver, driver_lean_x, 0.0, driver_lean_z);
     }
 
     // ── Particle effects (player kart only) ──
@@ -202,6 +235,22 @@ fn on_update() {
         set_position(fx_drift_sparks_r, dx, dy, dz);
     }
 
+    // fx_skid_rl: local [-0.70, 0.02, 0.85] (rear left, ground level)
+    if fx_skid_rl >= 0 {
+        let dx = kx + rx * (-0.70) + fwd_x * 0.85;
+        let dy = ky + 0.02;
+        let dz = kz + rz * (-0.70) + fwd_z * 0.85;
+        set_position(fx_skid_rl, dx, dy, dz);
+    }
+
+    // fx_skid_rr: local [0.70, 0.02, 0.85] (rear right, ground level)
+    if fx_skid_rr >= 0 {
+        let dx = kx + rx * 0.70 + fwd_x * 0.85;
+        let dy = ky + 0.02;
+        let dz = kz + rz * 0.70 + fwd_z * 0.85;
+        set_position(fx_skid_rr, dx, dy, dz);
+    }
+
     // ── Emission control ──
 
     if fx_exhaust >= 0 {
@@ -227,9 +276,32 @@ fn on_update() {
         if braking && speed > 8.0 {
             dust_rate = dust_rate + 20.0 + speed * 0.5;
         }
-        // Double tire dust during drift
+        // Enhanced drift dust: scale by drift angle for bigger plumes at wider slides
         if drift_state == "drifting" {
-            dust_rate = dust_rate + 30.0;
+            let abs_drift = drift_angle;
+            if abs_drift < 0.0 { abs_drift = -abs_drift; }
+            let drift_dust_factor = abs_drift / 25.0; // 0→1 over typical drift range
+            if drift_dust_factor > 1.0 { drift_dust_factor = 1.0; }
+            dust_rate = dust_rate + 30.0 + drift_dust_factor * 50.0;
+        }
+    }
+
+    // Burst on drift entry/exit transitions
+    if fx_dust_rl >= 0 && fx_dust_rr >= 0 {
+        if drift_state == "drifting" && prev_drift_state != "drifting" && prev_drift_state != "hop" {
+            // Drift entry burst — big puff as tires break traction
+            emit_burst(fx_dust_rl, 12);
+            emit_burst(fx_dust_rr, 12);
+        }
+        if drift_state == "boost" && prev_drift_state == "drifting" {
+            // Drift exit burst — tires grip again with a kick
+            emit_burst(fx_dust_rl, 8);
+            emit_burst(fx_dust_rr, 8);
+        }
+        if drift_state == "none" && prev_drift_state == "drifting" {
+            // Drift cancel (no boost) — smaller puff
+            emit_burst(fx_dust_rl, 5);
+            emit_burst(fx_dust_rr, 5);
         }
     }
 
@@ -302,6 +374,29 @@ fn on_update() {
             }
         }
         set_emission_rate(fx_boost, boost_rate);
+    }
+
+    // ── Skid marks (dark ground marks during drift/hard braking) ──
+    if fx_skid_rl >= 0 && fx_skid_rr >= 0 && grounded {
+        let skid_rate = 0.0;
+
+        if drift_state == "drifting" {
+            let abs_drift = drift_angle;
+            if abs_drift < 0.0 { abs_drift = -abs_drift; }
+            // 30-60/sec proportional to drift angle
+            skid_rate = 30.0 + (abs_drift / 40.0) * 30.0;
+        }
+
+        if braking && speed > 12.0 {
+            let brake_skid = 20.0 + (speed - 12.0) * 1.0;
+            if brake_skid > skid_rate { skid_rate = brake_skid; }
+        }
+
+        set_emission_rate(fx_skid_rl, skid_rate);
+        set_emission_rate(fx_skid_rr, skid_rate);
+    } else if fx_skid_rl >= 0 && fx_skid_rr >= 0 {
+        set_emission_rate(fx_skid_rl, 0.0);
+        set_emission_rate(fx_skid_rr, 0.0);
     }
 
     prev_drift_state = drift_state;

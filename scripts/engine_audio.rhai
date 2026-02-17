@@ -115,9 +115,9 @@ fn on_update() {
     mid_vol = mid_vol * 0.7;
     high_vol = high_vol * 0.8;
 
-    let idle_pitch = 0.8 + rpm * 0.3;
-    let mid_pitch = 0.85 + rpm * 0.25;
-    let high_pitch = 0.9 + rpm * 0.2;
+    let idle_pitch = 0.4 + rpm * 0.3;
+    let mid_pitch = 0.45 + rpm * 0.25;
+    let high_pitch = 0.5 + rpm * 0.2;
 
     if id_engine_idle >= 0 {
         set_field(id_engine_idle, "audio_source", "volume", idle_vol);

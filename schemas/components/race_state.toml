@@ -12,3 +12,11 @@ default = 4.0
 [component.race_state.fields.countdown_display]
 type = "string"
 default = ""
+
+[component.race_state.fields.finishing_timer]
+type = "float"
+default = 0.0
+
+[component.race_state.fields.music_volume]
+type = "float"
+default = 0.0

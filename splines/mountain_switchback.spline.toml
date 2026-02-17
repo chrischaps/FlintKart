@@ -1,0 +1,128 @@
+# Mountain Switchback — Alpine track with hairpin turns and elevation
+# Climb on the east, summit at north, descent crosses back over the climb.
+# Start/finish at origin heading -Z, wide sweeper feeds into long straight.
+
+[spline]
+name = "Mountain Switchback"
+closed = true
+
+[sampling]
+spacing = 2.0
+
+# ── Start/finish straight (heading -Z, ground level) ──
+
+[[control_points]]
+position = [0, 0, 0]
+twist = 0.0
+
+[[control_points]]
+position = [0, 0, -60]
+twist = 0.0
+
+# ── Right curve into climbing section (east side) ──
+
+[[control_points]]
+position = [30, 4, -110]
+twist = 3.0
+
+[[control_points]]
+position = [65, 10, -135]
+twist = 4.0
+
+# ── East ridge climb heading north ──
+
+[[control_points]]
+position = [88, 17, -105]
+twist = 2.0
+
+[[control_points]]
+position = [82, 21, -65]
+twist = 0.0
+
+# ── Hairpin LEFT — banked mountain switchback ──
+
+[[control_points]]
+position = [62, 23, -40]
+twist = -14.0
+
+[[control_points]]
+position = [38, 25, -32]
+twist = -18.0
+
+[[control_points]]
+position = [18, 27, -50]
+twist = -8.0
+
+# ── Summit hairpin RIGHT — signature turn at 29m ──
+
+[[control_points]]
+position = [8, 29, -80]
+twist = 12.0
+
+[[control_points]]
+position = [5, 29, -110]
+twist = 20.0
+
+[[control_points]]
+position = [15, 28, -138]
+twist = 8.0
+
+# ── Descent crosses OVER the climbing section ──
+
+[[control_points]]
+position = [32, 24, -140]
+twist = 3.0
+
+[[control_points]]
+position = [50, 18, -118]
+twist = 0.0
+
+[[control_points]]
+position = [45, 12, -90]
+twist = -3.0
+
+# ── Lower descent ──
+
+[[control_points]]
+position = [35, 7, -62]
+twist = -5.0
+
+[[control_points]]
+position = [25, 5, -35]
+twist = -6.0
+
+# ── Elevated flyover sweeper (y=5, crosses OVER the start straight) ──
+
+[[control_points]]
+position = [10, 5, -8]
+twist = -5.0
+
+[[control_points]]
+position = [-12, 5, 18]
+twist = -3.0
+
+# ── Descend west of the start corridor ──
+
+[[control_points]]
+position = [-60, 3, 48]
+twist = -30.0
+
+[[control_points]]
+position = [-62, 1, 78]
+twist = -30.0
+
+# ── Curve east behind the grid and return ──
+
+[[control_points]]
+position = [-38, 0, 105]
+twist = 0.0
+
+[[control_points]]
+position = [0, 0, 105]
+twist = 0.0
+
+# ── Straight through grid zone ──
+
+[[control_points]]
+position = [0, 0, 68]
+twist = 0.0
