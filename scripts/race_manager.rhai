@@ -175,6 +175,10 @@ fn update_racing(me, dt) {
 }
 
 fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
+    // Skip karts that already finished all laps
+    let finish_time = get_field(kart_id, "race_progress", "finish_time");
+    if finish_time != () && finish_time > 0.0 { return; }
+
     // Update timers
     let race_time = get_field(kart_id, "race_progress", "race_time");
     race_time = race_time + dt;
@@ -227,10 +231,14 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
         set_field(kart_id, "race_progress", "lap_time", 0.0);
         set_field(kart_id, "race_progress", "passed_start", false);
 
-        // Check race finish — only the player kart triggers the end
-        if !has_component(kart_id, "ai_input") {
-            let total_laps = get_field(kart_id, "race_progress", "total_laps");
-            if current_lap >= total_laps {
+        // Record finish time when any kart completes all laps
+        let total_laps = get_field(kart_id, "race_progress", "total_laps");
+        if current_lap >= total_laps {
+            set_field(kart_id, "race_progress", "finish_time", race_time);
+            log(name + " finished: " + format_time(race_time));
+
+            // Player kart triggers race end
+            if !has_component(kart_id, "ai_input") {
                 set_field(manager, "race_state", "state", "finished");
                 play_sound("audio/race_finish.ogg", 1.0);
 
@@ -241,9 +249,6 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
                     set_field(all[i], "kart_state", "input_enabled", false);
                     i += 1;
                 }
-
-                let race_time_final = get_field(kart_id, "race_progress", "race_time");
-                log("Race finished! Total time: " + format_time(race_time_final));
             }
         }
     }
@@ -307,6 +312,7 @@ fn restart_race(me) {
         set_field(kid, "race_progress", "best_lap", 999.0);
         set_field(kid, "race_progress", "spline_t", 0.0);
         set_field(kid, "race_progress", "prev_spline_t", 0.0);
+        set_field(kid, "race_progress", "finish_time", 0.0);
         set_field(kid, "race_progress", "passed_start", false);
 
         // Reset drift state
@@ -332,17 +338,18 @@ fn restart_race(me) {
 }
 
 fn format_time(seconds) {
-    let mins = floor(seconds / 60.0);
-    let secs = seconds - mins * 60.0;
-    let whole = floor(secs);
-    let frac = floor((secs - whole) * 100.0);
+    if seconds < 0.0 { seconds = 0.0; }
+    let total_cs = floor(seconds * 100.0).to_int();
+    let mins = total_cs / 6000;
+    let secs = (total_cs % 6000) / 100;
+    let frac = total_cs % 100;
 
     let result = "";
     if mins > 0 {
         result = result + mins + ":";
-        if whole < 10 { result = result + "0"; }
+        if secs < 10 { result = result + "0"; }
     }
-    result = result + whole + ".";
+    result = result + secs + ".";
     if frac < 10 { result = result + "0"; }
     result = result + frac;
     result

@@ -187,8 +187,8 @@ rotation = [0, 0, 0]
 asset = "kart_body"
 
 [entities.ai1_kart.kart_physics]
-max_speed = 30.0
-acceleration = 15.0
+max_speed = 33.0
+acceleration = 16.5
 brake_decel = 25.0
 drag = 0.5
 turn_rate_low = 180.0
@@ -319,11 +319,11 @@ position = [0, 0, 0]
 
 [entities.ai1_brain.ai_driver]
 kart = "ai1_kart"
-skill = 0.7
-line_offset = 0.5
-lookahead = 14.0
-speed_factor = 0.96
-cornering_caution = 0.20
+skill = 0.95
+line_offset = 0.2
+lookahead = 12.0
+speed_factor = 1.02
+cornering_caution = 0.08
 color_r = 0.95
 color_g = 0.3
 color_b = 0.1
@@ -362,8 +362,8 @@ rotation = [0, 0, 0]
 asset = "kart_body"
 
 [entities.ai2_kart.kart_physics]
-max_speed = 30.0
-acceleration = 15.0
+max_speed = 31.5
+acceleration = 15.5
 brake_decel = 25.0
 drag = 0.5
 turn_rate_low = 180.0
@@ -492,11 +492,11 @@ position = [0, 0, 0]
 
 [entities.ai2_brain.ai_driver]
 kart = "ai2_kart"
-skill = 0.7
+skill = 0.85
 line_offset = 0.0
-lookahead = 16.0
-speed_factor = 0.90
-cornering_caution = 0.40
+lookahead = 13.0
+speed_factor = 0.98
+cornering_caution = 0.18
 color_r = 0.2
 color_g = 0.75
 color_b = 0.25
@@ -587,7 +587,7 @@ rotation = [0, 0, 0]
 asset = "kart_body"
 
 [entities.ai3_kart.kart_physics]
-max_speed = 30.0
+max_speed = 31.0
 acceleration = 15.0
 brake_decel = 25.0
 drag = 0.5
@@ -717,11 +717,11 @@ position = [0, 0, 0]
 
 [entities.ai3_brain.ai_driver]
 kart = "ai3_kart"
-skill = 0.7
-line_offset = 1.5
-lookahead = 18.0
-speed_factor = 0.85
-cornering_caution = 0.55
+skill = 0.8
+line_offset = 0.5
+lookahead = 14.0
+speed_factor = 0.96
+cornering_caution = 0.22
 color_r = 0.95
 color_g = 0.85
 color_b = 0.15
@@ -812,8 +812,8 @@ rotation = [0, 0, 0]
 asset = "kart_body"
 
 [entities.ai4_kart.kart_physics]
-max_speed = 30.0
-acceleration = 15.0
+max_speed = 32.5
+acceleration = 16.0
 brake_decel = 25.0
 drag = 0.5
 turn_rate_low = 180.0
@@ -942,11 +942,11 @@ position = [0, 0, 0]
 
 [entities.ai4_brain.ai_driver]
 kart = "ai4_kart"
-skill = 0.7
-line_offset = -0.5
-lookahead = 13.0
-speed_factor = 0.93
-cornering_caution = 0.25
+skill = 0.9
+line_offset = -1.0
+lookahead = 11.0
+speed_factor = 1.01
+cornering_caution = 0.10
 color_r = 0.6
 color_g = 0.2
 color_b = 0.85
@@ -1037,8 +1037,8 @@ rotation = [0, 0, 0]
 asset = "kart_body"
 
 [entities.ai5_kart.kart_physics]
-max_speed = 30.0
-acceleration = 15.0
+max_speed = 34.0
+acceleration = 17.0
 brake_decel = 25.0
 drag = 0.5
 turn_rate_low = 180.0
@@ -1167,11 +1167,11 @@ position = [0, 0, 0]
 
 [entities.ai5_brain.ai_driver]
 kart = "ai5_kart"
-skill = 0.7
-line_offset = -1.0
-lookahead = 12.0
-speed_factor = 0.97
-cornering_caution = 0.15
+skill = 0.95
+line_offset = -0.3
+lookahead = 10.0
+speed_factor = 1.03
+cornering_caution = 0.06
 color_r = 0.15
 color_g = 0.85
 color_b = 0.85
@@ -1655,6 +1655,17 @@ position = [0, 0, 0]
 
 [entities.hud.script]
 source = "hud.rhai"
+
+
+# ============================================================
+#  START/FINISH LINE — checkered marker at spline origin
+# ============================================================
+
+[entities.finish_line]
+[entities.finish_line.transform]
+position = [0, 0.02, 0]
+[entities.finish_line.model]
+asset = "finish_line"
 
 
 # ============================================================

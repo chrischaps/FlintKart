@@ -29,6 +29,10 @@ default = 999.0
 type = "float"
 default = 0.0
 
+[component.race_progress.fields.finish_time]
+type = "float"
+default = 0.0
+
 [component.race_progress.fields.passed_start]
 type = "bool"
 default = false

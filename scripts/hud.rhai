@@ -54,8 +54,7 @@ fn on_draw_ui() {
     // --- Lap Counter (top-left) ---
     let current_lap = get_field(kart_id, "race_progress", "current_lap");
     let total_laps = get_field(kart_id, "race_progress", "total_laps");
-    let lap_display = current_lap;
-    if lap_display < 1 { lap_display = 1; }
+    let lap_display = current_lap + 1;
     if lap_display > total_laps { lap_display = total_laps; }
 
     // Background panel
@@ -168,8 +167,7 @@ fn on_draw_ui() {
                 // Lap indicator
                 let rlap = get_field(eid, "race_progress", "current_lap");
                 let rtotal = get_field(eid, "race_progress", "total_laps");
-                let rlap_d = rlap;
-                if rlap_d < 1 { rlap_d = 1; }
+                let rlap_d = rlap + 1;
                 if rlap_d > rtotal { rlap_d = rtotal; }
                 draw_text(lb_x + 130.0, ry + 5.0, "L" + rlap_d, 13.0, 0.5, 0.5, 0.5, 1.0);
 
@@ -246,8 +244,9 @@ fn on_draw_ui() {
         }
 
         // Results panel — sized for standings table
-        let panel_w = 420.0;
-        let panel_h = 180.0 + fnum * 32.0;
+        let panel_w = 380.0;
+        let frow_h = 34.0;
+        let panel_h = 160.0 + fnum * frow_h;
         let panel_x = (sw - panel_w) / 2.0;
         let panel_y = (sh - panel_h) / 2.0;
         draw_rect_ex(panel_x, panel_y, panel_w, panel_h, 0.1, 0.1, 0.15, 0.9, 12.0, 1);
@@ -257,8 +256,10 @@ fn on_draw_ui() {
         let title_w = measure_text(title, 36.0);
         draw_text((sw - title_w["width"]) / 2.0, panel_y + 20.0, title, 36.0, 1.0, 0.85, 0.2, 1.0);
 
-        // Player stats line
-        let final_time_str = "Your Time: " + format_time(race_time);
+        // Player stats
+        let player_finish = get_field(kart_id, "race_progress", "finish_time");
+        if player_finish == () || player_finish <= 0.0 { player_finish = race_time; }
+        let final_time_str = "Your Time: " + format_time(player_finish);
         let ftw = measure_text(final_time_str, 22.0);
         draw_text((sw - ftw["width"]) / 2.0, panel_y + 65.0, final_time_str, 22.0, 1.0, 1.0, 1.0, 1.0);
 
@@ -269,8 +270,7 @@ fn on_draw_ui() {
         }
 
         // Standings table
-        let table_y = panel_y + 120.0;
-        let frow_h = 32.0;
+        let table_y = panel_y + 118.0;
 
         let fri = 0;
         while fri < fsorted.len() {
@@ -297,7 +297,7 @@ fn on_draw_ui() {
             if fpos == 2 { fsuffix = "nd"; }
             if fpos == 3 { fsuffix = "rd"; }
 
-            draw_text(panel_x + 20.0, fry + 2.0, "" + fpos + fsuffix, 20.0, fp_r, fp_g, fp_b, 1.0);
+            draw_text(panel_x + 20.0, fry + 4.0, "" + fpos + fsuffix, 20.0, fp_r, fp_g, fp_b, 1.0);
 
             // Color dot
             let fcr = 0.9;
@@ -308,7 +308,7 @@ fn on_draw_ui() {
                 fcg = get_field(feid, "racer_info", "color_g");
                 fcb = get_field(feid, "racer_info", "color_b");
             }
-            draw_circle(panel_x + 75.0, fry + 12.0, 6.0, fcr, fcg, fcb, 1.0);
+            draw_circle(panel_x + 75.0, fry + 14.0, 6.0, fcr, fcg, fcb, 1.0);
 
             // Name
             let fname = "Racer";
@@ -317,17 +317,16 @@ fn on_draw_ui() {
             }
             let fname_a = 0.85;
             if f_is_player { fname_a = 1.0; }
-            draw_text(panel_x + 90.0, fry + 2.0, fname, 18.0, 1.0, 1.0, 1.0, fname_a);
+            draw_text(panel_x + 90.0, fry + 4.0, fname, 18.0, 1.0, 1.0, 1.0, fname_a);
 
-            // Race time
-            let ftime = get_field(feid, "race_progress", "race_time");
-            draw_text(panel_x + 260.0, fry + 4.0, format_time(ftime), 16.0, 0.7, 0.7, 0.7, 1.0);
-
-            // Best lap
-            let fbest = get_field(feid, "race_progress", "best_lap");
-            if fbest < 900.0 {
-                draw_text(panel_x + 340.0, fry + 4.0, format_time(fbest), 16.0, 0.45, 0.7, 0.45, 1.0);
+            // Finish time (or race_time if not finished)
+            let ftime = get_field(feid, "race_progress", "finish_time");
+            if ftime == () || ftime <= 0.0 {
+                ftime = get_field(feid, "race_progress", "race_time");
             }
+            let ftime_str = format_time(ftime);
+            let ftime_w = measure_text(ftime_str, 16.0);
+            draw_text(panel_x + panel_w - 20.0 - ftime_w["width"], fry + 6.0, ftime_str, 16.0, 0.7, 0.7, 0.7, 1.0);
 
             fri += 1;
         }
@@ -455,17 +454,18 @@ fn on_draw_ui() {
 }
 
 fn format_time(seconds) {
-    let mins = floor(seconds / 60.0);
-    let secs = seconds - mins * 60.0;
-    let whole = floor(secs);
-    let frac = floor((secs - whole) * 100.0);
+    if seconds < 0.0 { seconds = 0.0; }
+    let total_cs = floor(seconds * 100.0).to_int();
+    let mins = total_cs / 6000;
+    let secs = (total_cs % 6000) / 100;
+    let frac = total_cs % 100;
 
     let result = "";
     if mins > 0 {
         result = result + mins + ":";
-        if whole < 10 { result = result + "0"; }
+        if secs < 10 { result = result + "0"; }
     }
-    result = result + whole + ".";
+    result = result + secs + ".";
     if frac < 10 { result = result + "0"; }
     result = result + frac;
     result
