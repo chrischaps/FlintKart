@@ -78,6 +78,117 @@ asset = "kart_driver"
 
 
 # ============================================================
+#  DRIFT PARTICLE EFFECTS — tire dust + sparks for the donut
+# ============================================================
+
+# Tire dust — left rear wheel
+[entities.display_dust_l]
+[entities.display_dust_l.transform]
+position = [0, 0, 0]
+[entities.display_dust_l.particle_emitter]
+emission_rate = 0.0
+max_particles = 80
+lifetime_min = 0.5
+lifetime_max = 1.2
+speed_min = 0.4
+speed_max = 1.2
+direction = [0, 1, 0]
+spread = 45.0
+gravity = [0, -1.5, 0]
+damping = 1.2
+size_start = 0.10
+size_end = 0.30
+color_start = [0.65, 0.55, 0.40, 0.30]
+color_end = [0.70, 0.65, 0.55, 0.0]
+blend_mode = "alpha"
+shape = "box"
+shape_extents = [0.15, 0.02, 0.08]
+world_space = true
+autoplay = false
+playing = false
+looping = true
+
+# Tire dust — right rear wheel
+[entities.display_dust_r]
+[entities.display_dust_r.transform]
+position = [0, 0, 0]
+[entities.display_dust_r.particle_emitter]
+emission_rate = 0.0
+max_particles = 80
+lifetime_min = 0.5
+lifetime_max = 1.2
+speed_min = 0.4
+speed_max = 1.2
+direction = [0, 1, 0]
+spread = 45.0
+gravity = [0, -1.5, 0]
+damping = 1.2
+size_start = 0.10
+size_end = 0.30
+color_start = [0.65, 0.55, 0.40, 0.30]
+color_end = [0.70, 0.65, 0.55, 0.0]
+blend_mode = "alpha"
+shape = "box"
+shape_extents = [0.15, 0.02, 0.08]
+world_space = true
+autoplay = false
+playing = false
+looping = true
+
+# Drift sparks — left rear wheel (golden)
+[entities.display_sparks_l]
+[entities.display_sparks_l.transform]
+position = [0, 0, 0]
+[entities.display_sparks_l.particle_emitter]
+emission_rate = 0.0
+max_particles = 100
+lifetime_min = 0.12
+lifetime_max = 0.4
+speed_min = 2.5
+speed_max = 6.0
+direction = [0, 0.5, 0]
+spread = 50.0
+gravity = [0, -10.0, 0]
+damping = 0.3
+size_start = 0.025
+size_end = 0.008
+color_start = [1.0, 0.85, 0.3, 1.0]
+color_end = [1.0, 0.4, 0.1, 0.0]
+blend_mode = "additive"
+shape = "point"
+world_space = true
+autoplay = false
+playing = false
+looping = true
+
+# Drift sparks — right rear wheel (golden)
+[entities.display_sparks_r]
+[entities.display_sparks_r.transform]
+position = [0, 0, 0]
+[entities.display_sparks_r.particle_emitter]
+emission_rate = 0.0
+max_particles = 100
+lifetime_min = 0.12
+lifetime_max = 0.4
+speed_min = 2.5
+speed_max = 6.0
+direction = [0, 0.5, 0]
+spread = 50.0
+gravity = [0, -10.0, 0]
+damping = 0.3
+size_start = 0.025
+size_end = 0.008
+color_start = [1.0, 0.85, 0.3, 1.0]
+color_end = [1.0, 0.4, 0.1, 0.0]
+blend_mode = "additive"
+shape = "point"
+world_space = true
+autoplay = false
+playing = false
+looping = true
+
+
+# ============================================================
 #  LIGHTING
 # ============================================================
 
@@ -106,6 +217,22 @@ loop = true
 autoplay = true
 volume = 0.25
 pitch = 0.9
+
+
+# ============================================================
+#  TIRE SKID AMBIENT — subtle continuous drift squeal
+# ============================================================
+
+[entities.snd_tire_skid]
+[entities.snd_tire_skid.transform]
+position = [0, 0, 0]
+[entities.snd_tire_skid.audio_source]
+file = "audio/tire_skid.ogg"
+spatial = false
+loop = true
+autoplay = true
+volume = 0.06
+pitch = 0.85
 
 
 # ============================================================

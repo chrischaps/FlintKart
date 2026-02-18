@@ -1,85 +1,93 @@
-# Race HUD styles — matches existing hud.rhai pixel positions
+# Race HUD styles — text with black stroke outlines, no panel backgrounds
+# Panels use horizontal layout so labels and values share independent y positions
 
 [styles.hud-panel-lap]
 x = 10
 y = 10
-width = 180
+width = 200
 height = 50
-bg_color = [0.0, 0.0, 0.0, 0.6]
-rounding = 8
-layer = -1
+layout = "horizontal"
 
 [styles.lap-label]
 x = 10
-y = 8
-font_size = 16
+y = 14
+font_size = 22
 color = [0.7, 0.7, 0.7, 1.0]
+stroke_color = [0.0, 0.0, 0.0, 0.8]
+stroke_width = 2
 
 [styles.lap-value]
 x = 60
-y = 4
+y = 11
 font_size = 28
 color = [1.0, 1.0, 1.0, 1.0]
+stroke_color = [0.0, 0.0, 0.0, 0.8]
+stroke_width = 2
 
 [styles.hud-panel-timer]
 x = -10
 y = 10
-width = 210
+width = 230
 height = 50
-bg_color = [0.0, 0.0, 0.0, 0.6]
-rounding = 8
-layer = -1
+layout = "horizontal"
 
 [styles.timer-label]
 x = 10
-y = 8
-font_size = 16
+y = 14
+font_size = 22
 color = [0.7, 0.7, 0.7, 1.0]
+stroke_color = [0.0, 0.0, 0.0, 0.8]
+stroke_width = 2
 
 [styles.timer-value]
 x = 70
-y = 4
+y = 11
 font_size = 28
 color = [1.0, 1.0, 1.0, 1.0]
+stroke_color = [0.0, 0.0, 0.0, 0.8]
+stroke_width = 2
 
 [styles.hud-panel-best]
 x = -10
 y = 65
-width = 210
+width = 230
 height = 30
-bg_color = [0.0, 0.0, 0.0, 0.4]
-rounding = 8
-layer = -1
+layout = "horizontal"
 
 [styles.best-label]
 x = 10
-y = 5
-font_size = 14
+y = 6
+font_size = 18
 color = [0.5, 0.8, 0.5, 1.0]
+stroke_color = [0.0, 0.0, 0.0, 0.8]
+stroke_width = 2
 
 [styles.best-value]
 x = 60
-y = 3
+y = 5
 font_size = 20
 color = [0.5, 1.0, 0.5, 1.0]
+stroke_color = [0.0, 0.0, 0.0, 0.8]
+stroke_width = 2
 
 [styles.hud-panel-speed]
 x = -10
 y = -10
-width = 170
+width = 180
 height = 60
-bg_color = [0.0, 0.0, 0.0, 0.6]
-rounding = 8
-layer = -1
 
 [styles.speed-value]
-x = 10
-y = 10
+x = 5
+y = 12
 font_size = 36
 color = [1.0, 1.0, 1.0, 1.0]
+stroke_color = [0.0, 0.0, 0.0, 0.8]
+stroke_width = 2
 
 [styles.speed-unit]
 x = 120
-y = 24
-font_size = 16
+y = 7
+font_size = 22
 color = [0.7, 0.7, 0.7, 1.0]
+stroke_color = [0.0, 0.0, 0.0, 0.8]
+stroke_width = 2

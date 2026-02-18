@@ -64,7 +64,7 @@ type = "panel"
 anchor = "bottom-right"
 class = "hud-panel-speed"
 
-[elements.speed_value]
+[elements.speed_num]
 type = "text"
 parent = "speed_panel"
 class = "speed-value"

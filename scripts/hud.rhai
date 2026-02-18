@@ -373,22 +373,19 @@ fn on_draw_ui() {
         let pos_w = measure_text(pos_str, pos_size);
         let pos_x = (sw - pos_w["width"]) / 2.0;
 
-        // Background
-        draw_rect_ex(pos_x - 20.0, 10.0, pos_w["width"] + 40.0, 58.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
-
         // Position number — gold for 1st, silver for 2nd, bronze for 3rd
         if pos == 1 {
-            draw_text(pos_x, 14.0, pos_str, pos_size, 1.0, 0.85, 0.2, 1.0);
+            draw_text_stroked(pos_x, 14.0, pos_str, pos_size, 1.0, 0.85, 0.2, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
         } else if pos == 2 {
-            draw_text(pos_x, 14.0, pos_str, pos_size, 0.8, 0.8, 0.85, 1.0);
+            draw_text_stroked(pos_x, 14.0, pos_str, pos_size, 0.8, 0.8, 0.85, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
         } else {
-            draw_text(pos_x, 14.0, pos_str, pos_size, 0.8, 0.55, 0.3, 1.0);
+            draw_text_stroked(pos_x, 14.0, pos_str, pos_size, 0.8, 0.55, 0.3, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
         }
 
-        // "of N" subtitle
+        // "of N" subtitle — larger font, thinner stroke to avoid artifacts
         let of_str = "of " + total;
-        let of_w = measure_text(of_str, 16.0);
-        draw_text((sw - of_w["width"]) / 2.0, 52.0, of_str, 16.0, 0.6, 0.6, 0.6, 1.0);
+        let of_w = measure_text(of_str, 22.0);
+        draw_text_stroked((sw - of_w["width"]) / 2.0, 72.0, of_str, 22.0, 0.7, 0.7, 0.7, 1.0, 0.0, 0.0, 0.0, 0.7, 1.5);
     }
 
     // --- Lap Counter (top-left) — data-driven ---
@@ -400,9 +397,8 @@ fn on_draw_ui() {
     if hud_ui_loaded {
         ui_set_text("lap_value", "" + lap_display + " / " + total_laps);
     } else {
-        draw_rect_ex(10.0, 10.0, 180.0, 50.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
-        draw_text(20.0, 18.0, "LAP", 16.0, 0.7, 0.7, 0.7, 1.0);
-        draw_text(70.0, 14.0, "" + lap_display + " / " + total_laps, 28.0, 1.0, 1.0, 1.0, 1.0);
+        draw_text_stroked(20.0, 17.0, "LAP", 22.0, 0.7, 0.7, 0.7, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
+        draw_text_stroked(80.0, 14.0, "" + lap_display + " / " + total_laps, 28.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
     }
 
     // --- Race Timer (top-right) — data-driven ---
@@ -412,9 +408,8 @@ fn on_draw_ui() {
     if hud_ui_loaded {
         ui_set_text("timer_value", timer_str);
     } else {
-        draw_rect_ex(sw - 220.0, 10.0, 210.0, 50.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
-        draw_text(sw - 210.0, 18.0, "TIME", 16.0, 0.7, 0.7, 0.7, 1.0);
-        draw_text(sw - 150.0, 14.0, timer_str, 28.0, 1.0, 1.0, 1.0, 1.0);
+        draw_text_stroked(sw - 230.0, 17.0, "TIME", 22.0, 0.7, 0.7, 0.7, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
+        draw_text_stroked(sw - 160.0, 14.0, timer_str, 28.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
     }
 
     // --- Best Lap (below timer) — data-driven ---
@@ -424,9 +419,8 @@ fn on_draw_ui() {
             ui_show("best_panel");
             ui_set_text("best_value", format_time(best_lap));
         } else {
-            draw_rect_ex(sw - 220.0, 65.0, 210.0, 30.0, 0.0, 0.0, 0.0, 0.4, 8.0, -1);
-            draw_text(sw - 210.0, 70.0, "BEST", 14.0, 0.5, 0.8, 0.5, 1.0);
-            draw_text(sw - 150.0, 68.0, format_time(best_lap), 20.0, 0.5, 1.0, 0.5, 1.0);
+            draw_text_stroked(sw - 230.0, 69.0, "BEST", 18.0, 0.5, 0.8, 0.5, 1.0, 0.0, 0.0, 0.0, 0.8, 1.5);
+            draw_text_stroked(sw - 160.0, 68.0, format_time(best_lap), 20.0, 0.5, 1.0, 0.5, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
         }
     } else if hud_ui_loaded {
         ui_hide("best_panel");
@@ -474,7 +468,7 @@ fn on_draw_ui() {
             draw_rect_ex(lb_x, lb_y, lb_w, lb_h, 0.0, 0.0, 0.0, 0.5, 8.0, -1);
 
             // Header
-            draw_text(lb_x + 10.0, lb_y + 4.0, "STANDINGS", 14.0, 0.6, 0.6, 0.6, 1.0);
+            draw_text(lb_x + 10.0, lb_y + 4.0, "STANDINGS", 14.0, 1.0, 1.0, 0.95, 0.95);
 
             // Rows
             let ri = 0;
@@ -523,7 +517,7 @@ fn on_draw_ui() {
                 let rtotal = get_field(eid, "race_progress", "total_laps");
                 let rlap_d = rlap + 1;
                 if rlap_d > rtotal { rlap_d = rtotal; }
-                draw_text(lb_x + 130.0, ry + 5.0, "L" + rlap_d, 13.0, 0.5, 0.5, 0.5, 1.0);
+                draw_text(lb_x + 130.0, ry + 5.0, "L" + rlap_d, 13.0, 1.0, 1.0, 0.9, 0.85);
 
                 ri += 1;
             }
@@ -535,11 +529,10 @@ fn on_draw_ui() {
     let kmh = floor(abs(speed) * 3.6); // m/s to km/h
 
     if hud_ui_loaded {
-        ui_set_text("speed_value", "" + kmh);
+        ui_set_text("speed_num", "" + kmh);
     } else {
-        draw_rect_ex(sw - 180.0, sh - 70.0, 170.0, 60.0, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
-        draw_text(sw - 170.0, sh - 60.0, "" + kmh, 36.0, 1.0, 1.0, 1.0, 1.0);
-        draw_text(sw - 60.0, sh - 46.0, "km/h", 16.0, 0.7, 0.7, 0.7, 1.0);
+        draw_text_stroked(sw - 165.0, sh - 48.0, "" + kmh, 36.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
+        draw_text_stroked(sw - 50.0, sh - 41.0, "km/h", 22.0, 0.7, 0.7, 0.7, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
     }
 
     // --- Countdown Overlay ---
@@ -813,9 +806,6 @@ fn on_draw_ui() {
             let bar_x = (sw - bar_w) / 2.0;
             let bar_y = sh - 80.0;
 
-            // Background
-            draw_rect_ex(bar_x - 4.0, bar_y - 4.0, bar_w + 8.0, bar_h + 24.0, 0.0, 0.0, 0.0, 0.6, 6.0, -1);
-
             if d_state == "drifting" {
                 // Three tier segments: tier1 0–0.8s, tier2 0.8–1.8s, tier3 1.8–3.5s
                 let seg1_w = bar_w * (0.8 / 3.5);
@@ -861,11 +851,11 @@ fn on_draw_ui() {
                     let lw = measure_text(tier_label, 14.0);
                     let lx = (sw - lw["width"]) / 2.0;
                     if d_tier >= 3 {
-                        draw_text(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 0.3, 0.5, 1.0, 1.0);
+                        draw_text_stroked(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 0.3, 0.5, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
                     } else if d_tier >= 2 {
-                        draw_text(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 1.0, 0.6, 0.1, 1.0);
+                        draw_text_stroked(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 1.0, 0.6, 0.1, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
                     } else {
-                        draw_text(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 1.0, 1.0, 0.8, 1.0);
+                        draw_text_stroked(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 1.0, 1.0, 0.8, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
                     }
                 }
             } else if d_state == "boost" {
@@ -892,7 +882,7 @@ fn on_draw_ui() {
 
                 let boost_label = "BOOST!";
                 let blw = measure_text(boost_label, 14.0);
-                draw_text((sw - blw["width"]) / 2.0, bar_y + bar_h + 2.0, boost_label, 14.0, 1.0, 1.0, 1.0, 1.0);
+                draw_text_stroked((sw - blw["width"]) / 2.0, bar_y + bar_h + 2.0, boost_label, 14.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
             }
         }
     }
@@ -963,9 +953,7 @@ fn on_draw_ui() {
         }
 
         if minimap_ready {
-            // Panel background
-            draw_rect_ex(map_x, map_y, map_w, map_h, 0.0, 0.0, 0.0, 0.6, 8.0, -1);
-            draw_text(map_x + 10.0, map_y + 4.0, "MAP", 14.0, 0.6, 0.6, 0.6, 1.0);
+            draw_text_stroked(map_x + 10.0, map_y + 4.0, "MAP", 18.0, 0.6, 0.6, 0.6, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
 
             // Track outline — pass 1: shadow
             let si = 0;

@@ -350,6 +350,63 @@ def gen_landing_thud():
 
 # ─── Drift / Boost ────────────────────────────────────────────────────
 
+def gen_menu_launch():
+    """Bright rising chime for menu→race transition.
+
+    Bell-like tones with inharmonic partials (characteristic of chimes),
+    rising through a major arpeggio with shimmering upper harmonics.
+    Crisp attack, airy sustain, sparkling finish.
+    """
+    dur = 0.9
+    n = int(SAMPLE_RATE * dur)
+    t = np.linspace(0, dur, n, endpoint=False)
+    progress = t / dur  # 0→1
+
+    # ── Bell/chime layer: stacked rising tones with bell-like decay ──
+    # C5 → E5 → G5 rising arpeggio feel via continuous glide
+    freq_start, freq_end = 523.0, 784.0  # C5 → G5
+    freq = freq_start + (freq_end - freq_start) * progress ** 0.6
+    phase = np.cumsum(2 * np.pi * freq / SAMPLE_RATE)
+
+    # Bell partials — slightly inharmonic ratios give chime character
+    sig = np.sin(phase) * 0.30
+    sig += np.sin(phase * 2.01) * 0.18 * progress ** 0.3    # near-octave, slightly detuned
+    sig += np.sin(phase * 3.03) * 0.10 * progress ** 0.5    # inharmonic 3rd partial
+    sig += np.sin(phase * 4.07) * 0.06 * progress           # bell-like 4th
+
+    # ── Sparkle layer: high crystalline tones ──
+    sparkle_f = freq * 5.2
+    sparkle_phase = np.cumsum(2 * np.pi * sparkle_f / SAMPLE_RATE)
+    sparkle = np.sin(sparkle_phase) * 0.06 * progress ** 1.5
+    sparkle += np.sin(sparkle_phase * 1.47) * 0.04 * progress ** 2  # inharmonic shimmer
+    sig += sparkle
+
+    # ── Sub tone for warmth (one octave below fundamental) ──
+    sub_phase = np.cumsum(2 * np.pi * (freq * 0.5) / SAMPLE_RATE)
+    sig += np.sin(sub_phase) * 0.12
+
+    # ── Airy noise — bright filtered, like breath on crystal ──
+    noise = np.random.randn(n)
+    fft = np.fft.rfft(noise)
+    freqs = np.fft.rfftfreq(n, 1.0 / SAMPLE_RATE)
+    # Bandpass centered around 3kHz for airiness
+    bp_mask = np.exp(-((freqs - 3000) ** 2) / (2 * 1200 ** 2))
+    fft *= bp_mask
+    air = np.fft.irfft(fft, n) * 0.05 * progress ** 1.5
+    sig += air
+
+    # ── Envelope: crisp attack, sustain, ringing tail ──
+    env = np.ones_like(t)
+    attack = int(0.01 * SAMPLE_RATE)
+    env[:attack] = np.linspace(0, 1, attack)  # quick crisp attack
+    tail_start = int(0.65 * SAMPLE_RATE)
+    env[tail_start:] = np.exp(-np.linspace(0, 4, len(env) - tail_start))
+    sig *= env
+
+    sig = normalize(sig, peak=0.75)
+    write_ogg("menu_launch.ogg", sig)
+
+
 def gen_boost_whoosh():
     """Rising noise sweep with harmonic shimmer — boost release sound."""
     dur = 0.4
@@ -422,6 +479,9 @@ def main():
     gen_race_finish()
     gen_position_change()
     gen_landing_thud()
+
+    print("\nMenu:")
+    gen_menu_launch()
 
     print("\nDrift / Boost:")
     gen_boost_whoosh()
