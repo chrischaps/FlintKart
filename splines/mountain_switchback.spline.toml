@@ -5,7 +5,7 @@ name = "Mountain Switchback"
 closed = true
 
 [sampling]
-spacing = 2.0
+spacing = 1.0
 
 [[control_points]]
 position = [0, 0, 0]

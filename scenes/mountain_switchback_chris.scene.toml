@@ -36,296 +36,138 @@ vignette_enabled = true
 vignette_intensity = 0.40
 vignette_smoothness = 0.9
 exposure = 1.05
+ssao_enabled = true
+ssao_radius = 1.0
+ssao_intensity = 0.9
 
 
 # ============================================================
-#  KART — the vehicle the player controls
+#  KART PREFAB INSTANCES — 6 racers from a single template
 # ============================================================
 
-[entities.kart]
-
-[entities.kart.transform]
+[prefabs.player]
+template = "kart"
+prefix = "player"
+[prefabs.player.overrides.kart.transform]
 position = [-1.5, 1.0, 5]
-rotation = [0, 0, 0]
-
-[entities.kart.model]
-asset = "kart_body"
-
-[entities.kart.kart_physics]
-max_speed = 30.0
-acceleration = 15.0
-brake_decel = 25.0
-drag = 0.5
-turn_rate_low = 180.0
-turn_rate_high = 60.0
-gravity = -20.0
-ground_ray_length = 2.0
-
-[entities.kart.kart_state]
-speed = 0.0
-velocity_x = 0.0
-velocity_y = 0.0
-velocity_z = 0.0
-forward_x = 0.0
-forward_y = 0.0
-forward_z = -1.0
-grounded = false
-surface_normal_x = 0.0
-surface_normal_y = 1.0
-surface_normal_z = 0.0
-yaw = 0.0
-input_enabled = false
-
-[entities.kart.kart_visual_state]
-steering = 0.0
-braking = false
-reversing = false
-wheel_spin = 0.0
-throttle = 0.0
-
-[entities.kart.race_progress]
-spline_t = 0.0
-prev_spline_t = 0.0
-current_lap = 0
-total_laps = 3
-lap_time = 0.0
-best_lap = 999.0
-race_time = 0.0
-passed_start = false
-
-[entities.kart.race_position]
-position = 1
-total_racers = 6
-
-[entities.kart.racer_info]
+[prefabs.player.overrides.kart.racer_info]
 name = "YOU"
 color_r = 0.9
 color_g = 0.9
 color_b = 0.9
 
-[entities.kart.drift_state]
-state = "none"
-drift_angle = 0.0
-drift_direction = 0.0
-drift_timer = 0.0
-boost_tier = 0
-boost_time_remaining = 0.0
-boost_speed_bonus = 0.0
-hop_timer = 0.0
-
-[entities.kart.script]
-source = "kart_controller.rhai"
-
-
-# ── Kart child entities (positioned relative to kart via hierarchy) ──
-
-[entities.kart_wheel_fl]
-parent = "kart"
-[entities.kart_wheel_fl.transform]
-position = [-0.70, 0.22, -1.0]
-[entities.kart_wheel_fl.model]
-asset = "kart_wheel"
-
-[entities.kart_wheel_fr]
-parent = "kart"
-[entities.kart_wheel_fr.transform]
-position = [0.70, 0.22, -1.0]
-[entities.kart_wheel_fr.model]
-asset = "kart_wheel"
-
-[entities.kart_wheel_rl]
-parent = "kart"
-[entities.kart_wheel_rl.transform]
-position = [-0.70, 0.22, 0.85]
-[entities.kart_wheel_rl.model]
-asset = "kart_wheel"
-
-[entities.kart_wheel_rr]
-parent = "kart"
-[entities.kart_wheel_rr.transform]
-position = [0.70, 0.22, 0.85]
-[entities.kart_wheel_rr.model]
-asset = "kart_wheel"
-
-[entities.kart_driver]
-parent = "kart"
-[entities.kart_driver.transform]
-position = [0.0, 0.12, 0.15]
-[entities.kart_driver.model]
-asset = "kart_driver"
-
-[entities.kart_light_l]
-parent = "kart"
-[entities.kart_light_l.transform]
-position = [-0.35, 0.22, 1.28]
-[entities.kart_light_l.model]
-asset = "kart_light"
-
-[entities.kart_light_r]
-parent = "kart"
-[entities.kart_light_r.transform]
-position = [0.35, 0.22, 1.28]
-[entities.kart_light_r.model]
-asset = "kart_light"
-
-
-# ============================================================
-#  KART VISUALS — animates wheels, lights, etc.
-# ============================================================
-
-[entities.kart_visuals]
-
-[entities.kart_visuals.transform]
-position = [0, 0, 0]
-
-[entities.kart_visuals.script]
-source = "kart_visuals.rhai"
-
-
-# ============================================================
-#  AI KART 1 — Blaze (orange, aggressive, fast)
-# ============================================================
-
-[entities.ai1_kart]
-
-[entities.ai1_kart.transform]
+[prefabs.ai1]
+template = "kart"
+prefix = "ai1"
+[prefabs.ai1.overrides.kart.transform]
 position = [1.5, 1.0, 5]
-rotation = [0, 0, 0]
-
-[entities.ai1_kart.model]
-asset = "kart_body"
-
-[entities.ai1_kart.kart_physics]
+[prefabs.ai1.overrides.kart.kart_physics]
 max_speed = 33.0
 acceleration = 16.5
-brake_decel = 25.0
-drag = 0.5
-turn_rate_low = 180.0
-turn_rate_high = 60.0
-gravity = -20.0
-ground_ray_length = 2.0
-
-[entities.ai1_kart.kart_state]
-speed = 0.0
-velocity_x = 0.0
-velocity_y = 0.0
-velocity_z = 0.0
-forward_x = 0.0
-forward_y = 0.0
-forward_z = -1.0
-grounded = false
-surface_normal_x = 0.0
-surface_normal_y = 1.0
-surface_normal_z = 0.0
-yaw = 0.0
-input_enabled = false
-
-[entities.ai1_kart.kart_visual_state]
-steering = 0.0
-braking = false
-reversing = false
-wheel_spin = 0.0
-throttle = 0.0
-
-[entities.ai1_kart.race_progress]
-spline_t = 0.0
-prev_spline_t = 0.0
-current_lap = 0
-total_laps = 3
-lap_time = 0.0
-best_lap = 999.0
-race_time = 0.0
-passed_start = false
-
-[entities.ai1_kart.race_position]
+[prefabs.ai1.overrides.kart.race_position]
 position = 2
-total_racers = 6
-
-[entities.ai1_kart.ai_input]
+[prefabs.ai1.overrides.kart.ai_input]
 throttle = 0.0
 steering = 0.0
 brake = 0.0
 drift = false
-
-[entities.ai1_kart.racer_info]
+[prefabs.ai1.overrides.kart.racer_info]
 name = "Blaze"
 color_r = 0.95
 color_g = 0.3
 color_b = 0.1
 
-[entities.ai1_kart.drift_state]
-state = "none"
-drift_angle = 0.0
-drift_direction = 0.0
-drift_timer = 0.0
-boost_tier = 0
-boost_time_remaining = 0.0
-boost_speed_bonus = 0.0
-hop_timer = 0.0
+[prefabs.ai2]
+template = "kart"
+prefix = "ai2"
+[prefabs.ai2.overrides.kart.transform]
+position = [-1.5, 1.0, 10]
+[prefabs.ai2.overrides.kart.kart_physics]
+max_speed = 31.5
+acceleration = 15.5
+[prefabs.ai2.overrides.kart.race_position]
+position = 3
+[prefabs.ai2.overrides.kart.ai_input]
+throttle = 0.0
+steering = 0.0
+brake = 0.0
+drift = false
+[prefabs.ai2.overrides.kart.racer_info]
+name = "Steady"
+color_r = 0.2
+color_g = 0.75
+color_b = 0.25
 
-[entities.ai1_kart.script]
-source = "kart_controller.rhai"
+[prefabs.ai3]
+template = "kart"
+prefix = "ai3"
+[prefabs.ai3.overrides.kart.transform]
+position = [1.5, 1.0, 10]
+[prefabs.ai3.overrides.kart.kart_physics]
+max_speed = 31.0
+[prefabs.ai3.overrides.kart.race_position]
+position = 4
+[prefabs.ai3.overrides.kart.ai_input]
+throttle = 0.0
+steering = 0.0
+brake = 0.0
+drift = false
+[prefabs.ai3.overrides.kart.racer_info]
+name = "Tank"
+color_r = 0.95
+color_g = 0.85
+color_b = 0.15
+
+[prefabs.ai4]
+template = "kart"
+prefix = "ai4"
+[prefabs.ai4.overrides.kart.transform]
+position = [-1.5, 1.0, 15]
+[prefabs.ai4.overrides.kart.kart_physics]
+max_speed = 32.5
+acceleration = 16.0
+[prefabs.ai4.overrides.kart.race_position]
+position = 5
+[prefabs.ai4.overrides.kart.ai_input]
+throttle = 0.0
+steering = 0.0
+brake = 0.0
+drift = false
+[prefabs.ai4.overrides.kart.racer_info]
+name = "Ghost"
+color_r = 0.6
+color_g = 0.2
+color_b = 0.85
+
+[prefabs.ai5]
+template = "kart"
+prefix = "ai5"
+[prefabs.ai5.overrides.kart.transform]
+position = [1.5, 1.0, 15]
+[prefabs.ai5.overrides.kart.kart_physics]
+max_speed = 34.0
+acceleration = 17.0
+[prefabs.ai5.overrides.kart.race_position]
+position = 6
+[prefabs.ai5.overrides.kart.ai_input]
+throttle = 0.0
+steering = 0.0
+brake = 0.0
+drift = false
+[prefabs.ai5.overrides.kart.racer_info]
+name = "Wild"
+color_r = 0.15
+color_g = 0.85
+color_b = 0.85
 
 
-# ── AI kart 1 child entities ──
-
-[entities.ai1_wheel_fl]
-parent = "ai1_kart"
-[entities.ai1_wheel_fl.transform]
-position = [-0.70, 0.22, -1.0]
-[entities.ai1_wheel_fl.model]
-asset = "kart_wheel"
-
-[entities.ai1_wheel_fr]
-parent = "ai1_kart"
-[entities.ai1_wheel_fr.transform]
-position = [0.70, 0.22, -1.0]
-[entities.ai1_wheel_fr.model]
-asset = "kart_wheel"
-
-[entities.ai1_wheel_rl]
-parent = "ai1_kart"
-[entities.ai1_wheel_rl.transform]
-position = [-0.70, 0.22, 0.85]
-[entities.ai1_wheel_rl.model]
-asset = "kart_wheel"
-
-[entities.ai1_wheel_rr]
-parent = "ai1_kart"
-[entities.ai1_wheel_rr.transform]
-position = [0.70, 0.22, 0.85]
-[entities.ai1_wheel_rr.model]
-asset = "kart_wheel"
-
-[entities.ai1_driver]
-parent = "ai1_kart"
-[entities.ai1_driver.transform]
-position = [0.0, 0.12, 0.15]
-[entities.ai1_driver.model]
-asset = "kart_driver"
-
-[entities.ai1_light_l]
-parent = "ai1_kart"
-[entities.ai1_light_l.transform]
-position = [-0.35, 0.22, 1.28]
-[entities.ai1_light_l.model]
-asset = "kart_light"
-
-[entities.ai1_light_r]
-parent = "ai1_kart"
-[entities.ai1_light_r.transform]
-position = [0.35, 0.22, 1.28]
-[entities.ai1_light_r.model]
-asset = "kart_light"
-
-
-# ── AI kart 1 brain — more cautious on mountain (higher cornering_caution) ──
+# ============================================================
+#  AI BRAINS — unique personalities (not in prefab)
+# ============================================================
 
 [entities.ai1_brain]
-
 [entities.ai1_brain.transform]
 position = [0, 0, 0]
-
 [entities.ai1_brain.ai_driver]
 kart = "ai1_kart"
 skill = 0.95
@@ -337,168 +179,12 @@ color_r = 0.95
 color_g = 0.3
 color_b = 0.1
 name = "Blaze"
-
 [entities.ai1_brain.script]
 source = "ai_driver.rhai"
 
-
-# ── AI kart 1 visuals ──
-
-[entities.ai1_visuals]
-
-[entities.ai1_visuals.transform]
-position = [0, 0, 0]
-
-[entities.ai1_visuals.kart_visuals_config]
-kart = "ai1_kart"
-prefix = "ai1"
-
-[entities.ai1_visuals.script]
-source = "kart_visuals.rhai"
-
-
-# ============================================================
-#  AI KART 2 — Steady (green, reliable, consistent)
-# ============================================================
-
-[entities.ai2_kart]
-
-[entities.ai2_kart.transform]
-position = [-1.5, 1.0, 10]
-rotation = [0, 0, 0]
-
-[entities.ai2_kart.model]
-asset = "kart_body"
-
-[entities.ai2_kart.kart_physics]
-max_speed = 31.5
-acceleration = 15.5
-brake_decel = 25.0
-drag = 0.5
-turn_rate_low = 180.0
-turn_rate_high = 60.0
-gravity = -20.0
-ground_ray_length = 2.0
-
-[entities.ai2_kart.kart_state]
-speed = 0.0
-velocity_x = 0.0
-velocity_y = 0.0
-velocity_z = 0.0
-forward_x = 0.0
-forward_y = 0.0
-forward_z = -1.0
-grounded = false
-surface_normal_x = 0.0
-surface_normal_y = 1.0
-surface_normal_z = 0.0
-yaw = 0.0
-input_enabled = false
-
-[entities.ai2_kart.kart_visual_state]
-steering = 0.0
-braking = false
-reversing = false
-wheel_spin = 0.0
-throttle = 0.0
-
-[entities.ai2_kart.race_progress]
-spline_t = 0.0
-prev_spline_t = 0.0
-current_lap = 0
-total_laps = 3
-lap_time = 0.0
-best_lap = 999.0
-race_time = 0.0
-passed_start = false
-
-[entities.ai2_kart.race_position]
-position = 3
-total_racers = 6
-
-[entities.ai2_kart.racer_info]
-name = "Steady"
-color_r = 0.2
-color_g = 0.75
-color_b = 0.25
-
-[entities.ai2_kart.ai_input]
-throttle = 0.0
-steering = 0.0
-brake = 0.0
-drift = false
-
-[entities.ai2_kart.drift_state]
-state = "none"
-drift_angle = 0.0
-drift_direction = 0.0
-drift_timer = 0.0
-boost_tier = 0
-boost_time_remaining = 0.0
-boost_speed_bonus = 0.0
-hop_timer = 0.0
-
-[entities.ai2_kart.script]
-source = "kart_controller.rhai"
-
-# ── AI kart 2 child entities ──
-
-[entities.ai2_wheel_fl]
-parent = "ai2_kart"
-[entities.ai2_wheel_fl.transform]
-position = [-0.70, 0.22, -1.0]
-[entities.ai2_wheel_fl.model]
-asset = "kart_wheel"
-
-[entities.ai2_wheel_fr]
-parent = "ai2_kart"
-[entities.ai2_wheel_fr.transform]
-position = [0.70, 0.22, -1.0]
-[entities.ai2_wheel_fr.model]
-asset = "kart_wheel"
-
-[entities.ai2_wheel_rl]
-parent = "ai2_kart"
-[entities.ai2_wheel_rl.transform]
-position = [-0.70, 0.22, 0.85]
-[entities.ai2_wheel_rl.model]
-asset = "kart_wheel"
-
-[entities.ai2_wheel_rr]
-parent = "ai2_kart"
-[entities.ai2_wheel_rr.transform]
-position = [0.70, 0.22, 0.85]
-[entities.ai2_wheel_rr.model]
-asset = "kart_wheel"
-
-[entities.ai2_driver]
-parent = "ai2_kart"
-[entities.ai2_driver.transform]
-position = [0.0, 0.12, 0.15]
-[entities.ai2_driver.model]
-asset = "kart_driver"
-
-[entities.ai2_light_l]
-parent = "ai2_kart"
-[entities.ai2_light_l.transform]
-position = [-0.35, 0.22, 1.28]
-[entities.ai2_light_l.model]
-asset = "kart_light"
-
-[entities.ai2_light_r]
-parent = "ai2_kart"
-[entities.ai2_light_r.transform]
-position = [0.35, 0.22, 1.28]
-[entities.ai2_light_r.model]
-asset = "kart_light"
-
-# ── AI kart 2 brain ──
-
 [entities.ai2_brain]
-
 [entities.ai2_brain.transform]
 position = [0, 0, 0]
-
 [entities.ai2_brain.ai_driver]
 kart = "ai2_kart"
 skill = 0.85
@@ -510,220 +196,12 @@ color_r = 0.2
 color_g = 0.75
 color_b = 0.25
 name = "Steady"
-
 [entities.ai2_brain.script]
 source = "ai_driver.rhai"
 
-# ── AI kart 2 visuals ──
-
-[entities.ai2_visuals]
-
-[entities.ai2_visuals.transform]
-position = [0, 0, 0]
-
-[entities.ai2_visuals.kart_visuals_config]
-kart = "ai2_kart"
-prefix = "ai2"
-
-[entities.ai2_visuals.script]
-source = "kart_visuals.rhai"
-
-# ── AI kart 2 audio ──
-
-[entities.ai2_audio_ctrl]
-[entities.ai2_audio_ctrl.transform]
-position = [0, 0, 0]
-[entities.ai2_audio_ctrl.kart_audio_config]
-kart = "ai2_kart"
-prefix = "snd_ai2"
-[entities.ai2_audio_ctrl.script]
-source = "engine_audio.rhai"
-
-[entities.snd_ai2_engine_idle]
-parent = "ai2_kart"
-[entities.snd_ai2_engine_idle.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai2_engine_idle.audio_source]
-file = "audio/engine_idle.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.6
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai2_engine_mid]
-parent = "ai2_kart"
-[entities.snd_ai2_engine_mid.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai2_engine_mid.audio_source]
-file = "audio/engine_mid.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai2_engine_high]
-parent = "ai2_kart"
-[entities.snd_ai2_engine_high.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai2_engine_high.audio_source]
-file = "audio/engine_high.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-
-# ============================================================
-#  AI KART 3 — Tank (yellow, cautious, wide line)
-# ============================================================
-
-[entities.ai3_kart]
-
-[entities.ai3_kart.transform]
-position = [1.5, 1.0, 10]
-rotation = [0, 0, 0]
-
-[entities.ai3_kart.model]
-asset = "kart_body"
-
-[entities.ai3_kart.kart_physics]
-max_speed = 31.0
-acceleration = 15.0
-brake_decel = 25.0
-drag = 0.5
-turn_rate_low = 180.0
-turn_rate_high = 60.0
-gravity = -20.0
-ground_ray_length = 2.0
-
-[entities.ai3_kart.kart_state]
-speed = 0.0
-velocity_x = 0.0
-velocity_y = 0.0
-velocity_z = 0.0
-forward_x = 0.0
-forward_y = 0.0
-forward_z = -1.0
-grounded = false
-surface_normal_x = 0.0
-surface_normal_y = 1.0
-surface_normal_z = 0.0
-yaw = 0.0
-input_enabled = false
-
-[entities.ai3_kart.kart_visual_state]
-steering = 0.0
-braking = false
-reversing = false
-wheel_spin = 0.0
-throttle = 0.0
-
-[entities.ai3_kart.race_progress]
-spline_t = 0.0
-prev_spline_t = 0.0
-current_lap = 0
-total_laps = 3
-lap_time = 0.0
-best_lap = 999.0
-race_time = 0.0
-passed_start = false
-
-[entities.ai3_kart.race_position]
-position = 4
-total_racers = 6
-
-[entities.ai3_kart.racer_info]
-name = "Tank"
-color_r = 0.95
-color_g = 0.85
-color_b = 0.15
-
-[entities.ai3_kart.ai_input]
-throttle = 0.0
-steering = 0.0
-brake = 0.0
-drift = false
-
-[entities.ai3_kart.drift_state]
-state = "none"
-drift_angle = 0.0
-drift_direction = 0.0
-drift_timer = 0.0
-boost_tier = 0
-boost_time_remaining = 0.0
-boost_speed_bonus = 0.0
-hop_timer = 0.0
-
-[entities.ai3_kart.script]
-source = "kart_controller.rhai"
-
-# ── AI kart 3 child entities ──
-
-[entities.ai3_wheel_fl]
-parent = "ai3_kart"
-[entities.ai3_wheel_fl.transform]
-position = [-0.70, 0.22, -1.0]
-[entities.ai3_wheel_fl.model]
-asset = "kart_wheel"
-
-[entities.ai3_wheel_fr]
-parent = "ai3_kart"
-[entities.ai3_wheel_fr.transform]
-position = [0.70, 0.22, -1.0]
-[entities.ai3_wheel_fr.model]
-asset = "kart_wheel"
-
-[entities.ai3_wheel_rl]
-parent = "ai3_kart"
-[entities.ai3_wheel_rl.transform]
-position = [-0.70, 0.22, 0.85]
-[entities.ai3_wheel_rl.model]
-asset = "kart_wheel"
-
-[entities.ai3_wheel_rr]
-parent = "ai3_kart"
-[entities.ai3_wheel_rr.transform]
-position = [0.70, 0.22, 0.85]
-[entities.ai3_wheel_rr.model]
-asset = "kart_wheel"
-
-[entities.ai3_driver]
-parent = "ai3_kart"
-[entities.ai3_driver.transform]
-position = [0.0, 0.12, 0.15]
-[entities.ai3_driver.model]
-asset = "kart_driver"
-
-[entities.ai3_light_l]
-parent = "ai3_kart"
-[entities.ai3_light_l.transform]
-position = [-0.35, 0.22, 1.28]
-[entities.ai3_light_l.model]
-asset = "kart_light"
-
-[entities.ai3_light_r]
-parent = "ai3_kart"
-[entities.ai3_light_r.transform]
-position = [0.35, 0.22, 1.28]
-[entities.ai3_light_r.model]
-asset = "kart_light"
-
-# ── AI kart 3 brain ──
-
 [entities.ai3_brain]
-
 [entities.ai3_brain.transform]
 position = [0, 0, 0]
-
 [entities.ai3_brain.ai_driver]
 kart = "ai3_kart"
 skill = 0.8
@@ -735,220 +213,12 @@ color_r = 0.95
 color_g = 0.85
 color_b = 0.15
 name = "Tank"
-
 [entities.ai3_brain.script]
 source = "ai_driver.rhai"
 
-# ── AI kart 3 visuals ──
-
-[entities.ai3_visuals]
-
-[entities.ai3_visuals.transform]
-position = [0, 0, 0]
-
-[entities.ai3_visuals.kart_visuals_config]
-kart = "ai3_kart"
-prefix = "ai3"
-
-[entities.ai3_visuals.script]
-source = "kart_visuals.rhai"
-
-# ── AI kart 3 audio ──
-
-[entities.ai3_audio_ctrl]
-[entities.ai3_audio_ctrl.transform]
-position = [0, 0, 0]
-[entities.ai3_audio_ctrl.kart_audio_config]
-kart = "ai3_kart"
-prefix = "snd_ai3"
-[entities.ai3_audio_ctrl.script]
-source = "engine_audio.rhai"
-
-[entities.snd_ai3_engine_idle]
-parent = "ai3_kart"
-[entities.snd_ai3_engine_idle.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai3_engine_idle.audio_source]
-file = "audio/engine_idle.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.6
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai3_engine_mid]
-parent = "ai3_kart"
-[entities.snd_ai3_engine_mid.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai3_engine_mid.audio_source]
-file = "audio/engine_mid.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai3_engine_high]
-parent = "ai3_kart"
-[entities.snd_ai3_engine_high.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai3_engine_high.audio_source]
-file = "audio/engine_high.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-
-# ============================================================
-#  AI KART 4 — Ghost (purple, technical, inside line)
-# ============================================================
-
-[entities.ai4_kart]
-
-[entities.ai4_kart.transform]
-position = [-1.5, 1.0, 15]
-rotation = [0, 0, 0]
-
-[entities.ai4_kart.model]
-asset = "kart_body"
-
-[entities.ai4_kart.kart_physics]
-max_speed = 32.5
-acceleration = 16.0
-brake_decel = 25.0
-drag = 0.5
-turn_rate_low = 180.0
-turn_rate_high = 60.0
-gravity = -20.0
-ground_ray_length = 2.0
-
-[entities.ai4_kart.kart_state]
-speed = 0.0
-velocity_x = 0.0
-velocity_y = 0.0
-velocity_z = 0.0
-forward_x = 0.0
-forward_y = 0.0
-forward_z = -1.0
-grounded = false
-surface_normal_x = 0.0
-surface_normal_y = 1.0
-surface_normal_z = 0.0
-yaw = 0.0
-input_enabled = false
-
-[entities.ai4_kart.kart_visual_state]
-steering = 0.0
-braking = false
-reversing = false
-wheel_spin = 0.0
-throttle = 0.0
-
-[entities.ai4_kart.race_progress]
-spline_t = 0.0
-prev_spline_t = 0.0
-current_lap = 0
-total_laps = 3
-lap_time = 0.0
-best_lap = 999.0
-race_time = 0.0
-passed_start = false
-
-[entities.ai4_kart.race_position]
-position = 5
-total_racers = 6
-
-[entities.ai4_kart.racer_info]
-name = "Ghost"
-color_r = 0.6
-color_g = 0.2
-color_b = 0.85
-
-[entities.ai4_kart.ai_input]
-throttle = 0.0
-steering = 0.0
-brake = 0.0
-drift = false
-
-[entities.ai4_kart.drift_state]
-state = "none"
-drift_angle = 0.0
-drift_direction = 0.0
-drift_timer = 0.0
-boost_tier = 0
-boost_time_remaining = 0.0
-boost_speed_bonus = 0.0
-hop_timer = 0.0
-
-[entities.ai4_kart.script]
-source = "kart_controller.rhai"
-
-# ── AI kart 4 child entities ──
-
-[entities.ai4_wheel_fl]
-parent = "ai4_kart"
-[entities.ai4_wheel_fl.transform]
-position = [-0.70, 0.22, -1.0]
-[entities.ai4_wheel_fl.model]
-asset = "kart_wheel"
-
-[entities.ai4_wheel_fr]
-parent = "ai4_kart"
-[entities.ai4_wheel_fr.transform]
-position = [0.70, 0.22, -1.0]
-[entities.ai4_wheel_fr.model]
-asset = "kart_wheel"
-
-[entities.ai4_wheel_rl]
-parent = "ai4_kart"
-[entities.ai4_wheel_rl.transform]
-position = [-0.70, 0.22, 0.85]
-[entities.ai4_wheel_rl.model]
-asset = "kart_wheel"
-
-[entities.ai4_wheel_rr]
-parent = "ai4_kart"
-[entities.ai4_wheel_rr.transform]
-position = [0.70, 0.22, 0.85]
-[entities.ai4_wheel_rr.model]
-asset = "kart_wheel"
-
-[entities.ai4_driver]
-parent = "ai4_kart"
-[entities.ai4_driver.transform]
-position = [0.0, 0.12, 0.15]
-[entities.ai4_driver.model]
-asset = "kart_driver"
-
-[entities.ai4_light_l]
-parent = "ai4_kart"
-[entities.ai4_light_l.transform]
-position = [-0.35, 0.22, 1.28]
-[entities.ai4_light_l.model]
-asset = "kart_light"
-
-[entities.ai4_light_r]
-parent = "ai4_kart"
-[entities.ai4_light_r.transform]
-position = [0.35, 0.22, 1.28]
-[entities.ai4_light_r.model]
-asset = "kart_light"
-
-# ── AI kart 4 brain ──
-
 [entities.ai4_brain]
-
 [entities.ai4_brain.transform]
 position = [0, 0, 0]
-
 [entities.ai4_brain.ai_driver]
 kart = "ai4_kart"
 skill = 0.9
@@ -960,220 +230,12 @@ color_r = 0.6
 color_g = 0.2
 color_b = 0.85
 name = "Ghost"
-
 [entities.ai4_brain.script]
 source = "ai_driver.rhai"
 
-# ── AI kart 4 visuals ──
-
-[entities.ai4_visuals]
-
-[entities.ai4_visuals.transform]
-position = [0, 0, 0]
-
-[entities.ai4_visuals.kart_visuals_config]
-kart = "ai4_kart"
-prefix = "ai4"
-
-[entities.ai4_visuals.script]
-source = "kart_visuals.rhai"
-
-# ── AI kart 4 audio ──
-
-[entities.ai4_audio_ctrl]
-[entities.ai4_audio_ctrl.transform]
-position = [0, 0, 0]
-[entities.ai4_audio_ctrl.kart_audio_config]
-kart = "ai4_kart"
-prefix = "snd_ai4"
-[entities.ai4_audio_ctrl.script]
-source = "engine_audio.rhai"
-
-[entities.snd_ai4_engine_idle]
-parent = "ai4_kart"
-[entities.snd_ai4_engine_idle.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai4_engine_idle.audio_source]
-file = "audio/engine_idle.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.6
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai4_engine_mid]
-parent = "ai4_kart"
-[entities.snd_ai4_engine_mid.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai4_engine_mid.audio_source]
-file = "audio/engine_mid.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai4_engine_high]
-parent = "ai4_kart"
-[entities.snd_ai4_engine_high.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai4_engine_high.audio_source]
-file = "audio/engine_high.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-
-# ============================================================
-#  AI KART 5 — Wild (cyan, brave, risky)
-# ============================================================
-
-[entities.ai5_kart]
-
-[entities.ai5_kart.transform]
-position = [1.5, 1.0, 15]
-rotation = [0, 0, 0]
-
-[entities.ai5_kart.model]
-asset = "kart_body"
-
-[entities.ai5_kart.kart_physics]
-max_speed = 34.0
-acceleration = 17.0
-brake_decel = 25.0
-drag = 0.5
-turn_rate_low = 180.0
-turn_rate_high = 60.0
-gravity = -20.0
-ground_ray_length = 2.0
-
-[entities.ai5_kart.kart_state]
-speed = 0.0
-velocity_x = 0.0
-velocity_y = 0.0
-velocity_z = 0.0
-forward_x = 0.0
-forward_y = 0.0
-forward_z = -1.0
-grounded = false
-surface_normal_x = 0.0
-surface_normal_y = 1.0
-surface_normal_z = 0.0
-yaw = 0.0
-input_enabled = false
-
-[entities.ai5_kart.kart_visual_state]
-steering = 0.0
-braking = false
-reversing = false
-wheel_spin = 0.0
-throttle = 0.0
-
-[entities.ai5_kart.race_progress]
-spline_t = 0.0
-prev_spline_t = 0.0
-current_lap = 0
-total_laps = 3
-lap_time = 0.0
-best_lap = 999.0
-race_time = 0.0
-passed_start = false
-
-[entities.ai5_kart.race_position]
-position = 6
-total_racers = 6
-
-[entities.ai5_kart.racer_info]
-name = "Wild"
-color_r = 0.15
-color_g = 0.85
-color_b = 0.85
-
-[entities.ai5_kart.ai_input]
-throttle = 0.0
-steering = 0.0
-brake = 0.0
-drift = false
-
-[entities.ai5_kart.drift_state]
-state = "none"
-drift_angle = 0.0
-drift_direction = 0.0
-drift_timer = 0.0
-boost_tier = 0
-boost_time_remaining = 0.0
-boost_speed_bonus = 0.0
-hop_timer = 0.0
-
-[entities.ai5_kart.script]
-source = "kart_controller.rhai"
-
-# ── AI kart 5 child entities ──
-
-[entities.ai5_wheel_fl]
-parent = "ai5_kart"
-[entities.ai5_wheel_fl.transform]
-position = [-0.70, 0.22, -1.0]
-[entities.ai5_wheel_fl.model]
-asset = "kart_wheel"
-
-[entities.ai5_wheel_fr]
-parent = "ai5_kart"
-[entities.ai5_wheel_fr.transform]
-position = [0.70, 0.22, -1.0]
-[entities.ai5_wheel_fr.model]
-asset = "kart_wheel"
-
-[entities.ai5_wheel_rl]
-parent = "ai5_kart"
-[entities.ai5_wheel_rl.transform]
-position = [-0.70, 0.22, 0.85]
-[entities.ai5_wheel_rl.model]
-asset = "kart_wheel"
-
-[entities.ai5_wheel_rr]
-parent = "ai5_kart"
-[entities.ai5_wheel_rr.transform]
-position = [0.70, 0.22, 0.85]
-[entities.ai5_wheel_rr.model]
-asset = "kart_wheel"
-
-[entities.ai5_driver]
-parent = "ai5_kart"
-[entities.ai5_driver.transform]
-position = [0.0, 0.12, 0.15]
-[entities.ai5_driver.model]
-asset = "kart_driver"
-
-[entities.ai5_light_l]
-parent = "ai5_kart"
-[entities.ai5_light_l.transform]
-position = [-0.35, 0.22, 1.28]
-[entities.ai5_light_l.model]
-asset = "kart_light"
-
-[entities.ai5_light_r]
-parent = "ai5_kart"
-[entities.ai5_light_r.transform]
-position = [0.35, 0.22, 1.28]
-[entities.ai5_light_r.model]
-asset = "kart_light"
-
-# ── AI kart 5 brain ──
-
 [entities.ai5_brain]
-
 [entities.ai5_brain.transform]
 position = [0, 0, 0]
-
 [entities.ai5_brain.ai_driver]
 kart = "ai5_kart"
 skill = 0.95
@@ -1185,76 +247,8 @@ color_r = 0.15
 color_g = 0.85
 color_b = 0.85
 name = "Wild"
-
 [entities.ai5_brain.script]
 source = "ai_driver.rhai"
-
-# ── AI kart 5 visuals ──
-
-[entities.ai5_visuals]
-
-[entities.ai5_visuals.transform]
-position = [0, 0, 0]
-
-[entities.ai5_visuals.kart_visuals_config]
-kart = "ai5_kart"
-prefix = "ai5"
-
-[entities.ai5_visuals.script]
-source = "kart_visuals.rhai"
-
-# ── AI kart 5 audio ──
-
-[entities.ai5_audio_ctrl]
-[entities.ai5_audio_ctrl.transform]
-position = [0, 0, 0]
-[entities.ai5_audio_ctrl.kart_audio_config]
-kart = "ai5_kart"
-prefix = "snd_ai5"
-[entities.ai5_audio_ctrl.script]
-source = "engine_audio.rhai"
-
-[entities.snd_ai5_engine_idle]
-parent = "ai5_kart"
-[entities.snd_ai5_engine_idle.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai5_engine_idle.audio_source]
-file = "audio/engine_idle.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.6
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai5_engine_mid]
-parent = "ai5_kart"
-[entities.snd_ai5_engine_mid.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai5_engine_mid.audio_source]
-file = "audio/engine_mid.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai5_engine_high]
-parent = "ai5_kart"
-[entities.snd_ai5_engine_high.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai5_engine_high.audio_source]
-file = "audio/engine_high.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
 
 
 # ============================================================
@@ -1500,60 +494,16 @@ looping = true
 
 
 # ============================================================
-#  AUDIO — engine layers, tire sounds, ambience, events
+#  AUDIO — player-only tire sounds, ambience, events
 # ============================================================
 
-# ── Player kart engine sound layers ──
+# ── Player tire sounds (parented to player kart) ──
 
-[entities.snd_engine_idle]
-parent = "kart"
-[entities.snd_engine_idle.transform]
-position = [0, 0.3, 0]
-[entities.snd_engine_idle.audio_source]
-file = "audio/engine_idle.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.6
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_engine_mid]
-parent = "kart"
-[entities.snd_engine_mid.transform]
-position = [0, 0.3, 0]
-[entities.snd_engine_mid.audio_source]
-file = "audio/engine_mid.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_engine_high]
-parent = "kart"
-[entities.snd_engine_high.transform]
-position = [0, 0.3, 0]
-[entities.snd_engine_high.audio_source]
-file = "audio/engine_high.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-# ── Player tire sounds ──
-
-[entities.snd_tire_roll]
-parent = "kart"
-[entities.snd_tire_roll.transform]
+[entities.player_tire_roll]
+parent = "player_kart"
+[entities.player_tire_roll.transform]
 position = [0, 0.1, 0]
-[entities.snd_tire_roll.audio_source]
+[entities.player_tire_roll.audio_source]
 file = "audio/tire_roll.ogg"
 spatial = true
 loop = true
@@ -1563,11 +513,11 @@ pitch = 1.0
 min_distance = 1.5
 max_distance = 25.0
 
-[entities.snd_tire_skid]
-parent = "kart"
-[entities.snd_tire_skid.transform]
+[entities.player_tire_skid]
+parent = "player_kart"
+[entities.player_tire_skid.transform]
 position = [0, 0.1, 0]
-[entities.snd_tire_skid.audio_source]
+[entities.player_tire_skid.audio_source]
 file = "audio/tire_skid.ogg"
 spatial = true
 loop = true
@@ -1577,7 +527,7 @@ pitch = 1.0
 min_distance = 1.5
 max_distance = 30.0
 
-# ── Ambient sounds ──
+# ── Ambient sounds (non-spatial) ──
 
 [entities.snd_wind]
 [entities.snd_wind.transform]
@@ -1600,72 +550,6 @@ loop = true
 autoplay = true
 volume = 0.15
 pitch = 1.0
-
-# ── Player audio controller ──
-
-[entities.audio_ctrl]
-[entities.audio_ctrl.transform]
-position = [0, 0, 0]
-[entities.audio_ctrl.kart_audio_config]
-kart = "kart"
-prefix = "snd"
-[entities.audio_ctrl.script]
-source = "engine_audio.rhai"
-
-# ── AI kart 1 engine sounds (spatial, looping, parented) ──
-
-[entities.snd_ai_engine_idle]
-parent = "ai1_kart"
-[entities.snd_ai_engine_idle.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai_engine_idle.audio_source]
-file = "audio/engine_idle.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.6
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai_engine_mid]
-parent = "ai1_kart"
-[entities.snd_ai_engine_mid.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai_engine_mid.audio_source]
-file = "audio/engine_mid.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-[entities.snd_ai_engine_high]
-parent = "ai1_kart"
-[entities.snd_ai_engine_high.transform]
-position = [0, 0.3, 0]
-[entities.snd_ai_engine_high.audio_source]
-file = "audio/engine_high.ogg"
-spatial = true
-loop = true
-autoplay = true
-volume = 0.0
-pitch = 1.0
-min_distance = 2.0
-max_distance = 40.0
-
-# ── AI audio controller ──
-
-[entities.ai_audio_ctrl]
-[entities.ai_audio_ctrl.transform]
-position = [0, 0, 0]
-[entities.ai_audio_ctrl.kart_audio_config]
-kart = "ai1_kart"
-prefix = "snd_ai"
-[entities.ai_audio_ctrl.script]
-source = "engine_audio.rhai"
 
 
 # ============================================================

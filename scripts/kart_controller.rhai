@@ -48,11 +48,37 @@ fn on_update() {
     let surface_nz = 0.0;
     let ground_y = py;
 
+    // Read previous frame's smoothed surface normal for interpolation
+    let prev_snx = get_field(me, "kart_state", "surface_normal_x");
+    let prev_sny = get_field(me, "kart_state", "surface_normal_y");
+    let prev_snz = get_field(me, "kart_state", "surface_normal_z");
+
     if grounded {
-        surface_nx = hit["normal_x"];
-        surface_ny = hit["normal_y"];
-        surface_nz = hit["normal_z"];
+        let raw_nx = hit["normal_x"];
+        let raw_ny = hit["normal_y"];
+        let raw_nz = hit["normal_z"];
         ground_y = hit["point_y"];
+
+        // Smooth surface normal to reduce orientation jitter from mesh faceting
+        let prev_len = sqrt(prev_snx * prev_snx + prev_sny * prev_sny + prev_snz * prev_snz);
+        if prev_len > 0.5 {
+            let norm_smooth = clamp(15.0 * dt, 0.0, 1.0);
+            surface_nx = prev_snx + (raw_nx - prev_snx) * norm_smooth;
+            surface_ny = prev_sny + (raw_ny - prev_sny) * norm_smooth;
+            surface_nz = prev_snz + (raw_nz - prev_snz) * norm_smooth;
+            // Re-normalize
+            let norm_len = sqrt(surface_nx * surface_nx + surface_ny * surface_ny + surface_nz * surface_nz);
+            if norm_len > 0.001 {
+                surface_nx = surface_nx / norm_len;
+                surface_ny = surface_ny / norm_len;
+                surface_nz = surface_nz / norm_len;
+            }
+        } else {
+            // First frame or invalid previous — use raw
+            surface_nx = raw_nx;
+            surface_ny = raw_ny;
+            surface_nz = raw_nz;
+        }
     }
 
     // --- Input ---
@@ -279,8 +305,13 @@ fn on_update() {
         vx = travel_fwd_x * speed;
         vz = travel_fwd_z * speed;
 
-        // Snap to ground
-        py = ground_y;
+        // Smooth ground tracking (avoids jitter from mesh faceting)
+        let ground_gap = abs(ground_y - py);
+        if ground_gap > 1.0 {
+            py = ground_y; // Large gap — snap immediately (respawn, drops)
+        } else {
+            py = py + (ground_y - py) * clamp(25.0 * dt, 0.0, 1.0);
+        }
         if drift_state != "hop" {
             vy = 0.0;
         }
@@ -486,9 +517,15 @@ fn on_update() {
     set_field(me, "kart_visual_state", "reversing", speed < -0.5);
     set_field(me, "kart_visual_state", "throttle", abs(throttle));
 
-    // Accumulate wheel spin: ~260 deg per meter from wheel circumference
+    // Countdown revving: read throttle for audio even when input disabled (player only)
+    if !input_enabled && !has_component(me, "ai_input") {
+        let rev_throttle = clamp(action_value("accelerate"), 0.0, 1.0);
+        set_field(me, "kart_visual_state", "throttle", rev_throttle);
+    }
+
+    // Accumulate wheel spin: ~208 deg per meter from wheel circumference (r=0.275)
     let ws = get_field(me, "kart_visual_state", "wheel_spin");
-    ws += speed * 260.0 * dt;
+    ws += speed * 208.0 * dt;
     ws = ws % 360.0;
     set_field(me, "kart_visual_state", "wheel_spin", ws);
 

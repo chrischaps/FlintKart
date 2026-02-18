@@ -36,7 +36,7 @@ fn on_update() {
     let dt = delta_time();
     if dt <= 0.0 { return; }
 
-    let kart_id = get_entity("kart");
+    let kart_id = get_entity("player_kart");
     if kart_id < 0 { return; }
 
     let kart_pos = get_position(kart_id);

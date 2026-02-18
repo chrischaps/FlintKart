@@ -10,8 +10,8 @@
 // Supports configurable target via kart_visuals_config component.
 // Falls back to hardcoded "kart" + "kart_" prefix if no config.
 
-let kart_name = "kart";
-let prefix = "kart";
+let kart_name = "player_kart";
+let prefix = "player";
 
 let wheel_fl = -1;
 let wheel_fr = -1;
@@ -64,8 +64,9 @@ fn on_init() {
 
     driver = get_entity(prefix + "_driver");
 
-    // Only start particle emitters for the player kart (no prefix config)
-    if !has_component(me, "kart_visuals_config") {
+    // Start particle emitters for the player kart only (AI karts skip particles)
+    let kart = get_entity(kart_name);
+    if kart >= 0 && !has_component(kart, "ai_input") {
         if fx_exhaust >= 0 { start_emitter(fx_exhaust); }
         if fx_dust_rl >= 0 { start_emitter(fx_dust_rl); }
         if fx_dust_rr >= 0 { start_emitter(fx_dust_rr); }
@@ -163,8 +164,8 @@ fn on_update() {
     }
 
     // ── Particle effects (player kart only) ──
-    if has_component(this_entity(), "kart_visuals_config") {
-        // AI karts skip particles for now
+    if has_component(kart, "ai_input") {
+        // AI karts skip particles
         prev_drift_state = drift_state;
         prev_boost_tier = boost_tier;
         return;

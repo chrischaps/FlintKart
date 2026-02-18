@@ -19,23 +19,11 @@ visible = false
 #  TITLE SCREEN
 # ════════════════════════════════════════════════════════
 
-[elements.title_shadow]
-type = "text"
+[elements.title_logo]
+type = "image"
 parent = "title_screen"
-class = "title-shadow"
-text = "FLINT KART"
-
-[elements.title_text]
-type = "text"
-parent = "title_screen"
-class = "title-text"
-text = "FLINT KART"
-
-[elements.subtitle]
-type = "text"
-parent = "title_screen"
-class = "subtitle"
-text = "KART RACING REDEFINED"
+class = "title-logo"
+src = "logo.png"
 
 [elements.prompt]
 type = "text"

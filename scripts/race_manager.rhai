@@ -67,7 +67,7 @@ fn find_player_kart() {
         i += 1;
     }
     // Fallback to named entity
-    get_entity("kart")
+    get_entity("player_kart")
 }
 
 fn update_countdown(me, dt) {

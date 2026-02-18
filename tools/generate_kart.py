@@ -62,34 +62,34 @@ def generate_kart_body():
     dark_grey = [0.18, 0.18, 0.22, 1.0]
     black = [0.06, 0.06, 0.06, 1.0]
 
-    # Floor pan — thin sheet below all other parts to avoid z-fighting
+    # Floor pan — narrow chassis rail between the wheels
     parts.append(colored_box(
-        [1.6, 0.04, 2.6], body_main,
-        translation(0, 0.02, 0), metallic=0.6, roughness=0.35
+        [1.0, 0.04, 2.1], body_main,
+        translation(0, 0.02, -0.05), metallic=0.6, roughness=0.35
     ))
 
     # Nose cowl
     parts.append(colored_box(
-        [1.2, 0.25, 0.7], body_main,
+        [1.25, 0.25, 0.7], body_main,
         translation(0, 0.18, -1.15), metallic=0.6, roughness=0.35
     ))
 
     # Engine cover (starts at z=0.5 to avoid overlap with seat)
     parts.append(colored_box(
-        [1.2, 0.35, 0.7], body_main,
+        [1.25, 0.35, 0.7], body_main,
         translation(0, 0.24, 0.85), metallic=0.6, roughness=0.35
     ))
 
     # Left sidepod
     parts.append(colored_box(
         [0.3, 0.25, 1.4], body_accent,
-        translation(-0.75, 0.19, -0.1), metallic=0.5, roughness=0.4
+        translation(-0.78, 0.19, -0.1), metallic=0.5, roughness=0.4
     ))
 
     # Right sidepod
     parts.append(colored_box(
         [0.3, 0.25, 1.4], body_accent,
-        translation(0.75, 0.19, -0.1), metallic=0.5, roughness=0.4
+        translation(0.78, 0.19, -0.1), metallic=0.5, roughness=0.4
     ))
 
     # Seat bucket
@@ -106,7 +106,7 @@ def generate_kart_body():
 
     # Rear bumper
     parts.append(colored_box(
-        [1.5, 0.18, 0.12], dark_grey,
+        [1.58, 0.18, 0.12], dark_grey,
         translation(0, 0.15, 1.25), metallic=0.3, roughness=0.6
     ))
 
@@ -141,12 +141,12 @@ def generate_kart_wheel():
     rot = trimesh.transformations.rotation_matrix(np.pi / 2, [0, 1, 0])
 
     # Tire: short wide cylinder, 12-sided (axle along X after rotation)
-    tire = trimesh.creation.cylinder(radius=0.22, height=0.16, sections=12)
+    tire = trimesh.creation.cylinder(radius=0.275, height=0.20, sections=12)
     tire.apply_transform(rot)
     parts.append(pbr_mesh(tire, tire_black, metallic=0.0, roughness=0.95))
 
     # Hub: smaller disc
-    hub = trimesh.creation.cylinder(radius=0.12, height=0.18, sections=8)
+    hub = trimesh.creation.cylinder(radius=0.15, height=0.225, sections=8)
     hub.apply_transform(rot)
     parts.append(pbr_mesh(hub, hub_grey, metallic=0.7, roughness=0.3))
 

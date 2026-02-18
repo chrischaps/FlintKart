@@ -92,6 +92,9 @@ fn on_draw_ui() {
     }
     if phase == "entering" {
         hud_fade_alpha = 1.0 - transition_progress();
+        if transition_progress() >= 1.0 {
+            complete_transition();
+        }
     }
     if hud_scene_entered && phase == "idle" {
         hud_fade_alpha = hud_fade_alpha - dt * 3.0;
@@ -200,7 +203,7 @@ fn on_draw_ui() {
         }
     }
 
-    let kart_id = get_entity("kart");
+    let kart_id = get_entity("player_kart");
     let manager_id = get_entity("race_manager");
     if kart_id < 0 || manager_id < 0 {
         // Draw fade overlay even without kart (loading)

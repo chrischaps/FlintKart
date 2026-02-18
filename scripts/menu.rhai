@@ -89,6 +89,9 @@ fn on_draw_ui() {
 
     if phase == "entering" {
         fade_alpha = 1.0 - transition_progress();
+        if transition_progress() >= 1.0 {
+            complete_transition();
+        }
     }
 
     // Scene-enter fade-in
@@ -143,24 +146,23 @@ fn on_draw_ui() {
     //  TITLE SCREEN — position elements + animate
     // ════════════════════════════════════════════════════════
     if screen == "title" && menu_ui_loaded {
-        let title_y = sh * 0.22;
+        let pulse = 1.0 + sin(time * 2.5) * 0.04;
+        let logo_h = sh * 0.32 * pulse;
+        let logo_w = logo_h * 1.5;  // 3:2 aspect ratio
+        let logo_x = (sw - logo_w) / 2.0;
+        let logo_y = sh * 0.02 + sh * 0.32 * (1.0 - pulse) * 0.5;
 
-        // Position title text (shadow is offset +2px)
-        ui_set_style("title_shadow", "y", title_y + 2.0);
-        ui_set_style("title_text", "y", title_y);
+        // Position logo image centered near top
+        ui_set_style("title_logo", "x", logo_x);
+        ui_set_style("title_logo", "y", logo_y);
+        ui_set_style("title_logo", "width", logo_w);
+        ui_set_style("title_logo", "height", logo_h);
 
-        // Subtitle just below title
-        ui_set_style("subtitle", "y", title_y + 72.0 + 8.0);
-
-        // Prompt at 65% height
-        ui_set_style("prompt", "y", sh * 0.65);
+        // Prompt at 80% height
+        ui_set_style("prompt", "y", sh * 0.80);
 
         // Version near bottom
         ui_set_style("version", "y", sh - 30.0);
-
-        // Animate subtitle alpha (gentle pulse)
-        let sub_alpha = 0.5 + sin(time * 2.0) * 0.2;
-        ui_set_color("subtitle", 0.8, 0.8, 0.85, sub_alpha);
 
         // Animate prompt blink
         let prompt_alpha = 0.4 + sin(time * 3.0) * 0.4;

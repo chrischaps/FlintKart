@@ -5,10 +5,10 @@
 // AudioSync propagates these to Kira handles each frame.
 //
 // Supports configurable target via kart_audio_config component.
-// Player kart: prefix="snd", AI kart: prefix="snd_ai"
+// Prefab sets kart="${PREFIX}_kart" and prefix="${PREFIX}" per instance.
 
-let kart_name = "kart";
-let prefix = "snd";
+let kart_name = "player_kart";
+let prefix = "player";
 let is_player = true;
 
 // Sound entity IDs (resolved in on_init)
@@ -21,6 +21,9 @@ let id_wind = -1;
 
 // Smoothed RPM (0..1)
 let smooth_rpm = 0.0;
+
+// Rev limiter phase (sawtooth oscillation when pinned in red zone)
+let limiter_phase = 0.0;
 
 // Previous frame state for event detection
 let prev_grounded = true;
@@ -70,6 +73,21 @@ fn on_update() {
     let braking = get_field(kart, "kart_visual_state", "braking");
     let throttle = get_field(kart, "kart_visual_state", "throttle");
 
+    // ── Check race state (mute AI engines during countdown) ──
+    let race_state = "racing";
+    let race_mgr = get_entity("race_manager");
+    if race_mgr >= 0 {
+        race_state = get_field(race_mgr, "race_state", "state");
+    }
+
+    if race_state == "countdown" && !is_player {
+        // AI engines silent during countdown — prevents 6x volume clipping
+        if id_engine_idle >= 0 { set_field(id_engine_idle, "audio_source", "volume", 0.0); }
+        if id_engine_mid >= 0 { set_field(id_engine_mid, "audio_source", "volume", 0.0); }
+        if id_engine_high >= 0 { set_field(id_engine_high, "audio_source", "volume", 0.0); }
+        return;
+    }
+
     // ── Read drift state ──
     let drift_state = "none";
     let drift_timer = 0.0;
@@ -89,6 +107,10 @@ fn on_update() {
 
     // ── Engine RPM model ──
     let target_rpm = speed_ratio + throttle * 0.25;
+    // Countdown revving: throttle directly drives RPM (no load, engine revs freely)
+    if race_state == "countdown" {
+        target_rpm = throttle * 0.75;
+    }
     if target_rpm > 1.0 { target_rpm = 1.0; }
 
     // During boost, push RPM toward 1.0 for dramatic high-rev sound
@@ -105,6 +127,17 @@ fn on_update() {
     }
 
     let rpm = smooth_rpm;
+
+    // ── Rev limiter during countdown ──
+    // When throttle is pinned and RPM hits the red zone, the limiter cuts fuel,
+    // RPM drops, engine revs back up, hits limiter again → rapid "vrm-vrm-vrm"
+    if race_state == "countdown" && throttle > 0.5 && smooth_rpm > 0.55 {
+        limiter_phase = limiter_phase + dt * 7.0; // ~7 Hz bounce rate
+        let saw = limiter_phase % 1.0; // 0→1 ramp then sharp drop (sawtooth)
+        rpm = 0.42 + saw * 0.30; // ramp 0.42→0.72, then cut back to 0.42
+    } else {
+        limiter_phase = 0.0;
+    }
 
     // ── Three-layer engine crossfade ──
     let idle_vol = 1.0 - smoothstep(0.15, 0.35, rpm);
