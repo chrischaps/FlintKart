@@ -1,5 +1,19 @@
 # Temporary render outputs
 render_test*.png
+render_*.png
+
+# Source music files (large, keep .ogg conversions in audio/)
+*.mp3
+
+# Blender backup files
+*.blend1
+models/backup/
+
+# Python cache
+__pycache__/
+
+# Accidental/temp files
+1
 
 # Windows artifact
 nul
