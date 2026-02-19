@@ -1,0 +1,27 @@
+[component.item_box]
+description = "Item pickup box — floating, spinning, respawning"
+
+[component.item_box.fields.active]
+type = "bool"
+default = true
+
+[component.item_box.fields.respawn_timer]
+type = "float"
+default = 0.0
+
+[component.item_box.fields.respawn_duration]
+type = "float"
+default = 8.0
+
+[component.item_box.fields.spline_t]
+type = "float"
+default = 0.0
+
+[component.item_box.fields.lane]
+type = "float"
+default = 0.0
+description = "Offset along spline right vector"
+
+[component.item_box.fields.base_y]
+type = "float"
+default = 0.0

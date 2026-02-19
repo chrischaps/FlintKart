@@ -12,6 +12,11 @@
 //   - Countdown overlay (center)
 //   - Finish overlay (center)
 
+// Item indicator state
+let item_flash_alpha = 0.0;
+let spinout_flash_alpha = 0.0;
+let prev_held_item = "none";
+
 // Boost flash state
 let boost_flash_alpha = 0.0;
 let boost_flash_r = 1.0;
@@ -792,6 +797,154 @@ fn on_draw_ui() {
         }
     }
 
+    // --- Item Indicator (bottom-center-left, next to drift bar) ---
+    if has_component(kart_id, "item_holder") {
+        let held_item = get_field(kart_id, "item_holder", "held_item");
+        let shield_on = get_field(kart_id, "item_holder", "shield_active");
+        let iboost_on = get_field(kart_id, "item_holder", "item_boost_active");
+        let spinout_on = get_field(kart_id, "item_holder", "spinout_active");
+
+        // Flash on new item pickup
+        if held_item != "none" && prev_held_item == "none" {
+            item_flash_alpha = 0.8;
+        }
+        prev_held_item = held_item;
+
+        // Item flash decay
+        if item_flash_alpha > 0.01 {
+            item_flash_alpha = item_flash_alpha - dt * 3.0;
+            if item_flash_alpha < 0.0 { item_flash_alpha = 0.0; }
+        }
+
+        // Spinout flash
+        if spinout_on {
+            spinout_flash_alpha = 0.3;
+        }
+        if spinout_flash_alpha > 0.01 {
+            spinout_flash_alpha = spinout_flash_alpha - dt * 2.0;
+            if spinout_flash_alpha < 0.0 { spinout_flash_alpha = 0.0; }
+        }
+
+        // Draw spinout yellow edge flash
+        if spinout_flash_alpha > 0.01 {
+            let edge = 60.0;
+            draw_rect_ex(0.0, 0.0, sw, edge, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.6, 0.0, -2);
+            draw_rect_ex(0.0, sh - edge, sw, edge, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.6, 0.0, -2);
+            draw_rect_ex(0.0, 0.0, edge, sh, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.4, 0.0, -2);
+            draw_rect_ex(sw - edge, 0.0, edge, sh, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.4, 0.0, -2);
+        }
+
+        // Show item box if holding an item OR an effect is active
+        let show_indicator = held_item != "none" || shield_on || iboost_on || spinout_on;
+        if show_indicator && state == "racing" {
+            let box_w = 56.0;
+            let box_h = 56.0;
+            let box_x = sw / 2.0 - box_w / 2.0 - 140.0;
+            let box_y = sh - 90.0;
+
+            // Background
+            let bg_alpha = 0.6;
+            if item_flash_alpha > 0.01 { bg_alpha = 0.8; }
+            draw_rect_ex(box_x, box_y, box_w, box_h, 0.08, 0.08, 0.12, bg_alpha, 8.0, 1);
+
+            // Flash highlight border
+            if item_flash_alpha > 0.01 {
+                draw_rect_ex(box_x - 2.0, box_y - 2.0, box_w + 4.0, box_h + 4.0,
+                             1.0, 0.9, 0.3, item_flash_alpha, 10.0, 1);
+            }
+
+            // Icon + color by type
+            let icon = "";
+            let icon_r = 1.0;
+            let icon_g = 1.0;
+            let icon_b = 1.0;
+            let icon_size = 20.0;
+
+            if spinout_on {
+                icon = "!!!";
+                icon_r = 0.9;
+                icon_g = 0.8;
+                icon_b = 0.1;
+                icon_size = 22.0;
+            } else if shield_on {
+                icon = "(O)";
+                icon_r = 0.2;
+                icon_g = 0.9;
+                icon_b = 0.3;
+                // Pulsing effect
+                let pulse = 0.7 + 0.3 * sin(total_time() * 6.0);
+                icon_r = icon_r * pulse + 0.3 * (1.0 - pulse);
+                icon_g = icon_g * pulse + 0.3 * (1.0 - pulse);
+            } else if iboost_on {
+                icon = ">>>";
+                icon_r = 0.2;
+                icon_g = 0.9;
+                icon_b = 1.0;
+                icon_size = 22.0;
+            } else if held_item == "boost" {
+                icon = ">>>";
+                icon_r = 0.2;
+                icon_g = 0.9;
+                icon_b = 1.0;
+            } else if held_item == "shield" {
+                icon = "(O)";
+                icon_r = 0.2;
+                icon_g = 0.9;
+                icon_b = 0.3;
+            } else if held_item == "projectile" {
+                icon = ">>O";
+                icon_r = 1.0;
+                icon_g = 0.6;
+                icon_b = 0.15;
+            } else if held_item == "trap" {
+                icon = "[X]";
+                icon_r = 0.6;
+                icon_g = 0.2;
+                icon_b = 0.85;
+            }
+
+            if icon != "" {
+                let im = measure_text(icon, icon_size);
+                let ix = box_x + (box_w - im["width"]) / 2.0;
+                let iy = box_y + (box_h - icon_size) / 2.0 - 2.0;
+                draw_text_stroked(ix, iy, icon, icon_size, icon_r, icon_g, icon_b, 1.0,
+                                  0.0, 0.0, 0.0, 0.8, 1.5);
+            }
+
+            // Key hint below (only when holding, not during active effects)
+            if held_item != "none" && !shield_on && !iboost_on && !spinout_on {
+                let hint = "[E]";
+                let hm = measure_text(hint, 12.0);
+                let hx = box_x + (box_w - hm["width"]) / 2.0;
+                draw_text(hx, box_y + box_h + 4.0, hint, 12.0, 0.6, 0.6, 0.65, 0.7);
+            }
+
+            // Timer bar for active effects
+            let timer_val = 0.0;
+            let timer_max = 1.0;
+            if shield_on {
+                timer_val = get_field(kart_id, "item_holder", "shield_timer");
+                timer_max = 8.0;
+            } else if iboost_on {
+                timer_val = get_field(kart_id, "item_holder", "item_boost_timer");
+                timer_max = 2.0;
+            } else if spinout_on {
+                timer_val = get_field(kart_id, "item_holder", "spinout_timer");
+                timer_max = 1.5;
+            }
+
+            if timer_val > 0.0 {
+                let bar_w = box_w - 8.0;
+                let bar_h = 4.0;
+                let bar_x = box_x + 4.0;
+                let bar_y = box_y + box_h - 8.0;
+                let fill = clamp(timer_val / timer_max, 0.0, 1.0);
+                draw_rect_ex(bar_x, bar_y, bar_w, bar_h, 0.2, 0.2, 0.2, 0.5, 2.0, 1);
+                draw_rect_ex(bar_x, bar_y, bar_w * fill, bar_h, icon_r, icon_g, icon_b, 0.8, 2.0, 1);
+            }
+        }
+    }
+
     // --- Drift Meter (bottom-center) ---
     if has_component(kart_id, "drift_state") {
         let d_state = get_field(kart_id, "drift_state", "state");
@@ -982,6 +1135,21 @@ fn on_draw_ui() {
 
             // Start/finish marker — gold dot at index 0
             draw_circle(minimap_pts_x[0], minimap_pts_y[0], 3.0, 1.0, 0.85, 0.2, 0.9);
+
+            // Item box dots — small yellow dots for active boxes
+            let item_boxes = find_entities_with("item_box");
+            let ibi = 0;
+            while ibi < item_boxes.len() {
+                let ib_id = item_boxes[ibi];
+                let ib_active = get_field(ib_id, "item_box", "active");
+                if ib_active {
+                    let ibpos = get_position(ib_id);
+                    let ib_sx = minimap_cx + (ibpos["x"] - minimap_world_cx) * minimap_scale;
+                    let ib_sy = minimap_cy + (ibpos["z"] - minimap_world_cz) * minimap_scale;
+                    draw_circle(ib_sx, ib_sy, 2.0, 0.95, 0.85, 0.2, 0.7);
+                }
+                ibi += 1;
+            }
 
             // Racer dots
             let all_karts = find_entities_with("kart_state");

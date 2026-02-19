@@ -264,6 +264,37 @@ fn on_update() {
         // "boost" state: don't write drift_input — let the boost play out
     }
 
+    // ── Item Usage Decision ──
+    let use_item = false;
+    if has_component(kart_id, "item_holder") {
+        let held = get_field(kart_id, "item_holder", "held_item");
+        if held != "none" {
+            let dot = worst_dot;
+
+            if held == "boost" {
+                // Use boost on straights, or when in last place
+                if (dot > 0.95 && speed > max_speed * 0.7) || race_position >= 5 {
+                    use_item = true;
+                }
+            } else if held == "shield" {
+                // Activate mid-pack (positions 2-5) or if behind
+                if race_position >= 2 && race_position <= 5 {
+                    use_item = true;
+                }
+            } else if held == "projectile" {
+                // Fire on straights when not in 1st
+                if dot > 0.92 && race_position > 1 {
+                    use_item = true;
+                }
+            } else if held == "trap" {
+                // Drop in curves
+                if dot < 0.88 {
+                    use_item = true;
+                }
+            }
+        }
+    }
+
     // During drift boost, go full throttle
     if has_component(kart_id, "drift_state") {
         let ds = get_field(kart_id, "drift_state", "state");
@@ -278,4 +309,5 @@ fn on_update() {
     set_field(kart_id, "ai_input", "steering", steering);
     set_field(kart_id, "ai_input", "brake", brake);
     set_field(kart_id, "ai_input", "drift", drift_input);
+    set_field(kart_id, "ai_input", "use_item", use_item);
 }

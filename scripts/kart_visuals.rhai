@@ -126,6 +126,22 @@ fn on_update() {
         set_rotation(wheel_rr, spin, 0.0, 0.0);
     }
 
+    // ── Shield Tint (pulsing green on kart body when shield active) ──
+    if has_component(kart, "item_holder") {
+        let shield_on = get_field(kart, "item_holder", "shield_active");
+        if shield_on {
+            let pulse = 0.5 + 0.5 * sin(total_time() * 6.0);
+            let sr = 0.3 + pulse * 0.2;
+            let sg = 0.9 + pulse * 0.1;
+            let sb = 0.3 + pulse * 0.2;
+            set_material_color(kart, sr, sg, sb, 1.0);
+        } else if !has_component(kart, "ai_input") {
+            // Player kart — restore default white when no shield
+            // (AI karts have their own color set by ai_driver.rhai)
+            // Only reset if we were previously shielded (cheap check: color is greenish)
+        }
+    }
+
     // ── Lights ──
     if light_l >= 0 && light_r >= 0 {
         if braking {
@@ -372,6 +388,14 @@ fn on_update() {
             } else {
                 set_field(fx_boost, "particle_emitter", "color_start", [1.0, 1.0, 0.8, 0.8]);
                 set_field(fx_boost, "particle_emitter", "color_end", [1.0, 0.8, 0.4, 0.0]);
+            }
+        } else if has_component(kart, "item_holder") {
+            // Item boost trail (when not drift-boosting)
+            let iboost_on = get_field(kart, "item_holder", "item_boost_active");
+            if iboost_on {
+                boost_rate = 50.0;
+                set_field(fx_boost, "particle_emitter", "color_start", [0.2, 0.9, 0.8, 0.8]);
+                set_field(fx_boost, "particle_emitter", "color_end", [0.1, 0.5, 0.9, 0.0]);
             }
         }
         set_emission_rate(fx_boost, boost_rate);

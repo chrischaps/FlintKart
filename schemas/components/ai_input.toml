@@ -16,3 +16,7 @@ default = 0.0
 [component.ai_input.fields.drift]
 type = "bool"
 default = false
+
+[component.ai_input.fields.use_item]
+type = "bool"
+default = false

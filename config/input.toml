@@ -99,6 +99,17 @@ type = "gamepad_button"
 button = "LeftTrigger"
 gamepad = "any"
 
+# --- Use Item ---
+[actions.use_item]
+kind = "button"
+[[actions.use_item.bindings]]
+type = "key"
+code = "KeyE"
+[[actions.use_item.bindings]]
+type = "gamepad_button"
+button = "West"
+gamepad = "any"
+
 # --- Restart ---
 [actions.restart]
 kind = "button"

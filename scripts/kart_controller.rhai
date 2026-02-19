@@ -108,6 +108,23 @@ fn on_update() {
         drift_input = get_field(me, "ai_input", "drift");
     }
 
+    // ── Spinout Override ──
+    // When spinning out from an item hit, zero inputs and apply rapid yaw spin
+    if has_component(me, "item_holder") {
+        let spinout_on = get_field(me, "item_holder", "spinout_active");
+        if spinout_on {
+            throttle = 0.0;
+            steering = 0.0;
+            brake_amount = 0.0;
+            drift_input = false;
+
+            // Rapid yaw spin
+            let spin_speed = get_field(me, "item_holder", "spinout_yaw_speed");
+            yaw = yaw + spin_speed * dt;
+            yaw = wrap_angle(yaw);
+        }
+    }
+
     // ── Drift State Machine ──
     let drift_state = "none";
     let drift_angle = 0.0;
@@ -275,6 +292,15 @@ fn on_update() {
         effective_max = max_speed + boost_speed_bonus;
     }
 
+    // Item boost: extra speed when active
+    let item_boost_on = false;
+    if has_component(me, "item_holder") {
+        item_boost_on = get_field(me, "item_holder", "item_boost_active");
+        if item_boost_on {
+            effective_max = effective_max + 10.0;
+        }
+    }
+
     if grounded {
         // --- Acceleration / Braking ---
         if brake_amount > 0.0 {
@@ -293,6 +319,11 @@ fn on_update() {
         // Extra acceleration push during boost
         if drift_state == "boost" && speed < effective_max {
             speed = speed + boost_speed_bonus * 0.5 * dt;
+        }
+
+        // Extra acceleration from item boost
+        if item_boost_on && speed < effective_max {
+            speed = speed + 12.0 * dt;
         }
 
         // Apply drag

@@ -135,6 +135,12 @@ fn on_update() {
         }
     }
 
+    // Spinout triggers shake
+    if spinout_on && shake_intensity < 0.15 {
+        shake_intensity = 0.15;
+        shake_timer = 0.0;
+    }
+
     let shake_x = 0.0;
     let shake_y = 0.0;
     if shake_intensity > 0.01 {
@@ -170,6 +176,14 @@ fn on_update() {
         countdown_timer = get_field(manager_id, "race_state", "countdown_timer");
     }
 
+    // ── Read item state ──
+    let item_boost_on = false;
+    let spinout_on = false;
+    if has_component(kart_id, "item_holder") {
+        item_boost_on = get_field(kart_id, "item_holder", "item_boost_active");
+        spinout_on = get_field(kart_id, "item_holder", "spinout_active");
+    }
+
     let target_fov = 60.0;
 
     if race_state == "countdown" {
@@ -185,6 +199,11 @@ fn on_update() {
             if boost_tier >= 2 { boost_fov = 6.0; }
             if boost_tier >= 3 { boost_fov = 9.0; }
             target_fov = target_fov + boost_fov;
+        }
+
+        // Item boost: extra FOV kick
+        if item_boost_on {
+            target_fov = target_fov + 6.0;
         }
 
         // Brake narrowing
@@ -215,6 +234,14 @@ fn on_update() {
         }
     }
 
+    // Spinout vignette spike
+    if spinout_on {
+        let spin_vig = 0.3;
+        if speed_vignette < 0.3 + spin_vig {
+            speed_vignette = 0.3 + spin_vig;
+        }
+    }
+
     set_vignette(speed_vignette);
 
     // Boost bloom spike: brighter bloom during drift boost
@@ -224,6 +251,10 @@ fn on_update() {
         if boost_tier >= 2 { boost_bloom = 0.09; }
         if boost_tier >= 3 { boost_bloom = 0.13; }
         bloom_val = bloom_val + boost_bloom;
+    }
+    // Item boost bloom
+    if item_boost_on {
+        bloom_val = bloom_val + 0.08;
     }
     // Slight bloom lift at high speed (subtle heat haze feeling)
     bloom_val = bloom_val + speed_ratio * 0.02;

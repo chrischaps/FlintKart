@@ -418,7 +418,47 @@ fn restart_race(me) {
             set_field(kid, "drift_state", "hop_timer", 0.0);
         }
 
+        // Reset item holder
+        if has_component(kid, "item_holder") {
+            set_field(kid, "item_holder", "held_item", "none");
+            set_field(kid, "item_holder", "shield_active", false);
+            set_field(kid, "item_holder", "shield_timer", 0.0);
+            set_field(kid, "item_holder", "item_boost_active", false);
+            set_field(kid, "item_holder", "item_boost_timer", 0.0);
+            set_field(kid, "item_holder", "spinout_active", false);
+            set_field(kid, "item_holder", "spinout_timer", 0.0);
+            set_field(kid, "item_holder", "spinout_yaw_speed", 0.0);
+            set_field(kid, "item_holder", "collect_cooldown", 0.0);
+        }
+
         i += 1;
+    }
+
+    // Reset all projectiles
+    let projs = find_entities_with("item_projectile");
+    let pi = 0;
+    while pi < projs.len() {
+        set_field(projs[pi], "item_projectile", "active", false);
+        set_position(projs[pi], 0.0, -100.0, 0.0);
+        pi += 1;
+    }
+
+    // Reset all traps
+    let traps = find_entities_with("item_trap");
+    let ti = 0;
+    while ti < traps.len() {
+        set_field(traps[ti], "item_trap", "active", false);
+        set_position(traps[ti], 0.0, -100.0, 0.0);
+        ti += 1;
+    }
+
+    // Reactivate all item boxes
+    let boxes = find_entities_with("item_box");
+    let bxi = 0;
+    while bxi < boxes.len() {
+        set_field(boxes[bxi], "item_box", "active", true);
+        set_field(boxes[bxi], "item_box", "respawn_timer", 0.0);
+        bxi += 1;
     }
 
     set_field(me, "race_state", "state", "countdown");

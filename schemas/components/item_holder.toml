@@ -1,0 +1,39 @@
+[component.item_holder]
+description = "Item slot for a kart — tracks held item, active effects, and cooldowns"
+
+[component.item_holder.fields.held_item]
+type = "string"
+default = "none"
+description = "Current held item: none, boost, shield, projectile, trap"
+
+[component.item_holder.fields.shield_active]
+type = "bool"
+default = false
+
+[component.item_holder.fields.shield_timer]
+type = "float"
+default = 0.0
+
+[component.item_holder.fields.item_boost_active]
+type = "bool"
+default = false
+
+[component.item_holder.fields.item_boost_timer]
+type = "float"
+default = 0.0
+
+[component.item_holder.fields.spinout_active]
+type = "bool"
+default = false
+
+[component.item_holder.fields.spinout_timer]
+type = "float"
+default = 0.0
+
+[component.item_holder.fields.spinout_yaw_speed]
+type = "float"
+default = 0.0
+
+[component.item_holder.fields.collect_cooldown]
+type = "float"
+default = 0.0
