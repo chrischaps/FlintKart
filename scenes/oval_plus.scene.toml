@@ -39,6 +39,13 @@ exposure = 1.1
 ssao_enabled = true
 ssao_radius = 0.8
 ssao_intensity = 0.7
+fog_enabled = true
+fog_color = [0.68, 0.78, 0.90]
+fog_density = 0.002
+fog_start = 40.0
+fog_height_enabled = true
+fog_height_falloff = 0.015
+fog_height_origin = 0.0
 
 
 # ============================================================
@@ -638,6 +645,7 @@ file = "splines/oval_plus.spline.toml"
 [entities.track_path.track_info]
 length = 660.0
 name = "Oval Plus"
+fog_density = 0.002
 
 # Road surface — wide, thin slab centered on the spline
 [entities.track_road]

@@ -9,3 +9,8 @@ description = "Total track length in meters (sample_count * spacing)"
 [component.track_info.fields.name]
 type = "string"
 default = "Unknown Track"
+
+[component.track_info.fields.fog_density]
+type = "float"
+default = 0.003
+description = "Base fog density for speed-based fog scaling in scripts"

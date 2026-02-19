@@ -262,6 +262,22 @@ fn on_update() {
     }
     set_radial_blur(rb_val);
 
+    // ── Fog clears with speed: full density at rest, 20% at max ──
+    let track_id = get_entity("track_path");
+    if track_id >= 0 {
+        let base_fog = get_field(track_id, "track_info", "fog_density");
+        let fog_scale = 1.0 - speed_ratio * 0.8;
+        if drift_state == "boost" {
+            // Extra clearing during boost
+            let boost_clear = 0.1;
+            if boost_tier >= 2 { boost_clear = 0.15; }
+            if boost_tier >= 3 { boost_clear = 0.2; }
+            fog_scale = fog_scale - boost_clear;
+        }
+        if fog_scale < 0.0 { fog_scale = 0.0; }
+        set_fog_density(base_fog * fog_scale);
+    }
+
     // ── Audio Focus: low-pass filter at high speed ──
     let audio_cutoff = 20000.0;
     if speed_ratio > 0.35 {
