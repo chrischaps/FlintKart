@@ -1,0 +1,2016 @@
+    Checking cfg-if v1.0.4
+    Checking log v0.4.29
+    Checking arrayvec v0.7.6
+    Checking stable_deref_trait v1.2.1
+    Checking windows-link v0.2.1
+    Checking equivalent v1.0.2
+    Checking smallvec v1.15.1
+    Checking bitflags v2.10.0
+    Checking hashbrown v0.16.1
+    Checking lazy_static v1.5.0
+    Checking portable-atomic v1.13.1
+    Checking windows_x86_64_msvc v0.52.6
+    Checking libm v0.2.16
+    Checking serde_core v1.0.228
+    Checking crossbeam-utils v0.8.21
+    Checking typenum v1.19.0
+    Checking memchr v2.7.6
+    Checking winnow v0.7.14
+    Checking toml_write v0.1.2
+    Checking bytemuck v1.25.0
+    Checking zerocopy v0.8.37
+    Checking thiserror v2.0.18
+    Checking cpufeatures v0.2.17
+    Checking const-random v0.1.18
+    Checking getrandom v0.3.4
+    Checking profiling v1.0.17
+    Checking windows-sys v0.61.2
+    Checking libc v0.2.180
+    Checking windows-targets v0.52.6
+    Checking either v1.15.0
+    Checking simd-adler32 v0.3.8
+    Checking itoa v1.0.17
+    Checking equator v0.4.2
+    Checking pin-project-lite v0.2.16
+    Checking adler2 v2.0.1
+    Checking zerofrom v0.1.6
+    Checking zmij v1.0.19
+    Checking raw-window-handle v0.6.2
+    Checking crc32fast v1.5.0
+    Checking anyhow v1.0.100
+    Checking as-slice v0.2.1
+    Checking byteorder v1.5.0
+    Checking y4m v0.8.0
+    Checking spin v0.9.8
+    Checking allocator-api2 v0.2.21
+    Checking once_cell v1.21.3
+    Checking bitflags v1.3.2
+    Checking miniz_oxide v0.8.9
+    Checking foldhash v0.1.5
+    Checking yoke v0.8.1
+    Checking quick-error v2.0.1
+    Checking aligned v0.4.3
+    Checking crossbeam-epoch v0.9.18
+    Checking itertools v0.14.0
+    Checking aligned-vec v0.6.4
+    Checking nom v8.0.0
+    Checking core2 v0.4.0
+    Checking symphonia-core v0.5.5
+    Checking thiserror v1.0.69
+    Checking windows-sys v0.52.0
+    Checking indexmap v2.13.0
+    Checking new_debug_unreachable v1.0.6
+    Checking generic-array v0.14.7
+    Checking weezl v0.1.12
+    Checking bimap v0.6.3
+    Checking zune-core v0.4.12
+    Checking bitstream-io v4.9.0
+    Checking tracing-core v0.1.36
+    Checking scopeguard v1.2.0
+    Checking imgref v1.12.0
+    Checking fax v0.2.6
+    Checking zerovec v0.11.5
+    Checking parking_lot_core v0.9.12
+    Checking hashbrown v0.15.5
+    Checking crossbeam-deque v0.8.6
+    Checking lock_api v0.4.14
+    Checking fdeflate v0.3.7
+    Checking zune-jpeg v0.4.21
+    Checking flate2 v1.1.9
+    Checking zune-inflate v0.2.54
+    Checking loop9 v0.1.5
+    Checking avif-serialize v0.8.6
+    Checking encoding_rs v0.8.35
+    Checking tracing v0.1.44
+    Checking rayon-core v1.13.0
+    Checking num-traits v0.2.19
+    Checking color_quant v1.1.0
+    Checking block-buffer v0.10.4
+    Checking crypto-common v0.1.7
+    Checking byteorder-lite v0.1.0
+    Checking lebe v0.5.3
+    Checking rgb v0.8.52
+    Checking bit_field v0.10.3
+    Checking zune-core v0.5.1
+    Checking parking_lot v0.12.5
+    Checking qoi v0.4.1
+    Checking windows-result v0.2.0
+    Checking digest v0.10.7
+    Checking smol_str v0.2.2
+    Checking gif v0.14.1
+    Checking unicode-segmentation v1.12.0
+    Checking png v0.18.0
+    Checking dpi v0.1.2
+    Checking cursor-icon v1.2.0
+    Checking tinystr v0.8.2
+    Checking writeable v0.6.2
+    Checking image-webp v0.2.4
+    Checking rayon v1.11.0
+    Checking litemap v0.8.1
+    Checking potential_utf v0.1.4
+    Checking zerotrie v0.2.3
+    Checking zune-jpeg v0.5.12
+    Checking sha2 v0.10.9
+    Checking windows-strings v0.1.0
+    Checking libloading v0.8.9
+    Checking ttf-parser v0.25.1
+    Checking urlencoding v2.1.3
+    Checking unicode-width v0.1.14
+    Checking serde v1.0.228
+    Checking num-integer v0.1.46
+    Checking v_frame v0.3.9
+    Checking serde_json v1.0.149
+    Checking pxfm v0.1.27
+    Checking base64 v0.13.1
+    Checking icu_locale_core v2.1.1
+    Checking bit-vec v0.8.0
+    Checking icu_collections v2.1.1
+    Checking emath v0.30.0
+    Checking winapi-util v0.1.11
+    Checking spirv v0.3.0+sdk-1.3.268.0
+    Checking gpu-alloc-types v0.3.0
+    Checking windows-core v0.58.0
+    Checking gpu-descriptor-types v0.2.0
+    Checking unicode-xid v0.2.6
+    Checking bit-set v0.8.0
+    Checking num-bigint v0.4.6
+    Checking hexf-parse v0.2.1
+    Checking termcolor v1.4.1
+    Checking symphonia-metadata v0.5.5
+    Checking toml_datetime v0.6.11
+    Checking serde_spanned v0.6.9
+    Checking ab_glyph_rasterizer v0.1.10
+    Checking rand_core v0.6.4
+    Checking rustc-hash v1.1.0
+    Checking static_assertions v1.1.0
+    Checking presser v0.3.1
+    Checking gpu-descriptor v0.3.2
+    Checking gpu-alloc v0.6.0
+    Checking ecolor v0.30.0
+    Checking glutin_wgl_sys v0.6.1
+    Checking icu_properties_data v2.1.2
+    Checking icu_normalizer_data v2.1.1
+    Checking ash v0.38.0+1.3.281
+    Checking khronos-egl v6.0.0
+    Checking toml_edit v0.22.27
+    Checking safe_arch v0.7.4
+    Checking rand_core v0.9.5
+    Checking codespan-reporting v0.11.1
+    Checking windows-result v0.1.2
+    Checking windows v0.58.0
+    Checking symphonia-utils-xiph v0.5.5
+    Checking wgpu-types v23.0.0
+    Checking icu_provider v2.1.1
+    Checking rustc-hash v2.1.1
+    Checking gltf-json v1.4.1
+    Checking renderdoc-sys v1.1.0
+    Checking nohash-hasher v0.2.0
+    Checking percent-encoding v2.3.2
+    Checking glow v0.14.2
+    Checking range-alloc v0.1.4
+    Checking epaint_default_fonts v0.30.0
+    Checking windows-core v0.54.0
+    Checking rand v0.8.5
+    Checking rand_xorshift v0.3.0
+    Checking num-complex v0.4.6
+    Checking approx v0.5.1
+    Checking hash32 v0.3.1
+    Checking icu_normalizer v2.1.1
+    Checking wide v0.7.33
+    Checking icu_properties v2.1.2
+    Checking rawpointer v0.2.1
+    Checking naga v23.1.0
+    Checking extended v0.1.0
+    Checking symphonia-codec-vorbis v0.5.5
+    Checking symphonia-format-ogg v0.5.5
+    Checking num-rational v0.4.2
+    Checking heapless v0.8.0
+    Checking matrixmultiply v0.3.10
+    Checking symphonia-format-riff v0.5.5
+    Checking maybe-rayon v0.1.1
+    Checking noise v0.9.0
+    Checking symphonia-bundle-flac v0.5.5
+    Checking symphonia-bundle-mp3 v0.5.5
+    Checking ahash v0.8.12
+    Checking half v2.7.1
+    Checking av-scenechange v0.14.1
+    Checking av1-grain v0.2.5
+    Checking ppv-lite86 v0.2.21
+    Checking windows v0.54.0
+    Checking symphonia-codec-pcm v0.5.5
+    Checking mint v0.5.9
+    Checking robust v1.2.0
+    Checking dasp_sample v0.11.0
+    Checking hashbrown v0.14.5
+    Checking slab v0.4.12
+    Checking toml v0.8.23
+    Checking utf8_iter v1.0.4
+    Checking rstar v0.12.2
+    Checking owned_ttf_parser v0.25.1
+    Checking tiff v0.10.3
+    Checking moxcms v0.7.11
+    Checking exr v1.74.0
+    Checking glam v0.30.10
+    Checking winapi v0.3.9
+    Checking spade v2.15.0
+    Checking rand_chacha v0.9.0
+    Checking form_urlencoded v1.2.2
+    Checking ordered-float v4.6.0
+    Checking triple_buffer v8.1.1
+    Checking idna_adapter v1.2.1
+    Checking ab_glyph v0.2.32
+    Checking crossbeam-channel v0.5.15
+    Checking rav1e v0.8.1
+    Checking simba v0.9.1
+    Checking winit v0.30.12
+    Checking symphonia v0.5.5
+    Checking flint-core v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-core)
+    Checking crossbeam-queue v0.3.12
+    Checking uuid v1.20.0
+    Checking idna v1.1.0
+    Checking windows-sys v0.59.0
+    Checking rand v0.9.2
+    Checking hecs v0.10.5
+    Checking ena v0.14.3
+    Checking zeroize v1.8.2
+    Checking error-code v3.3.2
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+  --> crates\flint-core\src\hash.rs:25:5
+   |
+25 | /     pub fn from_str(s: &str) -> Self {
+26 | |         Self::from_bytes(s.as_bytes())
+27 | |     }
+   | |_____^
+   |
+   = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+   = note: `#[warn(clippy::should_implement_trait)]` on by default
+
+warning: returning the result of a `let` binding from a block
+   --> crates\flint-core\src\types.rs:242:9
+    |
+221 | /         let mat = [
+222 | |             [
+223 | |                 r00 * self.scale.x,
+224 | |                 r10 * self.scale.x,
+...   |
+240 | |             [self.position.x, self.position.y, self.position.z, 1.0],
+241 | |         ];
+    | |__________- unnecessary `let` binding
+242 |           mat
+    |           ^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_and_return
+    = note: `#[warn(clippy::let_and_return)]` on by default
+help: return the expression directly
+    |
+221 ~         
+222 ~         [
+223 +             [
+224 +                 r00 * self.scale.x,
+225 +                 r10 * self.scale.x,
+226 +                 r20 * self.scale.x,
+227 +                 0.0,
+228 +             ],
+229 +             [
+230 +                 r01 * self.scale.y,
+231 +                 r11 * self.scale.y,
+232 +                 r21 * self.scale.y,
+233 +                 0.0,
+234 +             ],
+235 +             [
+236 +                 r02 * self.scale.z,
+237 +                 r12 * self.scale.z,
+238 +                 r22 * self.scale.z,
+239 +                 0.0,
+240 +             ],
+241 +             [self.position.x, self.position.y, self.position.z, 1.0],
+242 +         ]
+    |
+
+    Checking atomic-arena v0.1.2
+    Checking rtrb v0.3.2
+    Checking once_cell_polyfill v1.70.2
+    Checking utf8parse v0.2.2
+    Checking epaint v0.30.0
+warning: `flint-core` (lib) generated 2 warnings (run `cargo clippy --fix --lib -p flint-core` to apply 1 suggestion)
+    Checking flint-schema v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-schema)
+    Checking flint-asset v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-asset)
+    Checking anstyle v1.0.13
+    Checking downcast-rs v1.2.1
+    Checking rustls-pki-types v1.14.0
+    Checking clipboard-win v5.4.1
+    Checking url v2.5.8
+    Checking crossbeam v0.8.4
+    Checking rusty-xinput v1.3.0
+    Checking anstyle-query v1.1.5
+    Checking getrandom v0.2.17
+    Checking anstyle-parse v0.2.7
+    Checking anstyle-wincon v3.0.11
+warning: methods with the following characteristics: (`to_*` and `self` type is not `Copy`) usually take `self` by reference
+  --> crates\flint-schema\src\archetype.rs:48:32
+   |
+48 |     pub fn to_archetype_schema(self, name: String) -> ArchetypeSchema {
+   |                                ^^^^
+   |
+   = help: consider choosing a less ambiguous name
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#wrong_self_convention
+   = note: `#[warn(clippy::wrong_self_convention)]` on by default
+
+    Checking option-ext v0.2.0
+warning: methods with the following characteristics: (`to_*` and `self` type is not `Copy`) usually take `self` by reference
+   --> crates\flint-schema\src\component.rs:133:28
+    |
+133 |     pub fn to_field_schema(self) -> FieldSchema {
+    |                            ^^^^
+    |
+    = help: consider choosing a less ambiguous name
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#wrong_self_convention
+
+warning: unnecessary `if let` since only the `Some` variant of the iterator element is used
+  --> crates\flint-schema\src\registry.rs:18:5
+   |
+18 | /     for dir in [Some(scene_dir), scene_dir.parent()] {
+19 | |         if let Some(d) = dir {
+20 | |             let schemas = d.join("schemas");
+21 | |             if schemas.is_dir() {
+...  |
+25 | |     }
+   | |_____^
+   |
+help: try `.flatten()` and remove the `if let` statement in the for loop
+  --> crates\flint-schema\src\registry.rs:19:9
+   |
+19 | /         if let Some(d) = dir {
+20 | |             let schemas = d.join("schemas");
+21 | |             if schemas.is_dir() {
+22 | |                 dirs.push(schemas);
+23 | |             }
+24 | |         }
+   | |_________^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_flatten
+   = note: `#[warn(clippy::manual_flatten)]` on by default
+help: try
+   |
+18 ~     for d in [Some(scene_dir), scene_dir.parent()].into_iter().flatten() {
+19 +         let schemas = d.join("schemas");
+20 +         if schemas.is_dir() {
+21 +             dirs.push(schemas);
+22 +         }
+23 +     }
+   |
+
+    Checking regex-syntax v0.8.10
+    Checking untrusted v0.9.0
+    Checking bit-vec v0.7.0
+warning: `flint-schema` (lib) generated 3 warnings (run `cargo clippy --fix --lib -p flint-schema` to apply 1 suggestion)
+    Checking pollster v0.4.0
+    Checking web-time v1.1.0
+    Checking colorchoice v1.0.4
+    Checking is_terminal_polyfill v1.70.2
+    Checking dirs-sys v0.5.0
+    Checking flint-ecs v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-ecs)
+    Checking gilrs-core v0.6.7
+    Checking smartstring v1.0.1
+    Checking type-map v0.5.1
+    Checking same-file v1.0.6
+    Checking instant v0.1.13
+    Checking ring v0.17.14
+    Checking anstream v0.6.21
+    Checking bytes v1.11.1
+    Checking hound v3.5.1
+    Checking ucd-trie v0.1.7
+    Checking fnv v1.0.7
+    Checking clap_lex v0.7.7
+    Checking strsim v0.11.1
+    Checking webbrowser v1.0.6
+    Checking thin-vec v0.2.14
+    Checking egui v0.30.0
+    Checking vec_map v0.8.2
+    Checking flint-runtime v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-runtime)
+    Checking flint-scene v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-scene)
+    Checking arboard v3.6.1
+    Checking pest v2.8.5
+    Checking walkdir v2.5.0
+    Checking notify-types v1.0.1
+    Checking dirs v6.0.0
+    Checking clap_builder v4.5.57
+    Checking httparse v1.10.1
+    Checking nu-ansi-term v0.50.3
+    Checking gilrs v0.11.1
+    Checking rhai v1.24.0
+    Checking tracing-log v0.2.0
+    Checking http v1.4.0
+    Checking sharded-slab v0.1.7
+    Checking filetime v0.2.27
+    Checking thread_local v1.1.9
+    Checking fastrand v2.3.0
+warning: you seem to want to iterate on a map's keys
+  --> crates\flint-scene\src\loader.rs:95:22
+   |
+95 |     for (name, _) in &scene_file.entities {
+   |                      ^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#for_kv_map
+   = note: `#[warn(clippy::for_kv_map)]` on by default
+help: use the corresponding method
+   |
+95 -     for (name, _) in &scene_file.entities {
+95 +     for name in scene_file.entities.keys() {
+   |
+
+warning: this `map_or` can be simplified
+   --> crates\flint-scene\src\loader.rs:108:25
+    |
+108 |                     if !world.get_components(id).map_or(false, |c| c.has(comp_name)) {
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_map_or
+    = note: `#[warn(clippy::unnecessary_map_or)]` on by default
+help: use is_some_and instead
+    |
+108 -                     if !world.get_components(id).map_or(false, |c| c.has(comp_name)) {
+108 +                     if !world.get_components(id).is_some_and(|c| c.has(comp_name)) {
+    |
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+  --> crates\flint-scene\src\patcher.rs:28:5
+   |
+28 | /     pub fn from_str(content: &str) -> Result<Self, String> {
+29 | |         let doc: toml_edit::DocumentMut = content
+30 | |             .parse()
+31 | |             .map_err(|e| format!("Failed to parse TOML: {}", e))?;
+32 | |         Ok(Self { doc })
+33 | |     }
+   | |_____^
+   |
+   = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+   = note: `#[warn(clippy::should_implement_trait)]` on by default
+
+warning: implementation of inherent method `to_string(&self) -> String` for type `patcher::SceneDocument`
+  --> crates\flint-scene\src\patcher.rs:94:5
+   |
+94 | /     pub fn to_string(&self) -> String {
+95 | |         self.doc.to_string()
+96 | |     }
+   | |_____^
+   |
+   = help: implement trait `Display` for type `patcher::SceneDocument` instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#inherent_to_string
+   = note: `#[warn(clippy::inherent_to_string)]` on by default
+
+    Checking base64 v0.22.1
+    Checking regex-automata v0.4.14
+    Checking subtle v2.6.1
+warning: `flint-scene` (lib) generated 4 warnings (run `cargo clippy --fix --lib -p flint-scene` to apply 2 suggestions)
+    Checking webpki-roots v1.0.6
+    Checking flint-particles v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-particles)
+    Checking utf-8 v0.7.6
+    Checking notify v7.0.0
+    Checking rfd v0.15.4
+    Checking tempfile v3.24.0
+warning: redundant closure
+   --> crates\flint-particles\src\emitter.rs:184:23
+    |
+184 |             .and_then(|v| toml_f32(v))
+    |                       ^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `toml_f32`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+    = note: `#[warn(clippy::redundant_closure)]` on by default
+
+warning: redundant closure
+   --> crates\flint-particles\src\emitter.rs:188:23
+    |
+188 |             .and_then(|v| toml_f32(v))
+    |                       ^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `toml_f32`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+
+warning: redundant closure
+   --> crates\flint-particles\src\emitter.rs:192:23
+    |
+192 |             .and_then(|v| toml_vec3(v))
+    |                       ^^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `toml_vec3`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+
+warning: redundant closure
+   --> crates\flint-particles\src\sync.rs:380:19
+    |
+380 |         .and_then(|v| toml_vec3(v))
+    |                   ^^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `toml_vec3`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+
+warning: `flint-particles` (lib) generated 4 warnings (run `cargo clippy --fix --lib -p flint-particles` to apply 4 suggestions)
+    Checking ureq-proto v0.5.3
+    Checking rustls-webpki v0.103.9
+    Checking flint-query v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-query)
+    Checking notify-debouncer-mini v0.5.0
+    Checking flint-constraint v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-constraint)
+    Checking ravif v0.12.0
+    Checking rustls v0.23.36
+    Checking nalgebra v0.33.2
+    Checking image v0.25.9
+    Checking clap v4.5.57
+    Checking gpu-allocator v0.27.0
+    Checking matchers v0.2.0
+    Checking egui-winit v0.30.0
+    Checking egui-snarl v0.6.0
+    Checking tracing-subscriber v0.3.22
+    Checking gltf v1.4.1
+    Checking flint-terrain v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-terrain)
+warning: this function has too many arguments (8/7)
+  --> crates\flint-terrain\src\brush.rs:44:1
+   |
+44 | / pub fn apply_height_brush(
+45 | |     heights: &mut [f32],
+46 | |     res: u32,
+47 | |     u: f32,
+...  |
+52 | |     seed: u64,
+53 | | ) {
+   | |_^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+   = note: `#[warn(clippy::too_many_arguments)]` on by default
+
+warning: this function has too many arguments (8/7)
+   --> crates\flint-terrain\src\brush.rs:121:1
+    |
+121 | / pub fn apply_splat_brush(
+122 | |     splat: &mut [u8],
+123 | |     res: u32,
+124 | |     u: f32,
+...   |
+129 | |     dt: f32,
+130 | | ) {
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this `impl` can be derived
+  --> crates\flint-terrain\src\grass_config.rs:12:1
+   |
+12 | / impl Default for DensitySource {
+13 | |     fn default() -> Self {
+14 | |         Self::Splat
+15 | |     }
+16 | | }
+   | |_^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#derivable_impls
+   = note: `#[warn(clippy::derivable_impls)]` on by default
+help: replace the manual implementation with a derive attribute and mark the default variant
+   |
+ 7 + #[derive(Default)]
+ 8 | pub enum DensitySource {
+ 9 ~     #[default]
+10 ~     Splat,
+   |
+
+warning: this function has too many arguments (8/7)
+  --> crates\flint-terrain\src\splatgen.rs:12:1
+   |
+12 | / pub fn generate_splat_map(
+13 | |     heights: &[f32],
+14 | |     height_res: u32,
+15 | |     splat_res: u32,
+...  |
+20 | |     seed: u64,
+21 | | ) -> Vec<u8> {
+   | |____________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: `flint-terrain` (lib) generated 4 warnings (run `cargo clippy --fix --lib -p flint-terrain` to apply 1 suggestion)
+    Checking ureq v3.2.0
+    Checking flint-import v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-import)
+    Checking flint-procgen v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-procgen)
+    Checking flint-animation v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-animation)
+    Checking flint-asset-gen v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-asset-gen)
+warning: using `clone` on type `Interpolation` which implements the `Copy` trait
+   --> crates\flint-animation\src\node_sync.rs:258:36
+    |
+258 |                     interpolation: track.interpolation.clone(),
+    |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try removing the `clone` call: `track.interpolation`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#clone_on_copy
+    = note: `#[warn(clippy::clone_on_copy)]` on by default
+
+    Checking cpal v0.16.0
+    Checking wgpu-hal v23.0.1
+warning: `flint-animation` (lib) generated 1 warning (run `cargo clippy --fix --lib -p flint-animation` to apply 1 suggestion)
+    Checking parry3d v0.17.6
+    Checking kira v0.11.0
+warning: manual slice size calculation
+   --> crates\flint-procgen\src\export_glb.rs:491:15
+    |
+491 |     let len = data.len() * mem::size_of::<f32>();
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `std::mem::size_of_val(data)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_slice_size_calculation
+    = note: `#[warn(clippy::manual_slice_size_calculation)]` on by default
+
+warning: the loop variable `i` is used to index `row_boundaries`
+   --> crates\flint-procgen\src\generators\texture\ops.rs:186:30
+    |
+186 |                     for i in 1..row_boundaries.len() {
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_range_loop
+    = note: `#[warn(clippy::needless_range_loop)]` on by default
+help: consider using an iterator and enumerate()
+    |
+186 -                     for i in 1..row_boundaries.len() {
+186 +                     for (i, <item>) in row_boundaries.iter().enumerate().skip(1) {
+    |
+
+warning: the loop variable `i` is used to index `bounds`
+   --> crates\flint-procgen\src\generators\texture\ops.rs:214:30
+    |
+214 |                     for i in 1..bounds.len() {
+    |                              ^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_range_loop
+help: consider using an iterator and enumerate()
+    |
+214 -                     for i in 1..bounds.len() {
+214 +                     for (i, <item>) in bounds.iter().enumerate().skip(1) {
+    |
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+   --> crates\flint-procgen\src\generators\texture\ops.rs:492:5
+    |
+492 | /     pub fn from_str(s: &str) -> Self {
+493 | |         match s {
+494 | |             "linear" => Self::Linear,
+495 | |             "parabolic" => Self::Parabolic,
+...   |
+498 | |     }
+    | |_____^
+    |
+    = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+    = note: `#[warn(clippy::should_implement_trait)]` on by default
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+   --> crates\flint-procgen\src\generators\texture\ops.rs:582:5
+    |
+582 | /     pub fn from_str(s: &str) -> Self {
+583 | |         match s {
+584 | |             "simplex" => NoiseType::Simplex,
+585 | |             "value" => NoiseType::Value,
+...   |
+589 | |     }
+    | |_____^
+    |
+    = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+   --> crates\flint-procgen\src\generators\texture\ops.rs:740:5
+    |
+740 | /     pub fn from_str(s: &str) -> Self {
+741 | |         match s {
+742 | |             "multiply" => BlendMode::Multiply,
+743 | |             "mix" => BlendMode::Mix,
+...   |
+757 | |     }
+    | |_____^
+    |
+    = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+    --> crates\flint-procgen\src\generators\texture\ops.rs:1193:5
+     |
+1193 | /     pub fn from_str(s: &str) -> Self {
+1194 | |         match s {
+1195 | |             "add" => MathOperation::Add,
+1196 | |             "subtract" => MathOperation::Subtract,
+...    |
+1220 | |     }
+     | |_____^
+     |
+     = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+    --> crates\flint-procgen\src\generators\texture\ops.rs:1393:5
+     |
+1393 | /     pub fn from_str(s: &str) -> Self {
+1394 | |         match s {
+1395 | |             "smoothstep" => MapRangeInterp::Smoothstep,
+1396 | |             "smootherstep" => MapRangeInterp::Smootherstep,
+...    |
+1399 | |     }
+     | |_____^
+     |
+     = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+    --> crates\flint-procgen\src\generators\texture\ops.rs:1478:5
+     |
+1478 | /     pub fn from_str(s: &str) -> Self {
+1479 | |         match s {
+1480 | |             "constant" => ColorRampInterp::Constant,
+1481 | |             "ease" => ColorRampInterp::Ease,
+...    |
+1484 | |     }
+     | |_____^
+     |
+     = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+    --> crates\flint-procgen\src\generators\texture\ops.rs:1636:5
+     |
+1636 | /     pub fn from_str(s: &str) -> Self {
+1637 | |         match s {
+1638 | |             "quadratic" => GradientType::Quadratic,
+1639 | |             "easing" => GradientType::Easing,
+...    |
+1646 | |     }
+     | |_____^
+     |
+     = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+    --> crates\flint-procgen\src\generators\texture\ops.rs:1734:5
+     |
+1734 | /     pub fn from_str(s: &str) -> Self {
+1735 | |         match s {
+1736 | |             "saw" => WaveType::Saw,
+1737 | |             "triangle" => WaveType::Triangle,
+...    |
+1740 | |     }
+     | |_____^
+     |
+     = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+    --> crates\flint-procgen\src\generators\texture\ops.rs:1751:5
+     |
+1751 | /     pub fn from_str(s: &str) -> Self {
+1752 | |         match s {
+1753 | |             "y" => WaveDirection::Y,
+1754 | |             "diagonal" => WaveDirection::Diagonal,
+...    |
+1757 | |     }
+     | |_____^
+     |
+     = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+
+warning: very complex type used. Consider factoring parts into `type` definitions
+  --> crates\flint-procgen\src\generators\texture\pipeline.rs:84:44
+   |
+84 | fn parse_pipeline(params: &toml::Value) -> Result<(Vec<toml::Value>, Vec<Box<dyn TextureOp>>)> {
+   |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#type_complexity
+   = note: `#[warn(clippy::type_complexity)]` on by default
+
+warning: explicit call to `.into_iter()` in function argument accepting `IntoIterator`
+   --> crates\flint-procgen\src\generators\tree\leaves.rs:132:16
+    |
+132 |         .chain(along_positions.into_iter())
+    |                ^^^^^^^^^^^^^^^------------
+    |                               |
+    |                               help: consider removing the `.into_iter()`
+    |
+note: this parameter accepts any `IntoIterator`, so you don't need to call `.into_iter()`
+   --> /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\iter\traits\iterator.rs:498:12
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#useless_conversion
+    = note: `#[warn(clippy::useless_conversion)]` on by default
+
+warning: explicit call to `.into_iter()` in function argument accepting `IntoIterator`
+   --> crates\flint-procgen\src\generators\tree\leaves.rs:137:16
+    |
+137 |         .chain(along_directions.into_iter())
+    |                ^^^^^^^^^^^^^^^^------------
+    |                                |
+    |                                help: consider removing the `.into_iter()`
+    |
+note: this parameter accepts any `IntoIterator`, so you don't need to call `.into_iter()`
+   --> /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\iter\traits\iterator.rs:498:12
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#useless_conversion
+
+warning: explicit call to `.into_iter()` in function argument accepting `IntoIterator`
+   --> crates\flint-procgen\src\generators\tree\leaves.rs:240:16
+    |
+240 |         .chain(along_positions.into_iter())
+    |                ^^^^^^^^^^^^^^^------------
+    |                               |
+    |                               help: consider removing the `.into_iter()`
+    |
+note: this parameter accepts any `IntoIterator`, so you don't need to call `.into_iter()`
+   --> /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\iter\traits\iterator.rs:498:12
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#useless_conversion
+
+warning: explicit call to `.into_iter()` in function argument accepting `IntoIterator`
+   --> crates\flint-procgen\src\generators\tree\leaves.rs:245:16
+    |
+245 |         .chain(along_directions.into_iter())
+    |                ^^^^^^^^^^^^^^^^------------
+    |                                |
+    |                                help: consider removing the `.into_iter()`
+    |
+note: this parameter accepts any `IntoIterator`, so you don't need to call `.into_iter()`
+   --> /rustc/ded5c06cf21d2b93bffd5d884aa6e96934ee4234\library\core\src\iter\traits\iterator.rs:498:12
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#useless_conversion
+
+warning: manual `!RangeInclusive::contains` implementation
+   --> crates\flint-procgen\src\validate.rs:302:12
+    |
+302 |         if r < 0.0 || r > 1.0 {
+    |            ^^^^^^^^^^^^^^^^^^ help: use: `!(0.0..=1.0).contains(&r)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_range_contains
+    = note: `#[warn(clippy::manual_range_contains)]` on by default
+
+warning: manual `!RangeInclusive::contains` implementation
+   --> crates\flint-procgen\src\validate.rs:349:12
+    |
+349 |         if m < 0.0 || m > 1.0 {
+    |            ^^^^^^^^^^^^^^^^^^ help: use: `!(0.0..=1.0).contains(&m)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_range_contains
+
+warning: this `if` has identical blocks
+   --> crates\flint-procgen\src\validate.rs:462:61
+    |
+462 |               dim_status = if dim_status == CheckStatus::Fail {
+    |  _____________________________________________________________^
+463 | |                 CheckStatus::Fail
+464 | |             } else {
+    | |_____________^
+    |
+note: same as this
+   --> crates\flint-procgen\src\validate.rs:464:20
+    |
+464 |               } else {
+    |  ____________________^
+465 | |                 CheckStatus::Fail
+466 | |             };
+    | |_____________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#if_same_then_else
+    = note: `#[warn(clippy::if_same_then_else)]` on by default
+
+warning: this `if` statement can be collapsed
+   --> crates\flint-procgen\src\validate.rs:484:5
+    |
+484 | /     if dim_status == CheckStatus::Pass {
+485 | |         if !img.width.is_power_of_two() || !img.height.is_power_of_two() {
+486 | |             dim_status = CheckStatus::Warn;
+487 | |             dim_detail = format!("{}x{} — not power-of-two", img.width, img.height);
+488 | |         }
+489 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#collapsible_if
+    = note: `#[warn(clippy::collapsible_if)]` on by default
+help: collapse nested if block
+    |
+484 ~     if dim_status == CheckStatus::Pass
+485 ~         && (!img.width.is_power_of_two() || !img.height.is_power_of_two()) {
+486 |             dim_status = CheckStatus::Warn;
+487 |             dim_detail = format!("{}x{} — not power-of-two", img.width, img.height);
+488 ~         }
+    |
+
+    Checking flint-music v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-music)
+    Checking flint-audio v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-audio)
+warning: `flint-procgen` (lib) generated 21 warnings (run `cargo clippy --fix --lib -p flint-procgen` to apply 8 suggestions)
+warning: this let-binding has unit value
+  --> crates\flint-audio\src\sync.rs:70:17
+   |
+70 |                 let _ = handle.stop(stop_tween);
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_unit_value
+   = note: `#[warn(clippy::let_unit_value)]` on by default
+help: omit the `let` binding
+   |
+70 -                 let _ = handle.stop(stop_tween);
+70 +                 handle.stop(stop_tween);
+   |
+
+warning: this let-binding has unit value
+  --> crates\flint-audio\src\sync.rs:75:17
+   |
+75 |                 let _ = handle.stop(stop_tween);
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#let_unit_value
+help: omit the `let` binding
+   |
+75 -                 let _ = handle.stop(stop_tween);
+75 +                 handle.stop(stop_tween);
+   |
+
+warning: `flint-audio` (lib) generated 2 warnings (run `cargo clippy --fix --lib -p flint-audio` to apply 2 suggestions)
+warning: doc quote line without `>` marker
+   --> crates\flint-music\src\chart_session.rs:223:5
+    |
+223 | /// the config, the path it resolves to (the default path even when absent —
+    |     ^
+    |
+    = help: if this not intended to be a quote at all, escape it with `\>`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#doc_lazy_continuation
+    = note: `#[warn(clippy::doc_lazy_continuation)]` on by default
+help: add markers to start of line
+    |
+223 | /// > the config, the path it resolves to (the default path even when absent —
+    |     +
+
+warning: doc quote line without `>` marker
+   --> crates\flint-music\src\chart_session.rs:224:5
+    |
+224 | /// reload watches it), and whether a file was actually loaded (the caller's
+    |     ^
+    |
+    = help: if this not intended to be a quote at all, escape it with `\>`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#doc_lazy_continuation
+help: add markers to start of line
+    |
+224 | /// > reload watches it), and whether a file was actually loaded (the caller's
+    |     +
+
+warning: doc quote line without `>` marker
+   --> crates\flint-music\src\chart_session.rs:225:5
+    |
+225 | /// notice wording branches on it).
+    |     ^
+    |
+    = help: if this not intended to be a quote at all, escape it with `\>`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#doc_lazy_continuation
+help: add markers to start of line
+    |
+225 | /// > notice wording branches on it).
+    |     +
+
+warning: redundant closure
+    --> crates\flint-music\src\chart_session.rs:1297:13
+     |
+1297 |             |p| LadderConfig::load(p),
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the associated function itself: `LadderConfig::load`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+     = note: `#[warn(clippy::redundant_closure)]` on by default
+
+warning: redundant closure
+    --> crates\flint-music\src\chart_session.rs:1320:13
+     |
+1320 |             |p| GradientConfig::load(p),
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the associated function itself: `GradientConfig::load`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+
+warning: redundant closure
+    --> crates\flint-music\src\chart_session.rs:1360:13
+     |
+1360 |             |p| crate::haptics::HapticsConfig::load(p),
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the associated function itself: `crate::haptics::HapticsConfig::load`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+
+warning: doc list item without indentation
+  --> crates\flint-music\src\judgment.rs:16:5
+   |
+16 | //!   Target and actual are both logged raw so any alternative model can be
+   |     ^^
+   |
+   = help: if this is supposed to be its own paragraph, add a blank line
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#doc_lazy_continuation
+help: indent this line
+   |
+16 | //!     Target and actual are both logged raw so any alternative model can be
+   |       ++
+
+warning: doc list item without indentation
+  --> crates\flint-music\src\judgment.rs:17:5
+   |
+17 | //!   evaluated offline from the logs alone.
+   |     ^^
+   |
+   = help: if this is supposed to be its own paragraph, add a blank line
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#doc_lazy_continuation
+help: indent this line
+   |
+17 | //!     evaluated offline from the logs alone.
+   |       ++
+
+warning: `flint-music` (lib) generated 8 warnings (run `cargo clippy --fix --lib -p flint-music` to apply 6 suggestions)
+    Checking flint-input-capture v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-input-capture)
+warning: doc list item without indentation
+  --> crates\flint-input-capture\src\lib.rs:22:5
+   |
+22 | //! Charts never see buttons.
+   |     ^
+   |
+   = help: if this is supposed to be its own paragraph, add a blank line
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#doc_lazy_continuation
+   = note: `#[warn(clippy::doc_lazy_continuation)]` on by default
+help: indent this line
+   |
+22 | //!   Charts never see buttons.
+   |     ++
+
+warning: `flint-input-capture` (lib) generated 1 warning
+    Checking wgpu-core v23.0.1
+    Checking rapier3d v0.22.0
+    Checking flint-physics v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-physics)
+warning: redundant closure
+   --> crates\flint-physics\src\sync.rs:202:31
+    |
+202 |                     .and_then(|b| compute_bounds_center(b))
+    |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `compute_bounds_center`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+    = note: `#[warn(clippy::redundant_closure)]` on by default
+
+warning: redundant closure
+   --> crates\flint-physics\src\sync.rs:322:27
+    |
+322 |                 .and_then(|b| compute_bounds_center(b))
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `compute_bounds_center`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+
+warning: this function has too many arguments (8/7)
+   --> crates\flint-physics\src\sync.rs:399:5
+    |
+399 | /     pub fn register_trimesh(
+400 | |         &mut self,
+401 | |         entity_id: EntityId,
+402 | |         physics: &mut PhysicsWorld,
+...   |
+407 | |         restitution: f32,
+408 | |     ) {
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+    = note: `#[warn(clippy::too_many_arguments)]` on by default
+
+warning: manual implementation of `Option::map`
+   --> crates\flint-physics\src\lib.rs:174:16
+    |
+174 |           } else if let Some(capsule) = shape.as_capsule() {
+    |  ________________^
+175 | |             Some(ColliderExtents::Capsule {
+176 | |                 radius: capsule.radius,
+177 | |                 half_height: capsule.half_height(),
+...   |
+180 | |             None
+181 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_map
+    = note: `#[warn(clippy::manual_map)]` on by default
+help: try
+    |
+174 ~         } else { shape.as_capsule().map(|capsule| ColliderExtents::Capsule {
+175 +                 radius: capsule.radius,
+176 +                 half_height: capsule.half_height(),
+177 +             }) }
+    |
+
+warning: `flint-physics` (lib) generated 4 warnings (run `cargo clippy --fix --lib -p flint-physics` to apply 3 suggestions)
+    Checking flint-script v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-script)
+    Checking wgpu v23.0.1
+warning: using `contains()` instead of `iter().any()` is more efficient
+    --> crates\flint-script\src\api.rs:3220:13
+     |
+3220 |             c.input.touch_just_ended.iter().any(|tid| *tid == id)
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `c.input.touch_just_ended.contains(&id)`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_contains
+     = note: `#[warn(clippy::manual_contains)]` on by default
+
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+   --> crates\flint-script\src\context.rs:523:48
+    |
+523 |             let mut c = crate::lock_or_recover(&ctx);
+    |                                                ^^^^ help: change this to: `ctx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_borrow
+    = note: `#[warn(clippy::needless_borrow)]` on by default
+
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+   --> crates\flint-script\src\context.rs:551:48
+    |
+551 |             let mut c = crate::lock_or_recover(&ctx);
+    |                                                ^^^^ help: change this to: `ctx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_borrow
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+  --> crates\flint-script\src\ui\element.rs:16:5
+   |
+16 | /     pub fn from_str(s: &str) -> Option<Self> {
+17 | |         match s {
+18 | |             "panel" => Some(Self::Panel),
+19 | |             "text" => Some(Self::Text),
+...  |
+25 | |     }
+   | |_____^
+   |
+   = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+   = note: `#[warn(clippy::should_implement_trait)]` on by default
+
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+  --> crates\flint-script\src\ui\element.rs:44:5
+   |
+44 | /     pub fn from_str(s: &str) -> Option<Self> {
+45 | |         match s {
+46 | |             "top-left" => Some(Self::TopLeft),
+47 | |             "top-center" => Some(Self::TopCenter),
+...  |
+57 | |     }
+   | |_____^
+   |
+   = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#should_implement_trait
+
+warning: `flint-script` (lib) generated 5 warnings (run `cargo clippy --fix --lib -p flint-script` to apply 3 suggestions)
+    Checking flint-render v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-render)
+    Checking egui-wgpu v0.30.0
+warning: this function has too many arguments (10/7)
+   --> crates\flint-render\src\bitmap_font.rs:103:5
+    |
+103 | /     pub fn layout_text(
+104 | |         &self,
+105 | |         text: &str,
+106 | |         x: f32,
+...   |
+113 | |         tex_h: u32,
+114 | |     ) -> Vec<(String, i32, Sprite2dInstanceGpu)> {
+    | |________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+    = note: `#[warn(clippy::too_many_arguments)]` on by default
+
+warning: clamp-like pattern without using clamp function
+   --> crates\flint-render\src\camera.rs:108:25
+    |
+108 |         self.distance = (self.distance - delta).max(1.0).min(500.0);
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with clamp: `(self.distance - delta).clamp(1.0, 500.0)`
+    |
+    = note: clamp will panic if max < min, min.is_nan(), or max.is_nan()
+    = note: clamp returns NaN if the input is NaN
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_clamp
+    = note: `#[warn(clippy::manual_clamp)]` on by default
+
+warning: this function has too many arguments (8/7)
+   --> crates\flint-render\src\model_loader.rs:157:1
+    |
+157 | / fn expand_nodes_animated(
+158 | |     world: &mut FlintWorld,
+159 | |     import_result: &ImportResult,
+160 | |     root_node_indices: &[usize],
+...   |
+165 | |     device: &wgpu::Device,
+166 | | ) -> HashMap<String, EntityId> {
+    | |______________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: field assignment outside of initializer for an instance created with Default::default()
+   --> crates\flint-render\src\postprocess.rs:166:5
+    |
+166 |     config.bloom_enabled = pp_def.bloom_enabled;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+note: consider initializing the variable with `postprocess::PostProcessConfig { bloom_enabled: pp_def.bloom_enabled, bloom_intensity: pp_def.bloom_intensity, bloom_threshold: pp_def.bloom_threshold, vignette_enabled: pp_def.vignette_enabled, vignette_intensity: pp_def.vignette_intensity, vignette_smoothness: pp_def.vignette_smoothness, exposure: pp_def.exposure, ssao_enabled: pp_def.ssao_enabled, ssao_radius: pp_def.ssao_radius, ssao_intensity: pp_def.ssao_intensity, ssao_samples: pp_def.ssao_samples, fog_enabled: pp_def.fog_enabled, fog_color: pp_def.fog_color, fog_density: pp_def.fog_density, fog_start: pp_def.fog_start, fog_end: pp_def.fog_end, fog_height_enabled: pp_def.fog_height_enabled, fog_height_falloff: pp_def.fog_height_falloff, fog_height_origin: pp_def.fog_height_origin, chromatic_aberration: pp_def.chromatic_aberration, radial_blur: pp_def.radial_blur, desaturate: pp_def.desaturate, dof_strength: pp_def.dof_strength, dof_focus_distance: pp_def.dof_focus_distance, dof_focus_range: pp_def.dof_focus_range, dither_enabled: pp_def.dither_enabled, dither_intensity: pp_def.dither_intensity, volumetric_enabled: pp_def.volumetric_enabled, volumetric_samples: pp_def.volumetric_samples, volumetric_density: pp_def.volumetric_density, volumetric_max_distance: pp_def.volumetric_max_distance, volumetric_decay: pp_def.volumetric_decay, kuwahara_enabled: pp_def.kuwahara_enabled, kuwahara_radius: pp_def.kuwahara_radius, kuwahara_sharpness: pp_def.kuwahara_sharpness, kuwahara_hardness: pp_def.kuwahara_hardness, kuwahara_anisotropy: pp_def.kuwahara_anisotropy, film_grain: pp_def.film_grain, grade_lift: pp_def.grade_lift, grade_gamma: pp_def.grade_gamma, grade_gain: pp_def.grade_gain, fxaa_enabled: pp_def.fxaa, ..Default::default() }` and removing relevant reassignments
+   --> crates\flint-render\src\postprocess.rs:165:5
+    |
+165 |     let mut config = PostProcessConfig::default();
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#field_reassign_with_default
+    = note: `#[warn(clippy::field_reassign_with_default)]` on by default
+
+warning: this function has too many arguments (11/7)
+    --> crates\flint-render\src\postprocess.rs:2427:5
+     |
+2427 | /     pub fn run_volumetric(
+2428 | |         &self,
+2429 | |         device: &wgpu::Device,
+2430 | |         queue: &wgpu::Queue,
+...    |
+2438 | |         light_buffer: &wgpu::Buffer,
+2439 | |     ) {
+     | |_____^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (9/7)
+    --> crates\flint-render\src\postprocess.rs:2847:5
+     |
+2847 | /     pub fn composite(
+2848 | |         &self,
+2849 | |         device: &wgpu::Device,
+2850 | |         queue: &wgpu::Queue,
+...    |
+2856 | |         time: f32,
+2857 | |     ) {
+     | |_____^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (8/7)
+  --> crates\flint-render\src\scene_renderer\extract.rs:54:5
+   |
+54 | /     pub(super) fn extract_skinned_entity(
+55 | |         &mut self,
+56 | |         device: &wgpu::Device,
+57 | |         tex_cache: &TextureCache,
+...  |
+62 | |         need_overlay: bool,
+63 | |     ) -> bool {
+   | |_____________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (10/7)
+   --> crates\flint-render\src\scene_renderer\extract.rs:222:5
+    |
+222 | /     pub(super) fn extract_model_entity(
+223 | |         &mut self,
+224 | |         device: &wgpu::Device,
+225 | |         tex_cache: &TextureCache,
+...   |
+232 | |         arrow_length: f32,
+233 | |     ) -> bool {
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (9/7)
+   --> crates\flint-render\src\scene_renderer\extract.rs:404:5
+    |
+404 | /     pub(super) fn extract_sprite_entity(
+405 | |         &mut self,
+406 | |         device: &wgpu::Device,
+407 | |         tex_cache: &TextureCache,
+...   |
+413 | |         sprite2d_collected: &mut Vec<(String, i32, Sprite2dInstanceGpu)>,
+414 | |     ) {
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (8/7)
+   --> crates\flint-render\src\scene_renderer\extract.rs:442:5
+    |
+442 | /     fn extract_sprite2d(
+443 | |         &mut self,
+444 | |         tex_cache: &TextureCache,
+445 | |         _world: &FlintWorld,
+...   |
+450 | |         sprite2d_collected: &mut Vec<(String, i32, Sprite2dInstanceGpu)>,
+451 | |     ) {
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (10/7)
+   --> crates\flint-render\src\scene_renderer\extract.rs:859:5
+    |
+859 | /     pub(super) fn extract_bounds_entity(
+860 | |         &mut self,
+861 | |         device: &wgpu::Device,
+862 | |         tex_cache: &TextureCache,
+...   |
+869 | |         arrow_length: f32,
+870 | |     ) {
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: redundant closure
+    --> crates\flint-render\src\scene_renderer\extract.rs:1021:31
+     |
+1021 |                     .and_then(|v| extract_color(v));
+     |                               ^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `extract_color`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#redundant_closure
+     = note: `#[warn(clippy::redundant_closure)]` on by default
+
+warning: manually reimplementing `div_ceil`
+    --> crates\flint-render\src\scene_renderer\render_passes.rs:1433:28
+     |
+1433 |         let workgroups_x = (grid_x + 7) / 8;
+     |                            ^^^^^^^^^^^^^^^^ help: consider using `.div_ceil()`: `grid_x.div_ceil(8)`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_div_ceil
+     = note: `#[warn(clippy::manual_div_ceil)]` on by default
+
+warning: manually reimplementing `div_ceil`
+    --> crates\flint-render\src\scene_renderer\render_passes.rs:1434:28
+     |
+1434 |         let workgroups_z = (grid_z + 7) / 8;
+     |                            ^^^^^^^^^^^^^^^^ help: consider using `.div_ceil()`: `grid_z.div_ceil(8)`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_div_ceil
+
+warning: this function has too many arguments (11/7)
+   --> crates\flint-render\src\scene_renderer\mod.rs:781:5
+    |
+781 | /     pub fn load_terrain(
+782 | |         &mut self,
+783 | |         device: &wgpu::Device,
+784 | |         queue: &wgpu::Queue,
+...   |
+792 | |         scene_dir: &Path,
+793 | |     ) {
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (12/7)
+    --> crates\flint-render\src\scene_renderer\mod.rs:1074:5
+     |
+1074 | /     pub fn load_terrain_from_data(
+1075 | |         &mut self,
+1076 | |         device: &wgpu::Device,
+1077 | |         queue: &wgpu::Queue,
+...    |
+1086 | |         spec_dir: &Path,
+1087 | |     ) {
+     | |_____^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (8/7)
+    --> crates\flint-render\src\scene_renderer\mod.rs:2005:5
+     |
+2005 | /     pub fn load_texture_rgba(
+2006 | |         &mut self,
+2007 | |         device: &wgpu::Device,
+2008 | |         queue: &wgpu::Queue,
+...    |
+2013 | |         is_normal_map: bool,
+2014 | |     ) -> Result<bool, String> {
+     | |_____________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this `map_or` can be simplified
+    --> crates\flint-render\src\scene_renderer\mod.rs:2233:27
+     |
+2233 |         let was_enabled = self.shadow_pass.as_ref().map_or(false, |sp| sp.enabled);
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_map_or
+     = note: `#[warn(clippy::unnecessary_map_or)]` on by default
+help: use is_some_and instead
+     |
+2233 -         let was_enabled = self.shadow_pass.as_ref().map_or(false, |sp| sp.enabled);
+2233 +         let was_enabled = self.shadow_pass.as_ref().is_some_and(|sp| sp.enabled);
+     |
+
+warning: this function has too many arguments (11/7)
+    --> crates\flint-render\src\scene_renderer\mod.rs:2666:5
+     |
+2666 | /     fn create_textured_draw_call(
+2667 | |         device: &wgpu::Device,
+2668 | |         pipeline: &RenderPipeline,
+2669 | |         mesh: &crate::primitives::Mesh,
+...    |
+2677 | |         mr_sampler: &wgpu::Sampler,
+2678 | |     ) -> DrawCall {
+     | |_________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (11/7)
+    --> crates\flint-render\src\scene_renderer\mod.rs:2723:5
+     |
+2723 | /     fn create_imported_draw_call(
+2724 | |         device: &wgpu::Device,
+2725 | |         pipeline: &RenderPipeline,
+2726 | |         gpu_mesh: &crate::gpu_mesh::GpuMesh,
+...    |
+2734 | |         mr_sampler: &wgpu::Sampler,
+2735 | |     ) -> DrawCall {
+     | |_________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (9/7)
+    --> crates\flint-render\src\scene_renderer\mod.rs:2809:5
+     |
+2809 | /     fn create_material_bind_with_textures(
+2810 | |         device: &wgpu::Device,
+2811 | |         pipeline: &RenderPipeline,
+2812 | |         uniforms: &MaterialUniforms,
+...    |
+2818 | |         mr_sampler: &wgpu::Sampler,
+2819 | |     ) -> (wgpu::Buffer, wgpu::BindGroup) {
+     | |________________________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (8/7)
+   --> crates\flint-render\src\shadow.rs:273:5
+    |
+273 | /     pub fn update_cascades(
+274 | |         &mut self,
+275 | |         light_dir: [f32; 3],
+276 | |         camera_pos: [f32; 3],
+...   |
+281 | |         sun_tan_angular: f32,
+282 | |     ) {
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: this function has too many arguments (8/7)
+   --> crates\flint-render\src\texture_cache.rs:234:5
+    |
+234 | /     pub fn upload_rgba(
+235 | |         &mut self,
+236 | |         device: &wgpu::Device,
+237 | |         queue: &wgpu::Queue,
+...   |
+242 | |         is_normal_map: bool,
+243 | |     ) -> Result<bool, String> {
+    | |_____________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: `flint-render` (lib) generated 23 warnings (run `cargo clippy --fix --lib -p flint-render` to apply 4 suggestions)
+    Checking flint-debug-ui v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-debug-ui)
+    Checking flint-player v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-player)
+    Checking flint-viewer v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-viewer)
+warning: manual implementation of `Option::map`
+   --> crates\flint-viewer\src\panels\entity_inspector.rs:238:13
+    |
+238 | /             if let Some(new_arr) = vec3_edit(ui, name, arr, 0.1) {
+239 | |                 Some(vec3_to_toml(new_arr))
+240 | |             } else {
+241 | |                 None
+242 | |             }
+    | |_____________^ help: try: `vec3_edit(ui, name, arr, 0.1).map(vec3_to_toml)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_map
+    = note: `#[warn(clippy::manual_map)]` on by default
+
+warning: this `map_or` can be simplified
+   --> crates\flint-viewer\src\panels\scene_tree.rs:147:25
+    |
+147 |             .filter(|e| visible_set.as_ref().map_or(true, |vs| vs.contains(&e.id)))
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_map_or
+    = note: `#[warn(clippy::unnecessary_map_or)]` on by default
+help: use is_none_or instead
+    |
+147 -             .filter(|e| visible_set.as_ref().map_or(true, |vs| vs.contains(&e.id)))
+147 +             .filter(|e| visible_set.as_ref().is_none_or(|vs| vs.contains(&e.id)))
+    |
+
+warning: this `map_or` can be simplified
+   --> crates\flint-viewer\src\panels\scene_tree.rs:171:25
+    |
+171 |             .filter(|e| visible_set.as_ref().map_or(true, |vs| vs.contains(&e.id)))
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_map_or
+help: use is_none_or instead
+    |
+171 -             .filter(|e| visible_set.as_ref().map_or(true, |vs| vs.contains(&e.id)))
+171 +             .filter(|e| visible_set.as_ref().is_none_or(|vs| vs.contains(&e.id)))
+    |
+
+warning: this if-then-else expression will always return true
+   --> crates\flint-viewer\src\panels\scene_tree.rs:189:32
+    |
+189 |             let default_open = if filtering { true } else { true }; // Always open by default
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_bool
+    = note: `#[warn(clippy::needless_bool)]` on by default
+
+warning: this `if` has identical blocks
+   --> crates\flint-viewer\src\panels\scene_tree.rs:189:45
+    |
+189 |             let default_open = if filtering { true } else { true }; // Always open by default
+    |                                             ^^^^^^^^
+    |
+note: same as this
+   --> crates\flint-viewer\src\panels\scene_tree.rs:189:59
+    |
+189 |             let default_open = if filtering { true } else { true }; // Always open by default
+    |                                                           ^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#if_same_then_else
+    = note: `#[warn(clippy::if_same_then_else)]` on by default
+
+warning: you should consider adding a `Default` implementation for `TransformGizmo`
+  --> crates\flint-viewer\src\panels\transform_gizmo.rs:69:5
+   |
+69 | /     pub fn new() -> Self {
+70 | |         Self {
+71 | |             mode: GizmoMode::Translate,
+72 | |             hovered_axis: None,
+...  |
+79 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#new_without_default
+   = note: `#[warn(clippy::new_without_default)]` on by default
+help: try adding this
+   |
+68 + impl Default for TransformGizmo {
+69 +     fn default() -> Self {
+70 +         Self::new()
+71 +     }
+72 + }
+   |
+
+warning: this function has too many arguments (9/7)
+   --> crates\flint-viewer\src\panels\transform_gizmo.rs:105:5
+    |
+105 | /     pub fn draw(
+106 | |         &mut self,
+107 | |         ctx: &egui::Context,
+108 | |         camera: &Camera,
+...   |
+114 | |         clip_rect: egui::Rect,
+115 | |     ) -> Option<GizmoDelta> {
+    | |___________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+    = note: `#[warn(clippy::too_many_arguments)]` on by default
+
+warning: this block may be rewritten with the `?` operator
+   --> crates\flint-viewer\src\panels\transform_gizmo.rs:120:9
+    |
+120 | /         if screen_pos.is_none() {
+121 | |             return None;
+122 | |         }
+    | |_________^ help: replace it with: `screen_pos?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#question_mark
+    = note: `#[warn(clippy::question_mark)]` on by default
+
+warning: you should consider adding a `Default` implementation for `ViewGizmo`
+  --> crates\flint-viewer\src\panels\view_gizmo.rs:88:5
+   |
+88 | /     pub fn new() -> Self {
+89 | |         Self {
+90 | |             drag_started_on_axis: false,
+91 | |         }
+92 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#new_without_default
+help: try adding this
+   |
+87 + impl Default for ViewGizmo {
+88 +     fn default() -> Self {
+89 +         Self::new()
+90 +     }
+91 + }
+   |
+
+warning: the loop variable `i` is used to index `mat`
+   --> crates\flint-viewer\src\picking.rs:115:18
+    |
+115 |         for i in 0..3 {
+    |                  ^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_range_loop
+    = note: `#[warn(clippy::needless_range_loop)]` on by default
+help: consider using an iterator and enumerate()
+    |
+115 -         for i in 0..3 {
+115 +         for (i, <item>) in mat.iter().enumerate().take(3) {
+    |
+
+warning: this `map_or` can be simplified
+   --> crates\flint-viewer\src\picking.rs:184:16
+    |
+184 |             if best.map_or(true, |(_, d)| dist < d) {
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_map_or
+help: use is_none_or instead
+    |
+184 -             if best.map_or(true, |(_, d)| dist < d) {
+184 +             if best.is_none_or(|(_, d)| dist < d) {
+    |
+
+warning: this `if` statement can be collapsed
+   --> crates\flint-viewer\src\spline_editor.rs:225:13
+    |
+225 | /             if dist < threshold {
+226 | |                 if best.is_none() || dist < best.unwrap().1 {
+227 | |                     best = Some((i, dist));
+228 | |                 }
+229 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#collapsible_if
+    = note: `#[warn(clippy::collapsible_if)]` on by default
+help: collapse nested if block
+    |
+225 ~             if dist < threshold
+226 ~                 && (best.is_none() || dist < best.unwrap().1) {
+227 |                     best = Some((i, dist));
+228 ~                 }
+    |
+
+warning: you should consider adding a `Default` implementation for `UndoStack`
+  --> crates\flint-viewer\src\undo.rs:30:5
+   |
+30 | /     pub fn new() -> Self {
+31 | |         Self {
+32 | |             undo: Vec::new(),
+33 | |             redo: Vec::new(),
+...  |
+36 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#new_without_default
+help: try adding this
+   |
+29 + impl Default for UndoStack {
+30 +     fn default() -> Self {
+31 +         Self::new()
+32 +     }
+33 + }
+   |
+
+warning: `flint-viewer` (lib) generated 13 warnings (run `cargo clippy --fix --lib -p flint-viewer` to apply 9 suggestions)
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+   --> crates\flint-player\src\player_app\frame.rs:707:13
+    |
+707 |             &game_events,
+    |             ^^^^^^^^^^^^ help: change this to: `game_events`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_borrow
+    = note: `#[warn(clippy::needless_borrow)]` on by default
+
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+   --> crates\flint-player\src\player_app\frame.rs:825:39
+    |
+825 |             self.audio.process_events(&game_events, &self.world);
+    |                                       ^^^^^^^^^^^^ help: change this to: `game_events`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_borrow
+
+warning: this function has too many arguments (8/7)
+  --> crates\flint-player\src\player_app\scene_loading.rs:36:1
+   |
+36 | / pub(super) fn load_terrain_from_world_inner(
+37 | |     world: &FlintWorld,
+38 | |     scene_path: &str,
+39 | |     device: &wgpu::Device,
+...  |
+44 | |     grass_info_out: &mut Option<LoadedGrassInfo>,
+45 | | ) {
+   | |_^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+   = note: `#[warn(clippy::too_many_arguments)]` on by default
+
+warning: using `Option.and_then(|x| Some(y))`, which is more succinctly expressed as `map(|x| y)`
+   --> crates\flint-player\src\player_app\scene_loading.rs:134:25
+    |
+134 |           let transform = world
+    |  _________________________^
+135 | |             .get_component(entity.id, comp::TRANSFORM)
+136 | |             .and_then(|t| {
+137 | |                 let pos = t.get("position").and_then(toml_vec3).unwrap_or([0.0; 3]);
+...   |
+145 | |                 })
+146 | |             })
+    | |______________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#bind_instead_of_map
+    = note: `#[warn(clippy::bind_instead_of_map)]` on by default
+help: use `map` instead
+    |
+136 ~             .map(|t| {
+137 |                 let pos = t.get("position").and_then(toml_vec3).unwrap_or([0.0; 3]);
+138 ~                 Transform {
+139 +                     position: FlintVec3 {
+140 +                         x: pos[0],
+141 +                         y: pos[1],
+142 +                         z: pos[2],
+143 +                     },
+144 +                     ..Default::default()
+145 +                 }
+    |
+
+warning: deref which would be done by auto-deref
+   --> crates\flint-player\src\player_app\scene_loading.rs:312:47
+    |
+312 |                 if let Some(comp) = comps.get(*comp_name) {
+    |                                               ^^^^^^^^^^ help: try: `comp_name`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#explicit_auto_deref
+    = note: `#[warn(clippy::explicit_auto_deref)]` on by default
+
+warning: this `map_or` can be simplified
+   --> crates\flint-player\src\player_app\scene_loading.rs:579:12
+    |
+579 |           if path
+    |  ____________^
+580 | |             .file_name()
+581 | |             .and_then(|n| n.to_str())
+582 | |             .map_or(false, |n| n.ends_with(".anim.toml"))
+    | |_________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_map_or
+    = note: `#[warn(clippy::unnecessary_map_or)]` on by default
+help: use is_some_and instead
+    |
+582 -             .map_or(false, |n| n.ends_with(".anim.toml"))
+582 +             .is_some_and(|n| n.ends_with(".anim.toml"))
+    |
+
+warning: this `map_or` can be simplified
+   --> crates\flint-player\src\player_app\scene_loading.rs:625:12
+    |
+625 |           if path
+    |  ____________^
+626 | |             .file_name()
+627 | |             .and_then(|n| n.to_str())
+628 | |             .map_or(false, |n| n.ends_with(".sprite.toml"))
+    | |___________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_map_or
+help: use is_some_and instead
+    |
+628 -             .map_or(false, |n| n.ends_with(".sprite.toml"))
+628 +             .is_some_and(|n| n.ends_with(".sprite.toml"))
+    |
+
+warning: this `if` statement can be collapsed
+   --> crates\flint-player\src\player_app\scene_loading.rs:713:21
+    |
+713 | /                     if !config.overrides.contains_key(name)
+714 | |                         && !renderer.mesh_cache().contains(name)
+715 | |                         && resolver.has_spec(name)
+...   |
+720 | |                     }
+    | |_____________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#collapsible_if
+    = note: `#[warn(clippy::collapsible_if)]` on by default
+help: collapse nested if block
+    |
+715 ~                         && resolver.has_spec(name)
+716 ~                         && !unresolved_models.contains(&name.to_string()) {
+717 |                             unresolved_models.push(name.to_string());
+718 ~                         }
+    |
+
+warning: deref which would be done by auto-deref
+   --> crates\flint-player\src\player_app\scene_loading.rs:726:52
+    |
+726 |                 if let Some(comp_data) = comps.get(*comp_name) {
+    |                                                    ^^^^^^^^^^ help: try: `comp_name`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#explicit_auto_deref
+
+warning: this `if` statement can be collapsed
+   --> crates\flint-player\src\player_app\scene_loading.rs:728:25
+    |
+728 | /                         if !config.overrides.contains_key(tex) && resolver.has_spec(tex) {
+729 | |                             if !unresolved_textures.contains(&tex.to_string()) {
+730 | |                                 unresolved_textures.push(tex.to_string());
+731 | |                             }
+732 | |                         }
+    | |_________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#collapsible_if
+help: collapse nested if block
+    |
+728 ~                         if !config.overrides.contains_key(tex) && resolver.has_spec(tex)
+729 ~                             && !unresolved_textures.contains(&tex.to_string()) {
+730 |                                 unresolved_textures.push(tex.to_string());
+731 ~                             }
+    |
+
+warning: deref which would be done by auto-deref
+    --> crates\flint-player\src\player_app\scene_loading.rs:1043:48
+     |
+1043 |             if let Some(comp_data) = comps.get(*comp_name) {
+     |                                                ^^^^^^^^^^ help: try: `comp_name`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#explicit_auto_deref
+
+warning: very complex type used. Consider factoring parts into `type` definitions
+   --> crates\flint-player\src\spline_gen.rs:253:6
+    |
+253 | ) -> (Vec<Vertex>, Vec<u32>, Vec<[f32; 3]>, Vec<[u32; 3]>) {
+    |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#type_complexity
+    = note: `#[warn(clippy::type_complexity)]` on by default
+
+warning: this function has too many arguments (10/7)
+   --> crates\flint-player\src\spline_gen.rs:242:1
+    |
+242 | / fn generate_cross_section_mesh(
+243 | |     samples: &[SplineSample],
+244 | |     closed: bool,
+245 | |     width: f32,
+...   |
+252 | |     gap_ranges: &[(f32, f32)],
+253 | | ) -> (Vec<Vertex>, Vec<u32>, Vec<[f32; 3]>, Vec<[u32; 3]>) {
+    | |__________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+
+warning: manually reimplementing `div_ceil`
+   --> crates\flint-player\src\spline_gen.rs:765:30
+    |
+765 |             let num_chunks = (num_segs + chunk_sz - 1) / chunk_sz;
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider using `.div_ceil()`: `num_segs.div_ceil(chunk_sz)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_div_ceil
+    = note: `#[warn(clippy::manual_div_ceil)]` on by default
+
+warning: `flint-player` (lib) generated 14 warnings (run `cargo clippy --fix --lib -p flint-player` to apply 11 suggestions)
+    Checking flint-cli v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-cli)
+warning: this function has too many arguments (11/7)
+   --> crates\flint-cli\src\commands\asset.rs:233:1
+    |
+233 | / fn run_generate(
+234 | |     asset_type: &str,
+235 | |     description: &str,
+236 | |     name: Option<String>,
+...   |
+244 | |     duration: Option<f64>,
+245 | | ) -> Result<()> {
+    | |_______________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#too_many_arguments
+    = note: `#[warn(clippy::too_many_arguments)]` on by default
+
+warning: this `map_or` can be simplified
+   --> crates\flint-cli\src\commands\gen.rs:366:20
+    |
+366 |                   || out_path
+    |  ____________________^
+367 | |                     .to_str()
+368 | |                     .map_or(false, |s| s.ends_with('/') || s.ends_with('\\'))
+    | |_____________________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#unnecessary_map_or
+    = note: `#[warn(clippy::unnecessary_map_or)]` on by default
+help: use is_some_and instead
+    |
+368 -                     .map_or(false, |s| s.ends_with('/') || s.ends_with('\\'))
+368 +                     .is_some_and(|s| s.ends_with('/') || s.ends_with('\\'))
+    |
+
+warning: the following explicit lifetimes could be elided: 'a
+  --> crates\flint-cli\src\commands\gen_preview_common.rs:12:21
+   |
+12 | pub fn group_fields<'a>(fields: &'a [ParamFieldSpec]) -> Vec<(String, Vec<&'a ParamFieldSpec>)> {
+   |                     ^^           ^^                                        ^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#needless_lifetimes
+   = note: `#[warn(clippy::needless_lifetimes)]` on by default
+help: elide the lifetimes
+   |
+12 - pub fn group_fields<'a>(fields: &'a [ParamFieldSpec]) -> Vec<(String, Vec<&'a ParamFieldSpec>)> {
+12 + pub fn group_fields(fields: &[ParamFieldSpec]) -> Vec<(String, Vec<&ParamFieldSpec>)> {
+   |
+
+warning: unnecessary `if let` since only the `Ok` variant of the iterator element is used
+   --> crates\flint-cli\src\commands\scene.rs:117:13
+    |
+117 | /             for sub_entry in fs::read_dir(&subdir).into_iter().flatten() {
+118 | |                 if let Ok(sub_entry) = sub_entry {
+119 | |                     let file_path = sub_entry.path();
+...   |
+129 | |             }
+    | |_____________^
+    |
+help: try `.flatten()` and remove the `if let` statement in the for loop
+   --> crates\flint-cli\src\commands\scene.rs:118:17
+    |
+118 | /                 if let Ok(sub_entry) = sub_entry {
+119 | |                     let file_path = sub_entry.path();
+120 | |
+121 | |                     if file_path.extension().map(|e| e == "toml").unwrap_or(false) {
+...   |
+128 | |                 }
+    | |_________________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#manual_flatten
+    = note: `#[warn(clippy::manual_flatten)]` on by default
+help: try
+    |
+117 ~             for sub_entry in fs::read_dir(&subdir).into_iter().flatten().flatten() {
+118 +                 let file_path = sub_entry.path();
+119 + 
+120 +                 if file_path.extension().map(|e| e == "toml").unwrap_or(false) {
+121 +                     if let Ok(content) = fs::read_to_string(&file_path) {
+122 +                         if let Ok(scene) = toml::from_str::<SceneFile>(&content) {
+123 +                             scenes.push((file_path.display().to_string(), scene.scene.name));
+124 +                         }
+125 +                     }
+126 +                 }
+127 +             }
+    |
+
+warning: empty string literal in `println!`
+   --> crates\flint-cli\src\commands\scene.rs:157:9
+    |
+157 |         println!("");
+    |         ^^^^^^^^^--^
+    |                  |
+    |                  help: remove the empty string
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#println_empty_string
+    = note: `#[warn(clippy::println_empty_string)]` on by default
+
+warning: empty string literal in `println!`
+  --> crates\flint-cli\src\commands\schema.rs:26:9
+   |
+26 |         println!("");
+   |         ^^^^^^^^^--^
+   |                  |
+   |                  help: remove the empty string
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#println_empty_string
+
+warning: empty string literal in `println!`
+  --> crates\flint-cli\src\commands\schema.rs:67:9
+   |
+67 |         println!("");
+   |         ^^^^^^^^^--^
+   |                  |
+   |                  help: remove the empty string
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#println_empty_string
+
+warning: empty string literal in `println!`
+  --> crates\flint-cli\src\commands\schema.rs:79:13
+   |
+79 |             println!("");
+   |             ^^^^^^^^^--^
+   |                      |
+   |                      help: remove the empty string
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#println_empty_string
+
+warning: empty string literal in `println!`
+  --> crates\flint-cli\src\commands\schema.rs:98:5
+   |
+98 |     println!("");
+   |     ^^^^^^^^^--^
+   |              |
+   |              help: remove the empty string
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#println_empty_string
+
+warning: empty string literal in `println!`
+   --> crates\flint-cli\src\commands\schema.rs:111:9
+    |
+111 |         println!("");
+    |         ^^^^^^^^^--^
+    |                  |
+    |                  help: remove the empty string
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#println_empty_string
+
+warning: this `if` statement can be collapsed
+   --> crates\flint-cli\src\commands\tex_edit.rs:975:9
+    |
+975 | /         if matches!(&snarl[node], TextureNode::Op { .. }) {
+976 | |             if ui.button("Delete").clicked() {
+977 | |                 self.app.push_undo();
+978 | |                 snarl.remove_node(node);
+...   |
+985 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.92.0/index.html#collapsible_if
+    = note: `#[warn(clippy::collapsible_if)]` on by default
+help: collapse nested if block
+    |
+975 ~         if matches!(&snarl[node], TextureNode::Op { .. })
+976 ~             && ui.button("Delete").clicked() {
+977 |                 self.app.push_undo();
+...
+983 |                 ui.close_menu();
+984 ~             }
+    |
+
+warning: `flint-cli` (bin "flint") generated 11 warnings (run `cargo clippy --fix --bin "flint" -p flint-cli` to apply 10 suggestions)
+    Finished `release` profile [optimized] target(s) in 36.10s
+WARNCOUNT 136

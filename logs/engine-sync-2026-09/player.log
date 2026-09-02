@@ -1,0 +1,87 @@
+Loaded scene: Flint Kart — Main Menu
+Entities: 14
+
+Controls:
+  WASD     - Move
+  Mouse    - Look
+  Space    - Jump
+  Shift    - Sprint
+  Escape   - Release cursor / Exit
+  F2       - Rendering stats overlay
+  F3       - Scene debug panels
+  F4       - Rendering & Effects menu
+  F11      - Toggle fullscreen
+[2m2026-09-02T14:11:43.409150Z[0m [33m WARN[0m [2mwgpu_hal::vulkan::conv[0m[2m:[0m Unrecognized present mode 1000361000
+Loaded model: kart_wheel (2 meshes, 3 nodes, bounds: 0.22 x 0.55 x 0.55 (min [-0.11, -0.28, -0.28], max [0.11, 0.28, 0.28]))
+  Expanded node: display_kart_wheel_fr__world (animated, local TRS)
+  Expanded node: display_kart_wheel_fr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: display_kart_wheel_fr__world__wheel_part_1 (animated, local TRS)
+Loaded model: kart_body (10 meshes, 10 nodes, bounds: 1.86 x 0.75 x 2.81 (min [-0.93, 0.00, -1.50], max [0.93, 0.75, 1.31]))
+  Expanded node: display_kart__body_part_0 (animated, local TRS)
+  Expanded node: display_kart__body_part_1 (animated, local TRS)
+  Expanded node: display_kart__body_part_2 (animated, local TRS)
+  Expanded node: display_kart__body_part_3 (animated, local TRS)
+  Expanded node: display_kart__body_part_4 (animated, local TRS)
+  Expanded node: display_kart__body_part_5 (animated, local TRS)
+  Expanded node: display_kart__body_part_6 (animated, local TRS)
+  Expanded node: display_kart__body_part_7 (animated, local TRS)
+  Expanded node: display_kart__body_part_8 (animated, local TRS)
+  Expanded node: display_kart__body_part_9 (animated, local TRS)
+  Expanded node: display_kart_wheel_rl__world (animated, local TRS)
+  Expanded node: display_kart_wheel_rl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: display_kart_wheel_rl__world__wheel_part_1 (animated, local TRS)
+Loaded model: kart_driver (8 meshes, 8 nodes, bounds: 0.70 x 0.93 x 0.73 (min [-0.35, -0.15, -0.58], max [0.35, 0.78, 0.15]))
+  Expanded node: display_kart_driver__driver_part_0 (animated, local TRS)
+  Expanded node: display_kart_driver__driver_part_1 (animated, local TRS)
+  Expanded node: display_kart_driver__driver_part_1.001 (animated, local TRS)
+  Expanded node: display_kart_driver__driver_part_2 (animated, local TRS)
+  Expanded node: display_kart_driver__driver_part_2.001 (animated, local TRS)
+  Expanded node: display_kart_driver__driver_part_3 (animated, local TRS)
+  Expanded node: display_kart_driver__driver_part_4 (animated, local TRS)
+  Expanded node: display_kart_driver__driver_part_5 (animated, local TRS)
+  Expanded node: display_kart_wheel_rr__world (animated, local TRS)
+  Expanded node: display_kart_wheel_rr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: display_kart_wheel_rr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: display_kart_wheel_fl__world (animated, local TRS)
+  Expanded node: display_kart_wheel_fl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: display_kart_wheel_fl__world__wheel_part_1 (animated, local TRS)
+[2m2026-09-02T14:11:44.157786Z[0m [33m WARN[0m [2mgilrs::gamepad[0m[2m:[0m No mapping found for UUID 00000000-0000-0000-0000-000000000000
+	Default mapping will be used.
+[2m2026-09-02T14:11:44.157851Z[0m [33m WARN[0m [2mgilrs::gamepad[0m[2m:[0m No mapping found for UUID 00000000-0000-0000-0000-000000000000
+	Default mapping will be used.
+[2m2026-09-02T14:11:44.157863Z[0m [33m WARN[0m [2mgilrs::gamepad[0m[2m:[0m No mapping found for UUID 00000000-0000-0000-0000-000000000000
+	Default mapping will be used.
+[2m2026-09-02T14:11:44.157873Z[0m [33m WARN[0m [2mgilrs::gamepad[0m[2m:[0m No mapping found for UUID 00000000-0000-0000-0000-000000000000
+	Default mapping will be used.
+[2m2026-09-02T14:11:44.158605Z[0m [33m WARN[0m [2megui_wgpu::renderer[0m[2m:[0m Detected a linear (sRGBA aware) framebuffer Bgra8UnormSrgb. egui prefers Rgba8Unorm or Bgra8Unorm
+Loaded skybox: textures/skybox_kart.png (2048x1024)
+Loaded audio: audio/race_music.ogg
+Loaded audio: audio/tire_skid.ogg
+Preloaded audio: audio/boost_whoosh.ogg
+Preloaded audio: audio/countdown_beep.ogg
+Preloaded audio: audio/countdown_go.ogg
+Preloaded audio: audio/crowd_ambient.ogg
+Preloaded audio: audio/engine_high.ogg
+Preloaded audio: audio/engine_idle.ogg
+Preloaded audio: audio/engine_mid.ogg
+Preloaded audio: audio/item_collect.ogg
+Preloaded audio: audio/item_projectile_fire.ogg
+Preloaded audio: audio/item_projectile_hit.ogg
+Preloaded audio: audio/item_shield_activate.ogg
+Preloaded audio: audio/item_shield_break.ogg
+Preloaded audio: audio/item_spinout.ogg
+Preloaded audio: audio/item_trap_drop.ogg
+Preloaded audio: audio/item_trap_trigger.ogg
+Preloaded audio: audio/landing_thud.ogg
+Preloaded audio: audio/lap_complete.ogg
+Preloaded audio: audio/menu_launch.ogg
+Preloaded audio: audio/position_change.ogg
+Preloaded audio: audio/race_finish.ogg
+Preloaded audio: audio/tire_roll.ogg
+Preloaded audio: audio/wind_rush.ogg
+Animation system initialized (0 property clips, 0 skeletal clips, 0 node clips, 0 sprite clips, 0 property entities, 0 skeletal entities, 0 node entities, 0 sprite entities)
+[particles] Discovered 4 emitter(s)
+[script] Loaded: menu_controller → menu.rhai
+[ui] Loaded ui/main_menu.ui.toml (handle 1)
+Script system initialized (1 scripts)
+Loaded UI sprite: logo.png

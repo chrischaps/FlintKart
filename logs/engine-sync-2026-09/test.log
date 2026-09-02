@@ -1,0 +1,1495 @@
+   Compiling flint-debug-ui v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-debug-ui)
+   Compiling flint-script v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-script)
+   Compiling flint-query v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-query)
+   Compiling flint-render v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-render)
+   Compiling flint-physics v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-physics)
+   Compiling flint-animation v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-animation)
+   Compiling flint-constraint v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-constraint)
+   Compiling flint-input-capture v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-input-capture)
+   Compiling flint-asset v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-asset)
+   Compiling flint-music v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-music)
+   Compiling flint-asset-gen v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-asset-gen)
+   Compiling flint-player v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-player)
+   Compiling flint-cli v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-cli)
+   Compiling flint-viewer v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-viewer)
+   Compiling flint-audio v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-audio)
+   Compiling flint-procgen v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-procgen)
+   Compiling flint-import v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-import)
+   Compiling flint-particles v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-particles)
+   Compiling flint-terrain v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-terrain)
+   Compiling flint-runtime v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-runtime)
+   Compiling flint-scene v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-scene)
+warning: unused import: `PrefabInstance`
+   --> crates\flint-scene\src\prefab.rs:169:36
+    |
+169 |     use crate::format::{EntityDef, PrefabInstance, SceneMetadata};
+    |                                    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling flint-ecs v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-ecs)
+   Compiling flint-schema v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-schema)
+   Compiling flint-core v0.1.0 (C:\Users\chris\dev\FlintKart\engine\crates\flint-core)
+warning: `flint-scene` (lib test) generated 1 warning (run `cargo fix --lib -p flint-scene --tests` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 1m 11s
+     Running unittests src\lib.rs (target\release\deps\flint_animation-ad4bf47bd46ad47c.exe)
+
+running 49 tests
+test blend::tests::blend_weight_one_returns_b ... ok
+test blend::tests::additive_full_weight_adds_delta ... ok
+test blend::tests::blend_midpoint_interpolates ... ok
+test blend::tests::blend_rotation_slerp_midpoint ... ok
+test blend::tests::blend_weight_zero_returns_a ... ok
+test blend::tests::additive_zero_weight_returns_base ... ok
+test player::tests::advance_loops_and_resets_events ... ok
+test player::tests::advance_fires_event_once ... ok
+test sampler::tests::sample_before_first_keyframe_clamps ... ok
+test sampler::tests::sample_linear_midpoint ... ok
+test skeletal_sampler::tests::cubic_spline_rotation_is_normalized ... ok
+test sampler::tests::sample_after_last_keyframe_clamps ... ok
+test loader::tests::reject_empty_track ... ok
+test player::tests::advance_stops_at_end_when_not_looping ... ok
+test loader::tests::reject_zero_duration ... ok
+test loader::tests::parse_minimal_clip ... ok
+test sampler::tests::sample_empty_track_returns_zero ... ok
+test sampler::tests::sample_exact_keyframe_time ... ok
+test sampler::tests::sample_step_holds_previous ... ok
+test skeletal_sampler::tests::cubic_spline_hermite_matches_formula ... ok
+test player::tests::paused_still_samples ... ok
+test skeletal_sampler::tests::cubic_spline_survives_hemisphere_flip ... ok
+test sampler::tests::sample_cubic_hermite_endpoints ... ok
+test skeletal_sampler::tests::cubic_spline_zero_tangents_never_collapse ... ok
+test skeletal_sampler::tests::sample_rotation_track_uses_slerp ... ok
+test player::tests::advance_samples_at_current_time ... ok
+test skeletal_sampler::tests::sample_translation_track_linear ... ok
+test skeletal_sampler::tests::sample_step_interpolation ... ok
+test skeletal_sampler::tests::slerp_identity_at_endpoints ... ok
+test skeletal_sampler::tests::slerp_midpoint_is_normalized ... ok
+test skeletal_sampler::tests::slerp_shortest_path ... ok
+test skeletal_sync::tests::completed_blend_clears_ecs_target_and_does_not_rearm ... ok
+test skeletal_sync::tests::reissuing_same_clip_restarts_it ... ok
+test skeleton::tests::bone_matrix_identity_skeleton ... ok
+test skeleton::tests::bone_matrix_with_translation ... ok
+test skeleton::tests::from_imported_seeds_rest_pose_not_identity ... ok
+test skeleton::tests::identity_pose_produces_identity_matrix ... ok
+test skeleton::tests::scale_pose_scales_diagonal ... ok
+test skeleton::tests::translation_pose_sets_last_column ... ok
+test sprite_clip::tests::default_loop_mode_is_loop ... ok
+test sprite_clip::tests::parse_multiple_clips ... ok
+test sprite_clip::tests::parse_ping_pong ... ok
+test sprite_clip::tests::reject_empty_frames ... ok
+test sprite_clip::tests::reject_zero_frame_size ... ok
+test sprite_sync::tests::advance_frame_loop_wraps ... ok
+test sprite_sync::tests::advance_frame_once_stops ... ok
+test sprite_sync::tests::advance_frame_pingpong_reverses ... ok
+test sprite_sync::tests::clip_registry ... ok
+test sprite_clip::tests::parse_sprite_clip ... ok
+
+test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\cubicspline_model.rs (target\release\deps\cubicspline_model-c41731e64b0d5f20.exe)
+
+running 1 test
+test real_cubicspline_model_stays_sane ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_asset-7ffd71fba831c038.exe)
+
+running 18 tests
+test catalog::tests::test_by_tag ... ok
+test resolver::tests::test_resolve_found ... ok
+test resolver::tests::test_resolve_strict_missing ... ok
+test catalog::tests::test_register_and_get ... ok
+test catalog::tests::test_resolve_ref_by_hash ... ok
+test catalog::tests::test_resolve_ref_by_path ... ok
+test catalog::tests::test_by_type ... ok
+test resolver::tests::test_resolve_placeholder_missing ... ok
+test catalog::tests::test_get_by_hash ... ok
+test types::tests::test_asset_meta_serde ... ok
+test types::tests::test_asset_ref_by_hash ... ok
+test types::tests::test_asset_ref_by_name ... ok
+test catalog::tests::test_resolve_ref_by_name ... ok
+test types::tests::test_asset_ref_by_path ... ok
+test types::tests::test_asset_type_variants ... ok
+test store::tests::test_store_dedup ... ok
+test store::tests::test_remove ... ok
+test store::tests::test_store_and_retrieve ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src\lib.rs (target\release\deps\flint_asset_gen-6180806f3fdea820.exe)
+
+running 46 tests
+test config::tests::test_missing_provider_returns_none ... ok
+test config::tests::test_default_providers ... ok
+test job::tests::test_job_creation ... ok
+test config::tests::test_env_var_override ... ok
+test config::tests::test_load_config_from_file ... ok
+test job::tests::test_job_not_found ... ok
+test job::tests::test_job_serialize_roundtrip ... ok
+test manifest::tests::test_manifest_empty ... ok
+test providers::elevenlabs::tests::test_parse_elevenlabs_error_detail ... ok
+test providers::elevenlabs::tests::test_parse_elevenlabs_error_string ... ok
+test providers::flux::tests::test_flux_build_prompt_no_style ... ok
+test providers::flux::tests::test_parse_flux_response_invalid ... ok
+test providers::flux::tests::test_parse_flux_response ... ok
+test providers::meshy::tests::test_parse_meshy_poll_complete ... ok
+test providers::meshy::tests::test_parse_meshy_poll_failed ... ok
+test providers::meshy::tests::test_parse_meshy_poll_pending ... ok
+test providers::meshy::tests::test_parse_meshy_submit_response ... ok
+test providers::mock::tests::test_mock_build_prompt_no_style ... ok
+test providers::mock::tests::test_mock_provider_health ... ok
+test providers::mock::tests::test_mock_provider_supported_kinds ... ok
+test semantic::tests::test_semantic_serde_roundtrip ... ok
+test semantic::tests::test_semantic_to_request_minimal ... ok
+test semantic::tests::test_semantic_to_request_model ... ok
+test semantic::tests::test_semantic_to_request_texture ... ok
+test style::tests::test_enrich_prompt_minimal_style ... ok
+test style::tests::test_enrich_prompt ... ok
+test style::tests::test_style_not_found ... ok
+test human_task::tests::test_generate_task_file_with_style ... ok
+test validate::tests::test_validation_report_counts ... ok
+test job::tests::test_job_store_save_load ... ok
+test batch::tests::test_resolve_scene_human_task ... ok
+test batch::tests::test_resolve_scene_ai_then_human_fallback ... ok
+test style::tests::test_load_style_guide ... ok
+test batch::tests::test_scan_scene_assets ... ok
+test providers::mock::tests::test_mock_generate_model ... ok
+test providers::mock::tests::test_mock_generate_with_style ... ok
+test validate::tests::test_validate_with_style_constraints ... ok
+test providers::mock::tests::test_mock_generate_texture ... ok
+test job::tests::test_job_store_list ... ok
+test validate::tests::test_validate_mock_model ... ok
+test job::tests::test_job_store_update_status ... ok
+test manifest::tests::test_manifest_roundtrip ... ok
+test providers::mock::tests::test_mock_generate_audio ... ok
+test human_task::tests::test_generate_task_file_no_style ... ok
+test human_task::tests::test_task_file_roundtrip ... ok
+test registration::tests::test_register_generated_asset_with_roots ... ok
+
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running unittests src\lib.rs (target\release\deps\flint_audio-eef40dc131084111.exe)
+
+running 8 tests
+test trigger::tests::test_no_trigger_no_command ... ok
+test trigger::tests::test_trigger_loads_rules ... ok
+test sync::tests::test_audio_sync_discovers_entities ... ok
+test sync::tests::test_read_audio_params_defaults ... ok
+test trigger::tests::test_collision_event_generates_command ... ok
+test sync::tests::test_audio_sync_skips_entities_without_audio ... ok
+test tests::test_audio_system_graceful_degradation ... ok
+test tests::test_process_events_no_crash ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running unittests src\main.rs (target\release\deps\flint-6a258f4339a1400e.exe)
+
+running 11 tests
+test commands::gen::tests::test_batch_output_path_default_insertion ... ok
+test commands::gen::tests::test_batch_output_path_no_parent ... ok
+test commands::gen::tests::test_format_bytes ... ok
+test commands::gen::tests::test_format_count ... ok
+test commands::gen::tests::test_batch_output_path_seed_template ... ok
+test commands::gen::tests::test_sidecar_path ... ok
+test commands::gen::tests::test_build_validation_constraints_from_style ... ok
+test commands::gen::tests::test_sidecar_path_png ... ok
+test commands::gen::tests::test_build_validation_constraints_from_spec_lod ... ok
+test commands::gen::tests::test_build_validation_constraints_texture_dims_from_params ... ok
+test commands::play_chart_window::tests::window_shader_parses_and_validates ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_constraint-8a2217f0823924ab.exe)
+
+running 32 tests
+test diff::tests::test_identical_files ... ok
+test diff::tests::test_removed_lines ... ok
+test diff::tests::test_added_lines ... ok
+test diff::tests::test_changed_lines ... ok
+test evaluator::tests::test_empty_world ... ok
+test evaluator::tests::test_multiple_constraints ... ok
+test evaluator::tests::test_reference_valid_violation ... ok
+test evaluator::tests::test_value_range_violation ... ok
+test evaluator::tests::test_required_child_passes ... ok
+test evaluator::tests::test_report_summary ... ok
+test evaluator::tests::test_required_component_passes ... ok
+test evaluator::tests::test_required_component_violation ... ok
+test registry::tests::test_all_constraints ... ok
+test evaluator::tests::test_value_range_passes ... ok
+test fixer::tests::test_add_child_fix ... ok
+test fixer::tests::test_fix_report_structure ... ok
+test fixer::tests::test_no_fixable_violations ... ok
+test fixer::tests::test_remove_invalid_fix ... ok
+test evaluator::tests::test_required_child_violation ... ok
+test registry::tests::test_by_severity ... ok
+test registry::tests::test_empty_registry ... ok
+test evaluator::tests::test_message_expansion ... ok
+test fixer::tests::test_dry_run_immutability ... ok
+test fixer::tests::test_set_default_fix ... ok
+test registry::tests::test_for_archetype ... ok
+test registry::tests::test_load_from_string ... ok
+test registry::tests::test_register_directly ... ok
+test types::tests::test_parse_constraint_from_toml ... ok
+test types::tests::test_parse_constraint_with_autofix ... ok
+test types::tests::test_parse_required_component_constraint ... ok
+test types::tests::test_severity_ordering ... ok
+test types::tests::test_parse_value_range_constraint ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_core-a20644794d9e70df.exe)
+
+running 45 tests
+test hash::tests::test_consistent_hashing ... ok
+test hash::tests::test_hex_output ... ok
+test hash::tests::test_from_prefixed_hex_invalid ... ok
+test hash::tests::test_different_content_different_hash ... ok
+test hash::tests::test_prefixed_hex_roundtrip ... ok
+test id::tests::test_ensure_counter_above ... ok
+test id::tests::test_from_raw ... ok
+test id::tests::test_id_generation ... ok
+test ocean::tests::amplitude_sum_matches_param ... ok
+test ocean::tests::deterministic_for_seed ... ok
+test ocean::tests::dispersion_relation_holds ... ok
+test ocean::tests::jonswap_peak_dominates_the_spectrum ... ok
+test ocean::tests::eulerian_inversion_converges ... ok
+test ocean::tests::gpu_packing_matches_cpu_evaluation ... ok
+test ocean::tests::phases_wrap_and_stay_finite_over_long_sessions ... ok
+test ocean::tests::steepness_sum_bounded_by_choppiness ... ok
+test spline::tests::closed_spline_produces_samples ... ok
+test spline::tests::gap_at_returns_range ... ok
+test ocean::tests::height_bounded_by_total_amplitude ... ok
+test spline::tests::gap_ranges_consecutive_merge ... ok
+test spline::tests::gap_ranges_open_spline ... ok
+test ocean::tests::velocity_y_matches_finite_difference ... ok
+test spline::tests::gap_wraparound_closed ... ok
+test ocean::tests::stronger_wind_shifts_energy_to_longer_waves ... ok
+test spline::tests::gap_ranges_single_gap_closed ... ok
+test spline::tests::is_in_gap_basic ... ok
+test spline::tests::open_spline_produces_samples ... ok
+test spline::tests::too_few_points_returns_empty ... ok
+test toml_util::tests::color_rgb_defaults_alpha ... ok
+test toml_util::tests::color_rgba ... ok
+test toml_util::tests::f32_coercion ... ok
+test toml_util::tests::f32_slice ... ok
+test toml_util::tests::f32_slice_with_bad_element ... ok
+test toml_util::tests::f64_from_float ... ok
+test toml_util::tests::f64_from_integer ... ok
+test toml_util::tests::f64_from_string_returns_none ... ok
+test toml_util::tests::to_vec3_from_array ... ok
+test toml_util::tests::to_vec3_from_table ... ok
+test toml_util::tests::to_vec3_invalid ... ok
+test toml_util::tests::vec3_from_array ... ok
+test toml_util::tests::vec3_too_short ... ok
+test toml_util::tests::vec4_from_array ... ok
+test types::tests::test_color_from_hex ... ok
+test types::tests::test_transform_default ... ok
+test types::tests::test_vec3_operations ... ok
+
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_debug_ui-4cfd926f5fb317e9.exe)
+
+running 10 tests
+test column_tests::empty_input_no_empty_columns ... ok
+test column_tests::max_cols_one_stacks_everything ... ok
+test column_tests::single_panel_single_column ... ok
+test tod_panel::ramp_tests::absent_ramp_field_parses_as_empty ... ok
+test column_tests::two_panels_two_columns ... ok
+test column_tests::full_roster_balances_three_columns ... ok
+test tod_panel::ramp_tests::ramp_field_parses_from_the_component ... ok
+test tod_panel::ramp_tests::ramp_indexes_by_day_and_holds_the_last_entry ... ok
+test tod_panel::ramp_tests::negative_day_clamps_to_the_first_entry ... ok
+test tod_panel::ramp_tests::empty_ramp_is_flat ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_ecs-a81339889b609d2b.exe)
+
+running 34 tests
+test component::tests::test_merge_bulk ... ok
+test component::tests::test_set_field_creates_component ... ok
+test component::tests::test_merge_non_table_replaces ... ok
+test world::tests::test_components ... ok
+test component::tests::test_merge_component_table_into_table ... ok
+test world::tests::test_get_world_position_with_parent ... ok
+test world::tests::test_index_on_clear ... ok
+test world::tests::test_index_on_merge_component ... ok
+test world::tests::test_get_world_matrix_no_transform ... ok
+test world::tests::test_despawn ... ok
+test world::tests::test_merge_component_replaces_non_table ... ok
+test world::tests::test_index_on_despawn ... ok
+test world::tests::test_get_world_matrix_no_parent ... ok
+test world::tests::test_entities_with_components_intersection ... ok
+test world::tests::test_index_on_set_component ... ok
+test world::tests::test_merge_component_creates_new_component ... ok
+test world::tests::test_merge_component_preserves_existing_fields ... ok
+test world::tests::test_get_world_position_deep_hierarchy ... ok
+test world::tests::test_duplicate_name ... ok
+test component::tests::test_merge_component_into_empty ... ok
+test world::tests::test_parent_child ... ok
+test world::tests::test_rebuild_component_index ... ok
+test world::tests::test_despawn_by_name ... ok
+test world::tests::test_despawn_by_name_not_found ... ok
+test world::tests::test_remove_component_updates_index ... ok
+test world::tests::test_set_field_creates_component_in_index ... ok
+test world::tests::test_set_parent_by_name ... ok
+test world::tests::test_spawn_and_get ... ok
+test world::tests::test_spawn_archetype_not_found ... ok
+test world::tests::test_spawn_with_id_basic ... ok
+test world::tests::test_spawn_with_id_counter_sync ... ok
+test world::tests::test_spawn_with_id_duplicate_name_error ... ok
+test world::tests::test_spawn_archetype_updates_component_index ... ok
+test world::tests::test_spawn_archetype_applies_defaults ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_import-dc0c967af4f75811.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_input_capture-0fa5f84b5fd0c3a8.exe)
+
+running 11 tests
+test rumble::tests::burst_fires_at_lead_adjusted_sample_and_expires ... ok
+test rumble::tests::call_stats_orders_and_picks ... ok
+test rumble::tests::empty_stats_are_nan_not_panic ... ok
+test rumble::tests::late_burst_is_dropped_not_played ... ok
+test rumble::tests::overlapping_bursts_sum_and_clamp_and_gain_scales ... ok
+test rumble::tests::same_sample_bursts_fire_in_push_order_deterministically ... ok
+test rumble::tests::silence_is_unconditional_and_resets_shadow ... ok
+test tests::deadzone_neutral_inside_and_rescaled_outside ... ok
+test rumble::tests::fire_plays_immediately_without_lead_or_late_drop ... ok
+test rumble::tests::flush_drops_scheduled_ends_active_and_stops_continuous ... ok
+test tests::bucketize_partitions_all_deltas ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_music-24db368c0be00939.exe)
+
+running 67 tests
+test analysis::tests::max_step_catches_a_click ... ok
+test conductor::tests::eighth_grid_subdivides ... ok
+test chart_eval::tests::windows_resolve_section_and_override ... ok
+test chart_eval::tests::smooth_is_cosine ... ok
+test chart_eval::tests::hold_and_linear_and_clamp ... ok
+test chart_eval::tests::empty_channel_is_none ... ok
+test clock_bridge::tests::absurd_slope_is_clamped ... ok
+test clock_bridge::tests::averages_chunk_quantization_below_one_ms ... ok
+test clock_bridge::tests::tracks_real_drift_within_tolerance ... ok
+test chart_session::newest_toml_tests::missing_dir_is_none ... ok
+test coherence::tests::config_reload_preserves_value ... ok
+test coherence::tests::neglect_decays_with_the_configured_half_life ... ok
+test coherence::tests::perfect_play_rises_toward_one ... ok
+test coherence::tests::parse_roundtrip_and_validation ... ok
+test coherence::tests::w2_channels_parse_and_default_inert ... ok
+test analysis::tests::goertzel_finds_its_tone ... ok
+test conductor::tests::next_grid_advances_on_fractional_beat_lengths ... ok
+test analysis::tests::transitions_locate_a_gated_tone ... ok
+test conductor::tests::next_grid_monotone_and_lands_on_grid ... ok
+test chart_eval::tests::bad_charts_error ... ok
+test clock_bridge::tests::warms_up_then_answers ... ok
+test coherence::tests::single_miss_is_nearly_invisible ... ok
+test event_script::tests::rejects_bad_input ... ok
+test conductor::tests::latency_compensation_shifts_now ... ok
+test conductor::tests::position_readout_across_tempo_change ... ok
+test coherence::tests::clean_hits_lift_sloppy_hits_less ... ok
+test event_script::tests::parses_all_forms ... ok
+test gradient::tests::builtin_default_is_inert ... ok
+test conductor::tests::sections_resolve_by_start ... ok
+test gradient::tests::parse_roundtrip_and_validation ... ok
+test haptics::tests::builtin_default_is_inert ... ok
+test haptics::tests::gain_zero_makes_everything_inert ... ok
+test judgment::tests::arrival_emits_no_grid_records ... ok
+test gradient::tests::error_raises_wobble_and_on_lean_settles ... ok
+test haptics::tests::parse_roundtrip_and_validation ... ok
+test gradient::tests::neutral_sink_thins_and_reengaging_restores ... ok
+test gradient::tests::slew_is_deterministic_and_reset_zeroes ... ok
+test judgment::tests::arrival_neutral_stick_errs_target_magnitude_via_latch ... ok
+test judgment::tests::arrival_rolling_through_on_time_counts ... ok
+test judgment::tests::center_hit_is_zero_late_is_positive ... ok
+test judgment::tests::kind_must_match ... ok
+test judgment::tests::unconsumed_window_expires_as_miss ... ok
+test judgment::tests::deterministic_bit_for_bit ... ok
+test judgment::tests::nearest_center_wins_between_overlapping_windows ... ok
+test judgment::tests::tracking_grid_uses_zero_order_hold ... ok
+test judgment::tests::late_within_window_is_signed_ms ... ok
+test ladder::tests::lerp_runs_the_ladder_in_reverse ... ok
+test ladder::tests::descend_and_ascend_with_hysteresis ... ok
+test ladder::tests::default_config_validates ... ok
+test ladder::tests::params_resolve_drop_and_clean ... ok
+test ladder::tests::parse_roundtrip_of_a_real_config ... ok
+test ladder::tests::parse_validation_rejects_bad_ladders ... ok
+test ladder::tests::reconfigure_carries_level ... ok
+test ladder::tests::unarmed_ladder_stays_clean_at_session_start ... ok
+test replay::tests::profile_parsing ... ok
+test replay::tests::synthesis_is_deterministic_and_profile_shaped ... ok
+test tempo::tests::partial_bar_before_anchor_counts_as_a_bar ... ok
+test chart_session::newest_toml_tests::corrupt_newest_falls_back_to_next ... ok
+test tempo::tests::bar_lines_respect_each_meter ... ok
+test tempo::tests::sample_at_bar_inverts_bar_beat ... ok
+test replay::tests::writer_rejects_out_of_order ... ok
+test tempo::tests::beats_accumulate_across_meter_change ... ok
+test tempo::tests::fractional_bars_snap_through_tolerance ... ok
+test tempo::tests::sample_at_beat_inverts_beats_at_sample ... ok
+test tempo::tests::bar_numbering_accumulates_across_meter_change ... ok
+test replay::tests::reader_rejects_out_of_order ... ok
+test replay::tests::writer_reader_round_trip ... ok
+
+test result: ok. 67 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\chart_eval_golden.rs (target\release\deps\chart_eval_golden-84bcf9701ac23207.exe)
+
+running 2 tests
+test lean_curve_matches_fixture_keys_and_interps ... ok
+test pulse_windows_resolve_from_sections_and_overrides ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\chart_session_shared.rs (target\release\deps\chart_session_shared-4304d9252deec67c.exe)
+
+running 2 tests
+test judgment_offset_samples_matches_the_capture_contract ... ok
+test open_shared_ticks_taps_and_finishes_on_offline_manager ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\conducted_trace.rs (target\release\deps\conducted_trace-36b6106c065a3c77.exe)
+
+running 2 tests
+test conducted_trace_reflects_session_shape ... ok
+test conducted_trace_is_deterministic_bit_for_bit ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.09s
+
+     Running tests\golden_fixtures.rs (target\release\deps\golden_fixtures-54fb4689a2d447e1.exe)
+
+running 2 tests
+test invalid_fixtures_produce_their_pinned_error ... ok
+test valid_fixtures_produce_no_issues ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\gradient_driver.rs (target\release\deps\gradient_driver-8b3bfb73b3db196e.exe)
+
+running 3 tests
+test inert_config_never_touches_the_mixer ... ok
+test gradient_wobbles_off_lean_and_sinks_at_neutral ... ok
+test gradient_render_is_deterministic ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+
+     Running tests\haptics_driver.rs (target\release\deps\haptics_driver-80af1b5588a30c70.exe)
+
+running 7 tests
+test config_event_converts_ms_to_samples ... ok
+test inert_config_emits_nothing_ever ... ok
+test grind_follows_rewind_and_seam_flushes ... ok
+test pickup_ticks_land_on_the_beats_before_the_seam ... ok
+test thump_fires_on_hits_only ... ok
+test ticks_land_on_the_beat_grid_across_the_tempo_change ... ok
+test evaluation_is_bit_identical_across_runs ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\judgment_milestone2.rs (target\release\deps\judgment_milestone2-a8ab2779bb2f53f8.exe)
+
+running 5 tests
+test perfect_play_exceeds_090_by_bar_four_and_holds_across_the_change ... ok
+test pulse_windows_are_exact_on_both_sides_of_the_change ... ok
+test neglect_after_attention_decays_smoothly_with_no_cliffs ... ok
+test a_single_dropped_pulse_is_nearly_invisible ... ok
+test the_pipeline_is_deterministic_bit_for_bit ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\ladder_driver.rs (target\release\deps\ladder_driver-1887f42175d5a32a.exe)
+
+running 2 tests
+test dropout_rung_silences_texture_and_spares_motifs ... ok
+test ladder_driver_render_is_deterministic ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests\offline_milestone1.rs (target\release\deps\offline_milestone1-71891161ebd21278.exe)
+
+running 4 tests
+test prototype_fixture_renders_offline ... ok
+test milestone1_scripted_bus_changes_land_on_beat_across_tempo_change ... ok
+test milestone1_console_bar_beat_correct_throughout ... ok
+test milestone1_render_is_deterministic ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.98s
+
+     Running tests\seam_milestone3.rs (target\release\deps\seam_milestone3-24c8e2987e70dd30.exe)
+
+running 3 tests
+test milestone3_fall_seam_reassembly_twice_with_no_clicks ... ok
+test milestone3_is_deterministic_bit_for_bit ... ok
+test seam_sweep_fail_timings_stay_click_free ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.26s
+
+     Running tests\seam_spike.rs (target\release\deps\seam_spike-92e57f2e37f94a07.exe)
+
+running 3 tests
+test seam_jumps_suite_time_backwards_exactly_once ... ok
+test seam_replays_at_position_sample_locked_without_click ... ok
+test seam_render_is_deterministic ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+     Running tests\world2_milestone.rs (target\release\deps\world2_milestone-0f4ef855e256b9ea.exe)
+
+running 2 tests
+test perfect_play_holds_across_meter_changes ... ok
+test reactive_loop_fires_cues_and_alternates_deterministically ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.43s
+
+     Running unittests src\lib.rs (target\release\deps\flint_particles-de7f1884b74a7290.exe)
+
+running 15 tests
+test curves::tests::lerp_f32_endpoints ... ok
+test emitter::tests::default_config_is_sane ... ok
+test curves::tests::lerp_color_midpoint ... ok
+test sync::oriented_rect_tests::basis_is_orthonormal_and_reorthogonalised ... ok
+test particle::tests::particle_instance_layout ... ok
+test particle::tests::pool_spawn_and_kill ... ok
+test rand::tests::cone_direction_zero_spread ... ok
+test rand::tests::rng_direction_unit_length ... ok
+test rand::tests::rng_range_bounds ... ok
+test sync::oriented_rect_tests::degenerate_axes_select_legacy_box ... ok
+test sync::tests::pack_instances_produces_correct_count ... ok
+test emitter::tests::parse_from_toml ... ok
+test emitter::tests::toml_integer_float_coercion ... ok
+test sync::oriented_rect_tests::shape_offset_translates_spawn_region ... ok
+test sync::tests::sync_basic_lifecycle ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_physics-e6ed502ec5623832.exe)
+
+running 12 tests
+test sync::tests::test_sync_static_body ... ok
+test tests::test_set_get_velocity_2d ... ok
+test tests::test_raycast_2d ... ok
+test tests::test_overlap_rect ... ok
+test tests::test_mode_2d_locks_z_to_zero ... ok
+test sync::tests::test_sync_dynamic_body_falls ... ok
+test tests::test_sprite_shape_reads_dimensions ... ok
+test world::tests::test_create_physics_world ... ok
+test world::tests::test_gravity_simulation ... ok
+test world::tests::test_insert_body_and_collider ... ok
+test tests::test_sensor_emits_trigger_not_collision ... ok
+test tests::test_solid_emits_collision_not_trigger ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_player-a39d479ddb2738bc.exe)
+
+running 7 tests
+test player_app::music_session::tests::merge_preroll_leaves_overrides_untouched ... ok
+test player_app::music_session::tests::merge_fills_all_three_from_rung_values ... ok
+test player_app::music_session::tests::merge_desaturate_clamps_to_one ... ok
+test player_app::music_session::tests::merge_script_override_wins ... ok
+test player_app::music_session::tests::restore_writes_base_where_scripts_are_silent ... ok
+test player_app::music_session::tests::merge_clean_ladder_writes_back_the_base ... ok
+test player_app::scene_loading::tests::vertex_conversion_correctness ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\release\deps\flint_player-86fbdc7b47a10f9f.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_procgen-b00120c247055cc9.exe)
+
+running 462 tests
+test algorithms::lsystem::tests::binary_tree_depth1_expansion ... ok
+test algorithms::lsystem::tests::branch_segment_degenerate ... ok
+test algorithms::lsystem::tests::binary_tree_segment_counts ... ok
+test algorithms::lsystem::tests::branch_segment_helpers ... ok
+test algorithms::lsystem::tests::budget_exceeded ... ok
+test algorithms::lsystem::tests::builder_rejects_zero_max_depth ... ok
+test algorithms::lsystem::tests::depth_tracking ... ok
+test algorithms::lsystem::tests::different_seeds_differ ... ok
+test algorithms::lsystem::tests::push_pop_restores_position ... ok
+test algorithms::lsystem::tests::radius_decay_applied ... ok
+test algorithms::lsystem::tests::straight_trunk_geometry ... ok
+test algorithms::lsystem::tests::yaw_left_90_rotates_heading ... ok
+test algorithms::mesh_builder::extrude::tests::extrude_validates ... ok
+test algorithms::mesh_builder::extrude::tests::fewer_than_two_points_errors ... ok
+test algorithms::mesh_builder::extrude::tests::parallel_transport_no_twist ... ok
+test algorithms::mesh_builder::extrude::tests::spine_from_spline_samples_interpolates_radius ... ok
+test algorithms::mesh_builder::extrude::tests::straight_tube_resembles_cylinder ... ok
+test algorithms::mesh_builder::normals::tests::degenerate_triangle_fallback ... ok
+test algorithms::lsystem::tests::builder_rejects_invalid_decay ... ok
+test algorithms::lsystem::tests::stack_underflow_error ... ok
+test algorithms::mesh_builder::extrude::tests::bbox_encloses_spine ... ok
+test algorithms::mesh_builder::normals::tests::area_weighting_favors_large_triangles ... ok
+test algorithms::lsystem::tests::determinism_same_seed ... ok
+test algorithms::mesh_builder::extrude::tests::empty_positions_returns_empty_spine ... ok
+test algorithms::mesh_builder::normals::tests::flat_quad_normals_equal_face_normal ... ok
+test algorithms::mesh_builder::normals::tests::normals_are_unit_length ... ok
+test algorithms::mesh_builder::primitives::tests::cone_apex_at_height ... ok
+test algorithms::mesh_builder::primitives::tests::cone_validates ... ok
+test algorithms::mesh_builder::primitives::tests::cylinder_delegates_correctly ... ok
+test algorithms::mesh_builder::primitives::tests::ellipsoid_bounding_box ... ok
+test algorithms::mesh_builder::primitives::tests::ellipsoid_equal_radii_matches_sphere ... ok
+test algorithms::mesh_builder::primitives::tests::ellipsoid_normals_unit_length ... ok
+test algorithms::mesh_builder::primitives::tests::ellipsoid_validates ... ok
+test algorithms::mesh_builder::primitives::tests::ellipsoid_vertex_count ... ok
+test algorithms::mesh_builder::primitives::tests::sphere_bounding_box ... ok
+test algorithms::mesh_builder::primitives::tests::sphere_normals_unit_length ... ok
+test algorithms::mesh_builder::primitives::tests::sphere_validates ... ok
+test algorithms::mesh_builder::primitives::tests::sphere_vertex_count ... ok
+test algorithms::mesh_builder::primitives::tests::tapered_cylinder_bounding_box ... ok
+test algorithms::mesh_builder::primitives::tests::tapered_cylinder_normals_unit_length ... ok
+test algorithms::mesh_builder::primitives::tests::tapered_cylinder_uvs_in_range ... ok
+test algorithms::mesh_builder::primitives::tests::tapered_cylinder_validates ... ok
+test algorithms::mesh_builder::primitives::tests::tapered_cylinder_vertex_count ... ok
+test algorithms::mesh_builder::primitives::tests::tapered_cylinder_with_caps_vertex_count ... ok
+test algorithms::mesh_builder::simplify::tests::preserves_validity ... ok
+test algorithms::mesh_builder::simplify::tests::no_degenerate_triangles ... ok
+test algorithms::mesh_builder::simplify::tests::reduces_triangle_count ... ok
+test algorithms::mesh_builder::simplify::tests::target_above_current_returns_unchanged ... ok
+test algorithms::mesh_builder::simplify::tests::sphere_target_within_tolerance ... ok
+test algorithms::mesh_builder::tangents::tests::flat_quad_tangent_aligns_with_u_axis ... ok
+test algorithms::mesh_builder::tangents::tests::handedness_is_plus_or_minus_one ... ok
+test algorithms::mesh_builder::tangents::tests::tangent_xyz_unit_length ... ok
+test algorithms::mesh_builder::tangents::tests::tangents_perpendicular_to_normals ... ok
+test algorithms::mesh_builder::tests::build_computes_bbox ... ok
+test algorithms::mesh_builder::tests::build_with_computed_normals_and_tangents ... ok
+test algorithms::mesh_builder::tests::builder_add_and_build ... ok
+test algorithms::mesh_builder::tests::builder_add_quad ... ok
+test algorithms::mesh_builder::tests::builder_delegates_to_primitives ... ok
+test algorithms::mesh_builder::tests::builder_merge_offsets_indices ... ok
+test algorithms::mesh_builder::tests::builder_scale ... ok
+test algorithms::mesh_builder::tests::builder_translate ... ok
+test algorithms::mesh_builder::uv::tests::cylindrical_uv_respects_scale ... ok
+test algorithms::mesh_builder::uv::tests::cylindrical_uv_wraps_zero_to_one ... ok
+test algorithms::mesh_builder::uv::tests::planar_uv_xy ... ok
+test algorithms::mesh_builder::uv::tests::planar_uv_xz ... ok
+test algorithms::mesh_builder::uv::tests::planar_uv_yz ... ok
+test algorithms::noise::tests::different_seeds_differ ... ok
+test algorithms::noise::tests::fbm_determinism ... ok
+test algorithms::noise::tests::from_rng_determinism ... ok
+test algorithms::noise::tests::known_value_snapshots ... ok
+test algorithms::noise::tests::noise_to_image_dimensions ... ok
+test algorithms::noise::tests::noise_visual_debug_pngs ... ignored
+test algorithms::noise::tests::noise_to_image_not_uniform ... ok
+test algorithms::noise::tests::perlin_determinism ... ok
+test algorithms::noise::tests::perlin_output_range ... ok
+test algorithms::noise::tests::remap_01_bounds ... ok
+test algorithms::noise::tests::fbm_normalization ... ok
+test algorithms::noise::tests::simplex_determinism ... ok
+test algorithms::space_colonization::tests::budget_exceeded_with_low_max_nodes ... ok
+test algorithms::noise::tests::worley_determinism ... ok
+test algorithms::noise::tests::simplex_output_range ... ok
+test algorithms::space_colonization::tests::ellipsoid_points_within_bounds ... ok
+test algorithms::space_colonization::tests::columnar_tree_produces_output ... ok
+test algorithms::space_colonization::tests::hemisphere_points_within_bounds ... ok
+test algorithms::space_colonization::tests::reject_zero_kill_distance ... ok
+test algorithms::space_colonization::tests::reject_zero_attraction_points ... ok
+test algorithms::space_colonization::tests::reject_kill_ge_influence ... ok
+test algorithms::space_colonization::tests::sphere_points_within_bounds ... ok
+test algorithms::space_colonization::tests::reject_zero_step_size ... ok
+test cache::tests::hit_and_miss ... ok
+test cache::tests::lru_eviction_order ... ok
+test cache::tests::memory_budget_enforcement ... ok
+test cache::tests::replace_existing_key ... ok
+test cache::tests::stats_accuracy ... ok
+test cache::tests::oversized_entry_not_cached ... ok
+test cache::tests::clear_resets_everything ... ok
+test cache::tests::disabled_cache ... ok
+test export_glb::tests::glb_empty_meshes_error ... ok
+test algorithms::space_colonization::tests::unreachable_points_produce_trunk_only ... ok
+test export_glb::tests::glb_has_valid_header ... ok
+test algorithms::space_colonization::tests::deciduous_tree_produces_output ... ok
+test export_glb::tests::glb_material_preserved ... ok
+test export_glb::tests::glb_multi_lod ... ok
+test export_glb::tests::glb_default_material_when_none ... ok
+test export_glb::tests::vertex_stride_is_48 ... ok
+test algorithms::space_colonization::tests::trunk_steps_zero_still_works ... ok
+test export_glb::tests::glb_roundtrip_triangle ... ok
+test export_glb::tests::glb_skinned_mesh_has_skin ... ok
+test generators::creature::body_parts::tests::generate_ellipsoid_body_part ... ok
+test generators::creature::limb_chains::tests::generate_simple_limb ... ok
+test generators::creature::skeleton_builder::tests::build_skeleton_basic ... ok
+test generators::creature::skeleton_builder::tests::identity_euler_to_quat ... ok
+test generators::creature::skeleton_builder::tests::build_skeleton_with_mirrored_chain ... ok
+test generators::creature::skeleton_builder::tests::limb_chain_bones_extend_negative_y ... ok
+test generators::creature::tests::creature_generator_type_name ... ok
+test generators::texture::field::tests::copy_channel_missing_source ... ok
+test generators::texture::field::tests::copy_channel_basic ... ok
+test generators::texture::field::tests::copy_channel_overwrite ... ok
+test generators::creature::tests::creature_generator_minimal_spec ... ok
+test generators::creature::tests::creature_generator_with_materials ... ok
+test generators::texture::field::tests::ensure_channel_creates_zeroed ... ok
+test generators::creature::tests::creature_generator_with_limb_chain ... ok
+test generators::texture::field::tests::new_field_has_no_channels ... ok
+test generators::texture::field::tests::channel_mut_access ... ok
+test generators::texture::field::tests::set_creates_channel ... ok
+test generators::texture::field::tests::to_albedo_image_dimensions ... ok
+test generators::texture::field::tests::to_normal_image_z_positive ... ok
+test generators::texture::field::tests::to_roughness_image_range ... ok
+test algorithms::space_colonization::tests::canopy_tree_produces_output ... ok
+test generators::texture::grid::tests::grid_visual_debug_pngs ... ignored
+test generators::texture::grid::tests::grid_jitter_determinism ... ok
+test generators::texture::grid::tests::grid_params_from_toml_invalid_jitter ... ok
+test algorithms::noise::tests::worley_output_range ... ok
+test generators::texture::grid::tests::grid_determinism ... ok
+test generators::texture::grid::tests::grid_seamless_continuity ... ok
+test generators::texture::grid::tests::grid_validity ... ok
+test generators::texture::grid::tests::grid_params_from_toml_custom ... ok
+test generators::texture::grid::tests::grid_params_from_toml_defaults ... ok
+test generators::texture::grid::tests::grid_params_from_toml_invalid_columns ... ok
+test generators::texture::maps::tests::detail_strength_zero_has_no_fbm ... ok
+test generators::texture::grid::tests::grid_with_jitter ... ok
+test generators::texture::maps::tests::albedo_mortar_differs_from_surface ... ok
+test generators::texture::maps::tests::visual_debug_pngs ... ignored
+test generators::texture::maps::tests::params_from_toml_custom ... ok
+test generators::texture::maps::tests::params_from_toml_defaults ... ok
+test generators::texture::maps::tests::params_from_toml_invalid_map_name ... ok
+test generators::texture::maps::tests::output_maps_filtering ... ok
+test generators::texture::node_graph::tests::from_toml_parses_id_and_inputs ... ok
+test generators::texture::grid::tests::grid_gap_regions_exist ... ok
+test generators::texture::node_graph::tests::has_explicit_connections_detection ... ok
+test generators::texture::node_graph::tests::graph_to_ops_preserves_id_and_inputs ... ok
+test generators::texture::node_graph::tests::infer_connections_basic ... ok
+test generators::texture::node_graph::tests::explicit_connections_basic ... ok
+test generators::texture::node_graph::tests::new_op_creates_valid_node ... ok
+test generators::texture::node_graph::tests::new_op_unknown_type_errors ... ok
+test generators::texture::maps::tests::normal_z_always_positive ... ok
+test generators::texture::grid::tests::grid_cell_count ... ok
+test generators::texture::maps::tests::roughness_in_range ... ok
+test generators::texture::node_graph::tests::ops_to_graph_explicit_mode ... ok
+test generators::texture::node_graph::tests::ops_to_graph_roundtrip ... ok
+test generators::texture::node_graph::tests::output_node_input_channels ... ok
+test generators::texture::node_graph::tests::topological_sort_basic ... ok
+test generators::texture::node_graph::tests::topological_sort_cycle_error ... ok
+test generators::texture::node_graph::tests::topological_sort_diamond ... ok
+test generators::texture::ops::tests::blend_screen_mode ... ok
+test algorithms::space_colonization::tests::depth_at_forks ... ok
+test generators::texture::ops::tests::blur_op_smooths ... ok
+test generators::texture::ops::tests::blend_add_modifies_target ... ok
+test generators::texture::ops::tests::brightness_contrast_op ... ok
+test generators::texture::ops::tests::bulge_falloff_boundary_conditions ... ok
+test algorithms::space_colonization::tests::radii_taper_outward ... ok
+test generators::texture::ops::tests::clamp_op ... ok
+test generators::texture::ops::tests::cell_color_preserves_hue ... ok
+test generators::texture::ops::tests::cell_noise_offset_determinism ... ok
+test generators::texture::ops::tests::brick_grid_creates_cells ... ok
+test generators::texture::ops::tests::cell_height_writes_height ... ok
+test generators::texture::maps::tests::determinism ... ok
+test generators::texture::ops::tests::color_ramp_two_stops ... ok
+test generators::texture::ops::tests::checker_texture_pattern ... ok
+test generators::texture::ops::tests::edge_detect_on_flat ... ok
+test generators::texture::ops::tests::cell_offset_no_cell_id_fallback ... ok
+test generators::texture::ops::tests::cell_roughness_range ... ok
+test generators::texture::ops::tests::gamma_op ... ok
+test generators::texture::ops::tests::cell_bulge_per_cell_normalization ... ok
+test algorithms::space_colonization::tests::basic_convergence_produces_segments ... ok
+test generators::texture::ops::tests::gradient_texture_linear ... ok
+test algorithms::space_colonization::tests::nodes_reach_into_crown ... ok
+test generators::texture::ops::tests::hsv_adjust_op ... ok
+test generators::texture::ops::tests::map_range_linear ... ok
+test generators::texture::ops::tests::derive_normal_z_positive ... ok
+test generators::texture::ops::tests::math_op_power ... ok
+test generators::texture::ops::tests::math_op_sin ... ok
+test generators::texture::ops::tests::invert_op ... ok
+test generators::texture::ops::tests::mortar_color_blends_near_edge ... ok
+test generators::texture::ops::tests::cell_bulge_raises_center_not_boundary ... ok
+test generators::texture::ops::tests::mortar_groove_lowers_height ... ok
+test generators::texture::organic::tests::organic_params_from_toml_custom ... ok
+test generators::texture::ops::tests::noise_layer_writes_output_channel ... ok
+test generators::texture::ops::tests::edge_erode_modifies_boundaries_not_interiors ... ok
+test generators::texture::ops::tests::white_noise_variation ... ok
+test generators::texture::ops::tests::musgrave_texture_output ... ok
+test generators::texture::ops::tests::wave_texture_variation ... ok
+test generators::texture::ops::tests::voronoi_texture_output ... ok
+test generators::texture::organic::tests::organic_params_from_toml_defaults ... ok
+test generators::texture::ops::tests::sharpen_op_enhances ... ok
+test generators::texture::ops::tests::brick_grid_edge_dist_range ... ok
+test generators::texture::ops::tests::brick_grid_stagger_offset ... ok
+test generators::texture::organic::tests::organic_params_from_toml_invalid_noise_type ... ok
+test generators::texture::organic::tests::organic_visual_debug_pngs ... ignored
+test generators::texture::organic::tests::organic_height_has_variation ... ok
+test generators::texture::maps::tests::image_dimensions_match_params ... ok
+test generators::texture::organic::tests::organic_params_from_toml_invalid_persistence ... ok
+test generators::texture::organic::tests::organic_determinism ... ok
+test generators::texture::organic::tests::organic_simplex_variant ... ok
+test generators::texture::pattern::tests::id_to_color_deterministic ... ok
+test generators::texture::ops::tests::noise_layer_cell_offset_decorrelates ... ok
+test generators::texture::organic::tests::organic_validity ... ok
+test generators::texture::pattern::tests::default_cell ... ok
+test generators::texture::pattern::tests::id_to_color_different_ids_differ ... ok
+test generators::texture::pattern::tests::pattern_field_get_set ... ok
+test generators::texture::pattern::tests::pattern_field_new ... ok
+test generators::texture::pattern::tests::to_cell_id_image_dimensions ... ok
+test generators::texture::ops::tests::musgrave_cell_offset_decorrelates ... ok
+test generators::texture::pattern::tests::to_height_image_dimensions ... ok
+test generators::texture::ops::tests::full_pipeline_integration ... ok
+test generators::texture::organic::tests::organic_band_count ... ok
+test generators::texture::organic::tests::organic_seamless_continuity ... ok
+test generators::texture::pipeline::tests::pipeline_empty_ops_error ... ok
+test generators::texture::tests::texture_generator_estimate_cost ... ok
+test generators::texture::tests::texture_generator_object_safety ... ok
+test generators::texture::pipeline::tests::dag_pipeline_with_snapshots ... ok
+test generators::texture::tests::texture_generator_param_schema_valid ... ok
+test generators::texture::pipeline::tests::pipeline_unknown_op_error ... ok
+test generators::texture::pipeline::tests::pipeline_single_map_output ... ok
+test generators::texture::pipeline::tests::dag_pipeline_diamond_topology ... ok
+test generators::texture::tests::texture_generator_type_name_and_output_kind ... ok
+test generators::texture::pipeline::tests::dag_pipeline_backward_compat_no_ids ... ok
+test generators::texture::pipeline::tests::pipeline_brick_grid_end_to_end ... ok
+test algorithms::space_colonization::tests::same_seed_same_output ... ok
+test generators::texture::pipeline::tests::dag_pipeline_linear_chain ... ok
+test generators::texture::tests::texture_generator_visual_debug_png ... ignored
+test algorithms::space_colonization::tests::different_seeds_differ ... ok
+test generators::texture::tests::texture_generator_unknown_pattern_error ... ok
+test generators::texture::pipeline::tests::dag_pipeline_noise_blend_dynamic_target ... ok
+test generators::texture::voronoi::tests::voronoi_visual_debug_pngs ... ignored
+test generators::texture::tests::texture_generator_single_map_output ... ok
+test generators::texture::pipeline::tests::pipeline_noise_layer_on_height ... ok
+test generators::texture::pipeline::tests::pipeline_determinism ... ok
+test generators::tree::bark::tests::normal_map_dimensions ... ok
+test generators::tree::bark::tests::normal_map_not_flat ... ok
+test generators::texture::voronoi::tests::voronoi_determinism ... ok
+test generators::tree::bark::tests::normal_map_determinism ... ok
+test generators::texture::voronoi::tests::voronoi_params_from_toml_custom ... ok
+test generators::tree::bark::tests::normal_map_alpha_opaque ... ok
+test generators::texture::voronoi::tests::voronoi_params_from_toml_defaults ... ok
+test generators::texture::voronoi::tests::voronoi_params_from_toml_invalid_regularity ... ok
+test generators::texture::voronoi::tests::voronoi_params_from_toml_invalid_cell_count ... ok
+test generators::texture::tests::texture_generator_pipeline_end_to_end ... ok
+test generators::texture::voronoi::tests::voronoi_regularity ... ok
+test generators::texture::voronoi::tests::voronoi_seamless_continuity ... ok
+test generators::texture::voronoi::tests::voronoi_cell_count ... ok
+test generators::texture::voronoi::tests::voronoi_mortar_regions_exist ... ok
+test generators::texture::voronoi::tests::voronoi_validity ... ok
+test generators::tree::branches::tests::extract_tips_finds_terminal_segments ... ok
+test generators::tree::branches::tests::branch_params_from_toml_defaults ... ok
+test generators::tree::branches::tests::lsystem_determinism ... ok
+test generators::tree::branches::tests::branch_params_from_toml_full ... ok
+test generators::texture::tests::texture_generator_perlin_organic_end_to_end ... ok
+test generators::texture::tests::texture_generator_png_encoding_roundtrip ... ok
+test generators::tree::branches::tests::lsystem_produces_segments ... ok
+test generators::tree::branches::tests::lsystem_segments_attached_to_trunk ... ok
+test generators::tree::branches::tests::branch_tips_extracted ... ok
+test generators::tree::branches::tests::branch_params_invalid_method ... ok
+test generators::tree::bark::tests::normal_map_z_always_positive ... ok
+test generators::tree::branches::tests::segments_to_mesh_validity ... ok
+test generators::tree::branches::tests::transform_identity_when_aligned ... ok
+test generators::tree::branches::tests::no_degenerate_triangles ... ok
+test generators::tree::leaves::tests::along_branch_placement_adds_leaves ... ok
+test generators::tree::leaves::tests::along_branch_respects_min_depth ... ok
+test generators::tree::leaves::tests::billboard_leaves_per_tip_count ... ok
+test generators::tree::leaves::tests::billboard_leaves_produce_valid_mesh ... ok
+test generators::tree::leaves::tests::determinism_same_seed_same_output ... ok
+test generators::tree::leaves::tests::leaf_count_correlates_with_density ... ok
+test generators::tree::leaves::tests::mesh_cluster_leaves_produce_valid_mesh ... ok
+test generators::tree::leaves::tests::none_style_returns_empty_mesh ... ok
+test generators::texture::tests::texture_generator_tiling_grid_end_to_end ... ok
+test generators::tree::tests::leaf_params_defaults ... ok
+test generators::tree::tests::leaf_params_full ... ok
+test generators::tree::tests::leaf_params_invalid_density ... ok
+test generators::tree::lod::tests::lod_0_matches_original ... ok
+test generators::tree::lod::tests::empty_targets_returns_just_base ... ok
+test generators::tree::tests::leaf_params_invalid_style ... ok
+test generators::tree::tests::parse_hex_6_digit ... ok
+test generators::texture::tests::texture_generator_voronoi_brick_end_to_end ... ok
+test generators::tree::tests::leaf_params_none_style ... ok
+test generators::tree::tests::parse_hex_8_digit ... ok
+test generators::tree::lod::tests::all_lods_pass_validate ... ok
+test generators::tree::tests::parse_hex_invalid ... ok
+test generators::tree::tests::parse_hex_without_hash ... ok
+test generators::tree::tests::srgb_to_linear_black_and_white ... ok
+test generators::tree::lod::tests::lod_targets_within_tolerance ... ok
+test generators::tree::lod::tests::lod_levels_decrease_in_triangle_count ... ok
+test generators::tree::tests::tree_generator_object_safety ... ok
+test generators::tree::tests::tree_generator_output_kind ... ok
+test generators::tree::tests::tree_generator_type_name ... ok
+test generators::tree::branches::tests::colonization_root_at_trunk_tip ... ok
+test generators::tree::tests::tree_generator_param_schema_valid_json ... ok
+test generators::tree::branches::tests::colonization_produces_segments ... ok
+test generators::tree::tests::trunk_params_defaults ... ok
+test generators::tree::tests::trunk_params_full ... ok
+test generators::tree::tests::trunk_params_invalid_height ... ok
+test generators::tree::tests::trunk_params_invalid_resolution ... ok
+test generators::tree::tests::trunk_params_not_a_table ... ok
+test generators::texture::tests::texture_generator_determinism ... ok
+test mock::tests::mock_cube_bounds ... ok
+test mock::tests::mock_deterministic_across_calls ... ok
+test mock::tests::mock_estimate_cost_nonzero ... ok
+test mock::tests::mock_generates_valid_cube ... ok
+test generators::tree::branches::tests::both_methods_produce_valid_output ... ok
+test mock::tests::mock_param_schema_is_valid_json ... ok
+test mock::tests::mock_output_kind ... ok
+test output::tests::as_mesh_lods_returns_some ... ok
+test output::tests::as_mesh_returns_some_for_mesh ... ok
+test output::tests::estimated_bytes_image ... ok
+test output::tests::estimated_bytes_image_set ... ok
+test output::tests::estimated_bytes_mesh ... ok
+test output::tests::estimated_bytes_mesh_with_lods ... ok
+test mock::tests::mock_type_name ... ok
+test generators::tree::branches::tests::colonization_determinism ... ok
+test mock::tests::unit_cube_normals_are_unit_length ... ok
+test output::tests::estimated_bytes_sound ... ok
+test output::tests::into_image_returns_some_for_image ... ok
+test generators::tree::branches::tests::merged_tree_mesh_valid ... ok
+test output::tests::output_kind_sound ... ok
+test param_ui::tests::test_bool_field ... ok
+test param_ui::tests::test_empty_properties ... ok
+test generators::tree::tests::tree_generator_end_to_end ... ok
+test generators::tree::trunk::tests::vertex_normals_are_unit_length ... ok
+test output::tests::into_mesh_lods_returns_some ... ok
+test output::tests::output_kind_image ... ok
+test generators::tree::trunk::tests::material_is_bark ... ok
+test output::tests::output_kind_mesh ... ok
+test generators::tree::trunk::tests::mesh_validity ... ok
+test output::tests::output_kind_mesh_with_lods ... ok
+test param_ui::tests::test_hex_color_field ... ok
+test param_ui::tests::test_integer_field ... ok
+test generators::tree::tests::tree_generator_missing_leaf_params_uses_defaults ... ok
+test param_ui::tests::test_enum_field ... ok
+test param_ui::tests::test_exclusive_minimum ... ok
+test param_ui::tests::test_fields_sorted_by_name ... ok
+test generators::tree::trunk::tests::bounding_box_sanity ... ok
+test param_ui::tests::test_float_field ... ok
+test param_ui::tests::test_full_tree_schema ... ok
+test param_ui::tests::test_object_array_field ... ok
+test param_ui::tests::test_string_array_with_enum ... ok
+test generators::tree::trunk::tests::tip_output ... ok
+test param_ui::tests::test_string_array_without_enum_still_works ... ok
+test queue::tests::cache_hit_skips_generation ... ok
+test queue::tests::budget_enforcement ... ok
+test queue::tests::camera_distance_priority ... ok
+test queue::tests::camera_move_reprioritizes ... ok
+test queue::tests::clear_empties_queue ... ok
+test queue::tests::deduplication ... ok
+test queue::tests::empty_queue_returns_empty ... ok
+test queue::tests::is_pending_check ... ok
+test generators::tree::tests::tree_generator_with_lods ... ok
+test queue::tests::lod_grouping_single_output ... ok
+test queue::tests::priority_ordering ... ok
+test registry::tests::box_dyn_generator_compiles ... ok
+test generators::tree::trunk::tests::normal_map_validity ... ok
+test registry::tests::default_registry_is_empty ... ok
+test queue::tests::queue_drain_with_large_budget ... ok
+test registry::tests::generate_from_spec_deterministic ... ok
+test registry::tests::generate_from_spec_success ... ok
+test registry::tests::generate_from_spec_unknown_generator ... ok
+test generators::tree::trunk::tests::zero_curve_noise_straight_trunk ... ok
+test registry::tests::generator_names ... ok
+test rng::tests::determinism_same_seed_same_sequence ... ok
+test rng::tests::different_seeds_differ ... ok
+test resolver::tests::unknown_spec_returns_err ... ok
+test rng::tests::color_variation_clamps ... ok
+test registry::tests::register_and_get ... ok
+test rng::tests::fork_advances_parent ... ok
+test rng::tests::fork_determinism ... ok
+test rng::tests::fork_label_independence ... ok
+test rng::tests::hsl_roundtrip ... ok
+test rng::tests::hsl_variation_clamps ... ok
+test rng::tests::hsl_variation_preserves_hue ... ok
+test rng::tests::hsv_roundtrip ... ok
+test rng::tests::next_f32_in_range ... ok
+test rng::tests::next_range_bounds ... ok
+test rng::tests::next_range_i32_inclusive ... ok
+test rng::tests::next_vec3_unit_length ... ok
+test rng::tests::seed_accessor ... ok
+test seed::tests::derived_seed_differs_for_different_keys ... ok
+test seed::tests::derived_seed_is_stable ... ok
+test seed::tests::fixed_seed_is_deterministic ... ok
+test seed::tests::fixed_seed_returns_value ... ok
+test seed::tests::seed_serde_roundtrip ... ok
+test skinning::tests::identity_trs ... ok
+test skinning::tests::inverse_of_identity ... ok
+test skinning::tests::inverse_of_translation ... ok
+test skinning::tests::skeleton_find_bone ... ok
+test seed::tests::random_seed_varies ... ok
+test skinning::tests::skinned_mesh_estimated_bytes ... ok
+test skinning::tests::skinned_mesh_validate_bad_joint_index ... ok
+test skinning::tests::skinned_mesh_validate_ok ... ok
+test skinning::tests::translation_trs ... ok
+test skinning::tests::world_transforms_chain ... ok
+test spec::tests::content_hash_sensitivity ... ok
+test spec::tests::content_hash_stability ... ok
+test spec::tests::parse_error_on_bad_toml ... ok
+test spec::tests::discover_specs_empty_dir ... ok
+test spec::tests::parse_full_spec ... ok
+test spec::tests::parse_minimal_spec ... ok
+test spec::tests::discover_specs_finds_files ... ok
+test generators::tree::trunk::tests::determinism_same_seed ... ok
+test generators::tree::trunk::tests::different_seeds_differ ... ok
+test spec::tests::seed_config_derived ... ok
+test types::tests::bounding_box_size_and_center ... ok
+test types::tests::bounding_box_union ... ok
+test spec::tests::seed_config_derived_missing_key ... ok
+test types::tests::image_estimated_bytes ... ok
+test spec::tests::seed_config_fixed ... ok
+test spec::tests::seed_config_random ... ok
+test spec::tests::seed_config_fixed_missing_value ... ok
+test types::tests::bounding_box_contains ... ok
+test types::tests::bounding_box_empty_positions ... ok
+test types::tests::image_validate_bad_size ... ok
+test types::tests::bounding_box_from_positions ... ok
+test types::tests::mesh_counts ... ok
+test types::tests::image_new_and_validate ... ok
+test types::tests::mesh_estimated_bytes ... ok
+test types::tests::material_default_is_gray_dielectric ... ok
+test types::tests::mesh_recompute_bounds ... ok
+test types::tests::mesh_validate_bad_index_count ... ok
+test types::tests::mesh_validate_ok ... ok
+test types::tests::mesh_validate_out_of_range_index ... ok
+test types::tests::vertex_copy ... ok
+test resolver::tests::generate_and_cache ... ok
+test validate::tests::check_status_display ... ok
+test validate::tests::mesh_with_lods_per_lod_checks ... ok
+test validate::tests::no_constraints_valid_mesh_all_pass ... ok
+test validate::tests::metallic_out_of_pbr_range_fails ... ok
+test validate::tests::degenerate_triangle_fails ... ok
+test validate::tests::image_set_each_checked ... ok
+test validate::tests::non_power_of_two_texture_warns ... ok
+test validate::tests::sound_output_passes ... ok
+test validate::tests::metallic_outside_style_range_warns ... ok
+test validate::tests::roughness_out_of_pbr_range_fails ... ok
+test validate::tests::roughness_outside_style_range_warns ... ok
+test resolver::tests::later_dir_overrides_earlier ... ok
+test validate::tests::summary_format ... ok
+test resolver::tests::discover_specs_by_name ... ok
+test validate::tests::triangle_over_budget_fail ... ok
+test validate::tests::texture_dimensions_mismatch_fails ... ok
+test generators::tree::tests::tree_generator_determinism ... ok
+test validate::tests::uv_outside_range_fails ... ok
+test validate::tests::valid_mesh_all_pass ... ok
+test validate::tests::triangle_over_budget_warn ... ok
+test validate::tests::valid_texture_all_pass ... ok
+test generators::texture::tests::texture_generator_defaults_work ... ok
+
+test result: ok. 456 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running unittests src\lib.rs (target\release\deps\flint_query-99d717908107437a.exe)
+
+running 9 tests
+test output::tests::test_format_components ... ok
+test output::tests::test_format_json ... ok
+test parser::tests::test_numeric_comparison ... ok
+test parser::tests::test_query_with_condition ... ok
+test executor::tests::test_query_by_archetype ... ok
+test executor::tests::test_query_all_entities ... ok
+test executor::tests::test_query_nested_field ... ok
+test parser::tests::test_nested_field ... ok
+test parser::tests::test_simple_query ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_render-7ef8adf79dc06c5e.exe)
+
+running 58 tests
+test atlas::tests::test_atlas_parse ... ok
+test atlas::tests::test_atlas_registry_resolve ... ok
+test bitmap_font::fill_tests::fill_bottom_to_top_full ... ok
+test bitmap_font::fill_tests::fill_left_to_right_half ... ok
+test bitmap_font::fill_tests::fill_clamps_value ... ok
+test bitmap_font::fill_tests::fill_top_to_bottom_quarter ... ok
+test bitmap_font::tests::glyph_uv_a ... ok
+test bitmap_font::tests::glyph_uv_space ... ok
+test bitmap_font::tests::layout_text_center_alignment ... ok
+test bitmap_font::tests::layout_text_right_alignment ... ok
+test frustum::tests::aabb_beyond_far_plane_is_culled ... ok
+test frustum::tests::aabb_far_left_is_culled ... ok
+test frustum::tests::aabb_in_front_of_camera_is_visible ... ok
+test frustum::tests::offset_aabb_simulates_terrain_transform ... ok
+test frustum::tests::very_large_aabb_always_visible ... ok
+test ocean_pipeline::tests::grid_indices_reference_valid_vertices ... ok
+test bitmap_font::fill_tests::fill_right_to_left_half ... ok
+test bitmap_font::tests::anchor_origin_nine_point ... ok
+test bitmap_font::tests::glyph_uv_out_of_range ... ok
+test frustum::tests::aabb_behind_camera_is_culled ... ok
+test postprocess::tests::composite_uniforms_match_wgsl_layout ... ok
+test postprocess::tests::grade_defaults_are_inactive ... ok
+test frustum::tests::aabb_partially_intersecting_is_visible ... ok
+test frustum::tests::flat_aabb_on_ground_plane_visible ... ok
+test ocean_pipeline::tests::uniform_struct_matches_wgsl_layout ... ok
+test render_stats::tests::default_stats_all_zeros ... ok
+test bitmap_font::tests::layout_text_count ... ok
+test render_stats::tests::format_count_millions ... ok
+test render_stats::tests::format_count_small_numbers ... ok
+test render_stats::tests::format_count_thousands ... ok
+test sky_pipeline::tests::uniform_struct_matches_wgsl_layout ... ok
+test tests::light_uniforms_defaults_are_lever_neutral ... ok
+test tests::light_uniforms_layout ... ok
+test tests::post_process_uniforms_layout ... ok
+test tests::post_process_config_default_dof_is_off ... ok
+test tests::post_process_config_default_desaturate_is_zero ... ok
+test tests::shadow_uniforms_default_pcss_is_unset ... ok
+test tests::billboard_shader_wgsl_parses ... ok
+test tests::bloom_shader_wgsl_parses ... ok
+test tests::shadow_uniforms_default_texel_is_unset ... ok
+test tests::depth_resolve_shader_wgsl_parses_and_validates ... ok
+test tests::outline_shader_wgsl_parses ... ok
+test tests::shadow_shader_wgsl_parses ... ok
+test tests::fxaa_shader_wgsl_parses_and_validates ... ok
+test tests::grass_compute_shader_wgsl_parses ... ok
+test tests::particle_shader_wgsl_parses ... ok
+test tests::grass_render_shader_wgsl_parses ... ok
+test tests::shadow_uniforms_layout ... ok
+test tests::ssao_blur_shader_wgsl_parses ... ok
+test tests::sprite2d_shader_wgsl_parses ... ok
+test tests::skybox_shader_wgsl_parses ... ok
+test tests::sky_shader_wgsl_parses ... ok
+test tests::ssao_shader_wgsl_parses ... ok
+test tests::shader_wgsl_parses_and_validates ... ok
+test tests::skinned_shader_wgsl_parses ... ok
+test tests::composite_shader_wgsl_parses_and_validates ... ok
+test tests::ocean_shader_wgsl_parses ... ok
+test tests::terrain_shader_wgsl_parses ... ok
+
+test result: ok. 58 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src\lib.rs (target\release\deps\flint_runtime-6651137c3fc3cfe4.exe)
+
+running 45 tests
+test clock::tests::test_accumulator_logic ... ok
+test clock::tests::test_interpolation_alpha ... ok
+test clock::tests::test_custom_timestep ... ok
+test input::tests::test_medium_movement_fires_neither ... ok
+test input::tests::test_key_transitions ... ok
+test event_bus::tests::test_push_and_drain ... ok
+test input::tests::test_axis_value_mouse_delta ... ok
+test input::tests::test_gamepad_button_binding ... ok
+test input::tests::test_custom_binding_compat_api ... ok
+test input::tests::test_default_action_map ... ok
+test clock::tests::test_first_tick_zero_delta ... ok
+test input::tests::test_invalid_key_rejected ... ok
+test clock::tests::test_clock_defaults ... ok
+test input::tests::test_mouse_touch_emulation ... ok
+test input::tests::test_multi_touch ... ok
+test input::tests::test_short_movement_is_tap_not_swipe ... ok
+test input::tests::test_swipe_binding_triggers_action ... ok
+test input::tests::test_swipe_down ... ok
+test input::tests::test_swipe_horizontal ... ok
+test input::tests::test_parse_input_config ... ok
+test input::tests::test_swipe_up ... ok
+test input::tests::test_touch_start_end ... ok
+test input::tests::test_actions_just_released ... ok
+test input::tests::test_touch_tap_detection ... ok
+test event_bus::tests::test_drain_clears ... ok
+test input::tests::test_touch_tap_no_fire_on_drag ... ok
+test input::tests::test_touch_zone_validation ... ok
+test persist::tests::has_and_remove ... ok
+test input::tests::test_touch_zone_binding ... ok
+test persist::tests::clear ... ok
+test persist::tests::keys ... ok
+test persist::tests::overwrite ... ok
+test persist::tests::set_and_get ... ok
+test state::tests::active_config_reflects_top ... ok
+test state::tests::builtin_templates ... ok
+test state::tests::new_starts_with_playing ... ok
+test state::tests::push_and_pop ... ok
+test state::tests::cannot_pop_last_state ... ok
+test state::tests::push_unknown_template_fails ... ok
+test state::tests::register_custom_state ... ok
+test state::tests::replace_state ... ok
+test state::tests::replace_unknown_template_fails ... ok
+test state::tests::stack_names_order ... ok
+test persist::tests::load_replaces_existing ... ok
+test persist::tests::save_and_load ... ok
+
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src\lib.rs (target\release\deps\flint_scene-a751a2fa2dc61fa5.exe)
+
+running 25 tests
+test prefab::tests::test_substitute_nested_table ... ok
+test format::tests::test_scene_file_deserialization ... ok
+test loader::tests::test_load_empty_scene ... ok
+test loader::tests::test_load_camera_metadata ... ok
+test loader::tests::test_load_deep_hierarchy ... ok
+test loader::tests::test_load_environment_metadata ... ok
+test loader::tests::test_load_post_process_metadata ... ok
+test loader::tests::test_load_scene_string ... ok
+test loader::tests::test_post_process_effect_fields_default_to_zero ... ok
+test loader::tests::test_load_with_archetype_defaults_and_overrides ... ok
+test loader::tests::test_transform_parsing_pipeline ... ok
+test patcher::tests::test_patch_single_field ... ok
+test patcher::tests::test_patch_preserves_comments ... ok
+test prefab::tests::test_deep_merge_adds_new_component ... ok
+test prefab::tests::test_deep_merge_component ... ok
+test prefab::tests::test_expand_prefabs_name_collision ... ok
+test prefab::tests::test_substitute_in_value ... ok
+test format::tests::test_scene_file_serialization ... ok
+test saver::tests::test_roundtrip ... ok
+test saver::tests::test_roundtrip_with_archetype ... ok
+test saver::tests::test_roundtrip_preserves_component_data ... ok
+test saver::tests::test_roundtrip_with_parent_hierarchy ... ok
+test saver::tests::test_save_scene_string ... ok
+test loader::tests::test_reload_scene_string_clears_and_repopulates ... ok
+test saver::tests::test_update_scene_file_removes_deleted_entities ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target\release\deps\flint_schema-85b10f7beabaa5c3.exe)
+
+running 6 tests
+test validation::tests::test_valid_data ... ok
+test validation::tests::test_invalid_enum_value ... ok
+test validation::tests::test_missing_required_field ... ok
+test validation::tests::test_value_out_of_range ... ok
+test registry::tests::test_load_archetype_string ... ok
+test registry::tests::test_load_component_string ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\release\deps\flint_script-52e5334e0ddffaff.exe)
+
+running 50 tests
+test api::tests::test_dynamic_to_toml_bool ... ok
+test api::tests::test_dynamic_to_toml_roundtrip ... ok
+test api::tests::test_toml_to_dynamic_array ... ok
+test api::tests::test_dynamic_to_toml_string ... ok
+test api::tests::test_math_trig ... ok
+test api::tests::test_toml_to_dynamic_float ... ok
+test api::tests::test_toml_to_dynamic_string ... ok
+test engine::tests::test_compile_invalid_script ... ok
+test api::tests::test_toml_to_dynamic_integer ... ok
+test context::tests::world_scope_clears_on_panic ... ok
+test context::tests::world_scope_sets_and_clears_pointer ... ok
+test api::tests::test_math_lerp ... ok
+test api::tests::test_toml_to_dynamic_bool ... ok
+test engine::tests::test_arity_mismatch_still_detects_function ... ok
+test engine::tests::test_callback_detection ... ok
+test engine::tests::test_camera_roll_override_round_trip ... ok
+test engine::tests::test_animation_api_play_clip ... ok
+test engine::tests::test_compile_valid_script ... ok
+test api::tests::test_math_clamp ... ok
+test engine::tests::test_collision_event_routing ... ok
+test engine::tests::test_engine_creation ... ok
+test engine::tests::test_despawn_entity_from_script ... ok
+test engine::tests::test_conducted_bad_script_continues ... ok
+test engine::tests::test_conducted_neutral_defaults ... ok
+test engine::tests::test_fire_event_command ... ok
+test engine::tests::test_entity_count_with_component ... ok
+test engine::tests::test_entity_api_get_set ... ok
+test engine::tests::test_find_entities_with_from_script ... ok
+test engine::tests::test_distance_between_entities ... ok
+test engine::tests::test_hot_reload_preserves_scope ... ok
+test engine::tests::test_conducted_getters_round_trip ... ok
+test engine::tests::test_get_world_position_from_script ... ok
+test engine::tests::test_input_api ... ok
+test engine::tests::test_on_update_uses_delta_time ... ok
+test engine::tests::test_physics_api_without_physics ... ok
+test engine::tests::test_negative_entity_id_guards ... ok
+test engine::tests::test_get_children_from_script ... ok
+test engine::tests::test_module_level_variables_persist ... ok
+test engine::tests::test_persist_api_without_store ... ok
+test engine::tests::test_play_sound_command ... ok
+test engine::tests::test_set_material_color_from_script ... ok
+test engine::tests::test_set_parent_from_script ... ok
+test engine::tests::test_set_rotation_from_script ... ok
+test engine::tests::test_position_get_set ... ok
+test engine::tests::test_state_api_without_state_machine ... ok
+test engine::tests::test_spawn_entity_from_script ... ok
+test tests::test_desaturation_override_round_trip ... ok
+test tests::test_drain_commands_empty ... ok
+test tests::test_script_system_lifecycle ... ok
+test engine::tests::test_conducted_hot_reload_and_bad_edit ... ok
+
+test result: ok. 50 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\scene_script_integration.rs (target\release\deps\scene_script_integration-0d7dcd38dda8122e.exe)
+
+running 6 tests
+test test_reload_preserves_engine_functionality ... ok
+test test_scene_load_archetype_then_script_modifies ... ok
+test test_parent_chain_world_position_from_script ... ok
+test test_multi_entity_script_interaction ... ok
+test test_scene_load_then_script_reads_transform ... ok
+test test_scene_roundtrip_after_script_mutation ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target\release\deps\flint_terrain-61129c0d99081835.exe)
+
+running 24 tests
+test brush::tests::ray_intersect_flat_terrain ... ok
+test brush::tests::raise_increases_heights ... ok
+test brush::tests::smooth_converges ... ok
+test grass_config::tests::default_config_has_grass_disabled ... ok
+test grass_config::tests::max_instances_estimate ... ok
+test grass_config::tests::parse_minimal_grass_config ... ok
+test grass_config::tests::parse_full_grass_config ... ok
+test spec::tests::parse_spec_with_grass ... ok
+test spec::tests::parse_minimal_spec ... ok
+test spec::tests::parse_all_layer_types ... ok
+test grass_config::tests::round_trip_serialize ... ok
+test splatgen::tests::height_based_rules ... ok
+test spec::tests::round_trip_serialize ... ok
+test tests::height_sampling_returns_correct_values ... ok
+test tests::normal_computation_on_flat_terrain ... ok
+test tests::trimesh_data_produces_valid_output ... ok
+test spec::tests::spec_without_grass_has_none ... ok
+test tests::world_height_sampling ... ok
+test tests::flat_heightmap_generates_correct_mesh ... ok
+test procgen::tests::flatten_clamps_below ... ok
+test procgen::tests::output_normalized ... ok
+test procgen::tests::erosion_changes_heightmap ... ok
+test procgen::tests::noise_determinism ... ok
+test spec::tests::save_and_load_round_trip ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target\release\deps\flint_viewer-c44265487ca82053.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_animation
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_asset
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_asset_gen
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_audio
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_constraint
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_debug_ui
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_ecs
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_import
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_input_capture
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_music
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_particles
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_physics
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_player
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_procgen
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_query
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_render
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_runtime
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_scene
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_script
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_terrain
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests flint_viewer
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+EXIT 0
