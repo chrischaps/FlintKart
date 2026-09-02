@@ -180,6 +180,137 @@ size_class = "large"
 tags = ["wall", "interior"]
 ```
 
+## Prefab Templates (`prefabs/*.prefab.toml`)
+
+Reusable entity group templates with variable substitution. Prefabs define a set of entities that can be instantiated multiple times in a scene with different prefixes and per-instance overrides.
+
+```toml
+[prefab]
+name = "template_name"
+description = "Optional description"
+
+[entities.body]
+
+[entities.body.transform]
+position = [0, 0, 0]
+
+[entities.body.model]
+asset = "model_name"
+
+[entities.child]
+parent = "${PREFIX}_body"
+
+[entities.child.transform]
+position = [0.5, 0, 0]
+```
+
+All string values containing `${PREFIX}` are replaced with the instance prefix. Entity names are prepended with the prefix (e.g., `body` becomes `player_body` with prefix `"player"`).
+
+Scenes instantiate prefabs in a `[prefabs]` section:
+
+```toml
+[prefabs.player]
+template = "template_name"
+prefix = "player"
+
+[prefabs.player.overrides.body.transform]
+position = [0, 0, 0]
+
+[prefabs.ai1]
+template = "template_name"
+prefix = "ai1"
+
+[prefabs.ai1.overrides.body.transform]
+position = [5, 0, -3]
+```
+
+Overrides are deep-merged at the field level --- specifying one field in a component preserves all other fields from the template.
+
+See [Scenes: Prefabs](../concepts/scenes.md#prefabs) for usage details.
+
+## Spline Files (`splines/*.spline.toml`)
+
+Define smooth 3D paths using Catmull-Rom control points. Used for track layouts, camera paths, and procedural geometry generation.
+
+```toml
+[spline]
+name = "Track Name"
+closed = true             # true for closed loops, false for open paths
+
+[sampling]
+spacing = 2.0             # Distance between sampled points (meters)
+
+[[control_points]]
+position = [0, 0, 0]
+twist = 0.0               # Banking angle in degrees
+
+[[control_points]]
+position = [0, 0, -50]
+twist = 0.0
+
+[[control_points]]
+position = [50, 0, -100]
+twist = 5.0               # Banked turn
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `spline.name` | string | Human-readable name |
+| `spline.closed` | bool | Whether the spline forms a closed loop |
+| `sampling.spacing` | f32 | Distance between sampled points along the curve |
+| `control_points[].position` | `[f32; 3]` | 3D position `[x, y, z]` |
+| `control_points[].twist` | f32 | Banking angle in degrees (interpolated with C1 continuity via Catmull-Rom) |
+
+The engine samples the control points into a dense array using Catmull-Rom interpolation, stored as the `spline_data` ECS component. Scripts can query this data via `spline_closest_point()` and `spline_sample_at()`.
+
+## UI Layouts (`ui/*.ui.toml`)
+
+Data-driven UI element trees. Loaded by scripts via `load_ui()`. Each layout file references a companion style file.
+
+```toml
+[ui]
+name = "Race HUD"
+style = "ui/race_hud.style.toml"
+
+[elements.<id>]
+type = "panel"                     # panel, text, rect, circle, image
+anchor = "bottom-center"           # Screen anchor (root elements only)
+class = "hud-panel"                # Style class from .style.toml
+parent = "parent_id"               # Optional parent element
+text = "Default text"              # For text elements
+src = "logo.png"                   # For image elements
+visible = true
+```
+
+Element types: `panel` (container with background), `text` (styled text), `rect` (filled or outlined rectangle), `circle` (filled circle), `image` (sprite).
+
+Anchor points: `top-left`, `top-center`, `top-right`, `center-left`, `center`, `center-right`, `bottom-left`, `bottom-center`, `bottom-right`.
+
+See [Scripting: Data-Driven UI](../concepts/scripting.md#data-driven-ui-system) for the full layout/style/API reference.
+
+## UI Styles (`ui/*.style.toml`)
+
+Named style classes for UI elements. Referenced by `.ui.toml` layout files.
+
+```toml
+[styles.<class-name>]
+width = 200
+height = 60
+color = [1.0, 1.0, 1.0, 1.0]     # Primary color (RGBA)
+bg_color = [0.0, 0.0, 0.0, 0.6]  # Background color
+font_size = 24
+text_align = "center"              # left, center, right
+rounding = 8
+opacity = 1.0
+padding = [12, 8, 12, 8]          # [left, top, right, bottom]
+layout = "stack"                   # stack (vertical) or horizontal
+layer = 0                          # Render depth ordering
+width_pct = 100                    # Percentage of parent width
+margin_bottom = 4                  # Spacing in flow layout
+```
+
+Style properties support float, color (`[r,g,b,a]`), string, and boolean values. See [Scripting: Style Properties](../concepts/scripting.md#file-format-styletoml) for the complete property table.
+
 ## Rhai Scripts (`scripts/*.rhai`)
 
 Game logic scripts written in [Rhai](https://rhai.rs/). Attached to entities via the `script` component. See [Scripting](../concepts/scripting.md) for the full API reference.

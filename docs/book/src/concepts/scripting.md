@@ -112,9 +112,17 @@ Audio functions produce deferred commands that the player processes after the sc
 | `play_sound(name)` | Play a non-spatial sound at default volume |
 | `play_sound(name, volume)` | Play a non-spatial sound at the given volume (0.0--1.0) |
 | `play_sound_at(name, x, y, z, volume)` | Play a spatial sound at a 3D position |
+| `play_sound_at(name, x, y, z, volume, pitch)` | As above, with a pitch multiplier |
 | `stop_sound(name)` | Stop a playing sound |
 
-Sound names match the audio files loaded from the `audio/` directory (without extension).
+Sound names match the audio files loaded from the `audio/` directory (without extension). A one-shot naming a file that is not there fails silently — it logs a warning and plays nothing.
+
+Varying `pitch` slightly per trigger (say 0.9–1.1) is the cheapest way to stop a
+repeated one-shot sounding like a repeated one-shot.
+
+Spatial one-shot tracks attenuate to silence at 25 m. An event further away
+than that must use non-spatial `play_sound` with a hand-scaled volume, or it
+will simply not be heard.
 
 ### Animation API
 
@@ -164,6 +172,45 @@ Use the direction helpers (`forward_from_yaw`, `right_from_yaw`) to convert a ya
 | `max(a, b)` | `f64` | Maximum of two values |
 | `atan2(y, x)` | `f64` | Two-argument arctangent (radians) |
 
+### Ocean API
+
+Available when the scene has an [`ocean`](ocean.md) component. All coordinates
+are world-space; all queries are evaluated on the same clock the renderer used
+this frame, so what you sample is what is on screen.
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `ocean_height(x, z)` | `f64` | Eulerian surface height in meters |
+| `ocean_velocity_y(x, z)` | `f64` | Vertical surface velocity in m/s (analytic ∂h/∂t) |
+| `ocean_normal(x, z)` | `Map` | Surface normal `#{x, y, z}` |
+
+```rhai
+// Float a hull on five probe points.
+let p = get_field(me, "transform", "position");
+let h = ocean_height(p.x, p.z);
+```
+
+`ocean_velocity_y` is the impact signal: the *relative* approach speed between
+water and hull is what distinguishes a lap from a slam. Without a scene ocean
+these return 0 (and `#{0,1,0}`) rather than failing.
+
+A handful of probes per frame is cheap. Thousands are not.
+
+### Input and Cursor API
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `any_input_just_pressed()` | `bool` | True on the frame any key, mouse button, or gamepad button was pressed |
+| `set_cursor_captured(captured)` | | Capture (hide + lock) or release the mouse cursor |
+
+`any_input_just_pressed` reads **raw** presses and bypasses action maps
+entirely — it is for "press any key to continue", where the whole point is that
+you do not care which key.
+
+`set_cursor_captured(true)` is how a scene gets mouse-look without a
+character-controller player entity. The engine only captures automatically for
+scenes that have one, so a fixed-camera or custom-camera scene must ask.
+
 ### Event API
 
 | Function | Description |
@@ -193,6 +240,7 @@ Physics functions provide raycasting and camera access for combat, line-of-sight
 | `get_camera_direction()` | `Map` | Camera forward vector as `#{x, y, z}` |
 | `set_camera_position(x, y, z)` | --- | Override camera position from script |
 | `set_camera_target(x, y, z)` | --- | Override camera look-at target from script |
+| `set_camera_fov(fov)` | --- | Override camera field of view (degrees) from script |
 
 The `raycast()` function automatically excludes the calling entity's collider from results. On a hit, it returns a map with these fields:
 
@@ -251,7 +299,7 @@ Query spline entities for path-following, track layouts, and procedural placemen
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `spline_closest_point(spline_id, x, z)` | `Map` or `()` | Nearest point on spline to query position. Returns `#{t, x, y, z, dist_sq}` |
+| `spline_closest_point(spline_id, x, y, z)` | `Map` or `()` | Nearest point on spline to query position. Returns `#{t, x, y, z, dist_sq}` |
 | `spline_sample_at(spline_id, t)` | `Map` or `()` | Sample spline at parameter `t` (0.0--1.0). Returns `#{x, y, z, fwd_x, fwd_y, fwd_z, right_x, right_y, right_z}` |
 
 The `t` parameter wraps for closed splines. The returned forward and right vectors are normalized and can be used for orientation.
@@ -266,6 +314,118 @@ The `t` parameter wraps for closed splines. The returned forward and right vecto
 | `set_emission_rate(entity_id, rate)` | Change emission rate dynamically |
 
 See [Particles](particles.md) for full component schema and recipes.
+
+### Post-Processing API
+
+Control the HDR post-processing pipeline at runtime from scripts:
+
+| Function | Description |
+|----------|-------------|
+| `set_vignette(intensity)` | Set vignette intensity (0.0 = none, 1.0 = heavy) |
+| `set_bloom_intensity(intensity)` | Set bloom strength (0.0 = none) |
+| `set_exposure(value)` | Set exposure multiplier (1.0 = default) |
+| `set_chromatic_aberration(amount)` | Set chromatic aberration strength |
+| `set_radial_blur(amount)` | Set radial blur strength |
+| `set_ssao_intensity(value)` | Set SSAO intensity |
+| `set_fog_density(value)` | Set fog density |
+| `set_fog_color(r, g, b)` | Set fog color (linear 0--1) |
+| `set_render_mode(mode, mix)` | Stylized render mode (see below) |
+| `set_render_mode_params(x, y, z, w)` | Per-mode tuning parameters |
+
+These overrides are applied each frame and combine with the scene's `[post_process]` baseline settings. Useful for dynamic effects like speed vignetting, boost bloom, or exposure flashes.
+
+**All of these are sticky except `set_render_mode`.** Set an override once and
+it persists until you change it. The render mode is the deliberate exception:
+it is cleared the frame your script stops calling it, so a crashed or
+hot-reloaded script cannot strand the world inside an effect. Call it every
+frame the effect is active. See
+[Post-Processing: Render Modes](post-processing.md#render-modes).
+
+### Audio Filter API
+
+| Function | Description |
+|----------|-------------|
+| `set_audio_lowpass(cutoff_hz)` | Set master bus low-pass filter cutoff frequency (Hz) |
+
+The low-pass filter affects all audio output. Pass `20000.0` for no filtering, lower values for a muffled effect. Useful for speed-dependent audio (e.g., wind rush at high speed) or dramatic transitions.
+
+### Scene Transition API
+
+Load new scenes, manage game state, and persist data across transitions:
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `load_scene(path)` | --- | Begin transition to a new scene |
+| `reload_scene()` | --- | Reload the current scene |
+| `current_scene()` | `String` | Path of the current scene |
+| `transition_progress()` | `f64` | Progress of the current transition (0.0--1.0) |
+| `transition_phase()` | `String` | Current transition phase (`"idle"`, `"exiting"`, `"loading"`, `"entering"`) |
+| `is_transitioning()` | `bool` | Whether a scene transition is in progress |
+| `complete_transition()` | --- | Advance to the next transition phase |
+
+Scene transitions follow a lifecycle: Idle -> Exiting -> Loading -> Entering -> Idle. During the Exiting and Entering phases, `on_draw_ui()` still runs so scripts can draw fade effects using `transition_progress()`. Call `complete_transition()` to advance phases --- this gives scripts full control over transition timing and visuals.
+
+Two additional callbacks fire during transitions:
+
+| Callback | Signature | When It Fires |
+|----------|-----------|---------------|
+| `on_scene_enter` | `fn on_scene_enter()` | After a new scene is loaded and ready |
+| `on_scene_exit` | `fn on_scene_exit()` | Before the current scene is unloaded |
+
+### Game State Machine API
+
+A pushdown automaton for managing game states (playing, paused, custom):
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `push_state(name)` | --- | Push a named state onto the stack |
+| `pop_state()` | --- | Pop the top state (returns to previous) |
+| `replace_state(name)` | --- | Replace the top state |
+| `current_state()` | `String` | Name of the current (top) state |
+| `state_stack()` | `Array` | All state names from bottom to top |
+| `register_state(name, config)` | --- | Register a custom state template |
+
+Built-in state templates:
+- **`"playing"`** --- all systems run (default)
+- **`"paused"`** --- physics, scripts, animation, particles, and audio are paused; rendering runs; `on_draw_ui()` still fires (for pause menus)
+- **`"loading"`** --- all systems paused
+
+### Persistent Data API
+
+Key-value store that survives scene transitions:
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `persist_set(key, value)` | --- | Store a value |
+| `persist_get(key)` | `Dynamic` | Retrieve a value (or `()` if not set) |
+| `persist_has(key)` | `bool` | Check if a key exists |
+| `persist_remove(key)` | --- | Remove a key |
+| `persist_clear()` | --- | Clear all persistent data |
+| `persist_keys()` | `Array` | List all keys |
+| `persist_save(path)` | --- | Save store to a TOML file |
+| `persist_load(path)` | --- | Load store from a TOML file |
+
+### Data-Driven UI API
+
+Load and manipulate TOML-defined UI documents at runtime:
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `load_ui(path)` | `i64` | Load a UI document (`.ui.toml`). Returns a handle |
+| `unload_ui(handle)` | --- | Unload a UI document |
+| `ui_set_text(element_id, text)` | --- | Set the text content of a UI element |
+| `ui_show(element_id)` | --- | Show a hidden UI element |
+| `ui_hide(element_id)` | --- | Hide a UI element |
+| `ui_set_visible(element_id, visible)` | --- | Set element visibility |
+| `ui_set_color(element_id, r, g, b, a)` | --- | Set element text/foreground color |
+| `ui_set_bg_color(element_id, r, g, b, a)` | --- | Set element background color |
+| `ui_set_style(element_id, property, value)` | --- | Override a single style property |
+| `ui_reset_style(element_id)` | --- | Remove all style overrides |
+| `ui_set_class(element_id, class_name)` | --- | Change an element's style class |
+| `ui_exists(element_id)` | `bool` | Check if a UI element exists |
+| `ui_get_rect(element_id)` | `Map` | Get resolved position/size as `#{x, y, width, height}` |
+
+UI documents are defined with paired `.ui.toml` (layout) and `.style.toml` (styling) files, following an HTML/CSS/JS-like separation of concerns. See [File Formats](../formats/overview.md) for the format specification.
 
 ### UI Draw API
 
@@ -299,7 +459,7 @@ The draw API lets scripts render 2D overlays each frame via the `on_draw_ui()` c
 
 #### Layer Ordering
 
-All draw commands accept a `layer` parameter (or default to 0). Commands are sorted by layer before rendering:
+All `_ex` draw variants accept a `layer` parameter which must be an **integer** (`0`, `1`, `-1`), not a float. Using `0.0` instead of `0` will cause a "Function not found" error because Rhai does not implicitly convert between `float` and `int`. Commands are sorted by layer before rendering:
 
 - **Negative layers** render behind (background elements)
 - **Layer 0** is the default
@@ -312,6 +472,187 @@ Coordinates are in **egui logical points**, not physical pixels. On high-DPI dis
 #### Sprite Loading
 
 Sprite names map to image files in the `sprites/` directory (without extension). Supported formats: PNG, JPG, BMP, TGA. Textures are lazy-loaded on first use and cached for subsequent frames.
+
+### Data-Driven UI System
+
+For structured interfaces like menus, HUDs, and dialog boxes, Flint provides a data-driven UI system that separates layout, style, and logic into distinct files. The procedural `draw_*` API above continues to work alongside it for dynamic elements like minimaps or particle trails.
+
+The pattern is:
+- **Layout** (`.ui.toml`) --- element tree with types, hierarchy, anchoring, and default text/images
+- **Style** (`.style.toml`) --- named style classes with visual properties (colors, sizes, fonts, padding)
+- **Logic** (`.rhai`) --- scripts load UI documents and manipulate elements at runtime
+
+#### File Format: `.ui.toml`
+
+```toml
+[ui]
+name = "Race HUD"
+style = "ui/race_hud.style.toml"   # Path to companion style file
+
+[elements.speed_panel]
+type = "panel"
+anchor = "bottom-center"
+class = "hud-panel"
+
+[elements.speed_label]
+type = "text"
+parent = "speed_panel"
+class = "speed-text"
+text = "0"
+
+[elements.lap_counter]
+type = "text"
+anchor = "top-right"
+class = "lap-text"
+text = "Lap 1/3"
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | string | `"panel"` | Element type: `panel`, `text`, `rect`, `circle`, `image` |
+| `anchor` | string | `"top-left"` | Screen anchor for root elements (see below) |
+| `parent` | string | --- | Parent element ID (child inherits position from parent) |
+| `class` | string | `""` | Style class name from the companion `.style.toml` |
+| `text` | string | `""` | Default text content (for `text` elements) |
+| `src` | string | `""` | Image source path (for `image` elements) |
+| `visible` | bool | `true` | Initial visibility |
+
+**Anchor points:** `top-left`, `top-center`, `top-right`, `center-left`, `center`, `center-right`, `bottom-left`, `bottom-center`, `bottom-right`
+
+#### File Format: `.style.toml`
+
+```toml
+[styles.hud-panel]
+width = 200
+height = 60
+bg_color = [0.0, 0.0, 0.0, 0.6]
+rounding = 8
+padding = [12, 8, 12, 8]
+layout = "stack"
+
+[styles.speed-text]
+font_size = 32
+color = [1.0, 1.0, 1.0, 1.0]
+text_align = "center"
+width_pct = 100
+
+[styles.lap-text]
+font_size = 24
+color = [1.0, 0.85, 0.2, 1.0]
+width = 120
+height = 30
+x = -10
+y = 10
+```
+
+**Style properties:**
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `x`, `y` | float | `0` | Offset from anchor point or parent |
+| `width`, `height` | float | `0` | Fixed dimensions in logical points |
+| `width_pct`, `height_pct` | float | --- | Percentage of parent width/height (0--100) |
+| `height_auto` | bool | `false` | Auto-size height from children extent |
+| `color` | [r,g,b,a] | `[1,1,1,1]` | Primary color (text color, shape fill) |
+| `bg_color` | [r,g,b,a] | `[0,0,0,0]` | Background color (panels) |
+| `font_size` | float | `16` | Text font size |
+| `text_align` | string | `"left"` | Text alignment: `left`, `center`, `right` |
+| `rounding` | float | `0` | Corner rounding for panels/rects |
+| `opacity` | float | `1.0` | Element opacity multiplier |
+| `thickness` | float | `1` | Stroke thickness for outlines |
+| `radius` | float | `0` | Circle radius |
+| `layer` | int | `0` | Render layer (negative = behind, positive = in front) |
+| `padding` | [l,t,r,b] | `[0,0,0,0]` | Interior padding (left, top, right, bottom) |
+| `layout` | string | `"stack"` | Child flow: `stack` (vertical) or `horizontal` |
+| `margin_bottom` | float | `0` | Space below element in flow layout |
+
+#### Rhai API: Data-Driven UI
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `load_ui(layout_path)` | `i64` | Load a `.ui.toml` document. Returns a handle (`-1` on error) |
+| `unload_ui(handle)` | --- | Unload a previously loaded UI document |
+| `ui_set_text(element_id, text)` | --- | Change an element's text content |
+| `ui_show(element_id)` | --- | Show an element |
+| `ui_hide(element_id)` | --- | Hide an element |
+| `ui_set_visible(element_id, visible)` | --- | Set element visibility |
+| `ui_set_color(element_id, r, g, b, a)` | --- | Override primary color |
+| `ui_set_bg_color(element_id, r, g, b, a)` | --- | Override background color |
+| `ui_set_style(element_id, prop, value)` | --- | Override any style property by name |
+| `ui_reset_style(element_id)` | --- | Clear all runtime overrides |
+| `ui_set_class(element_id, class)` | --- | Switch an element's style class |
+| `ui_exists(element_id)` | `bool` | Check if an element exists in any loaded document |
+| `ui_get_rect(element_id)` | `Map` or `()` | Get resolved screen rect as `#{x, y, w, h}` |
+
+Element IDs are the TOML key names from the layout file (e.g., `"speed_label"`, `"lap_counter"`). Functions search all loaded documents when resolving an element ID.
+
+#### Example: Menu with Data-Driven UI
+
+```toml
+# ui/main_menu.ui.toml
+[ui]
+name = "Main Menu"
+style = "ui/main_menu.style.toml"
+
+[elements.title]
+type = "text"
+anchor = "top-center"
+class = "title"
+text = "MY GAME"
+
+[elements.menu_panel]
+type = "panel"
+anchor = "center"
+class = "menu-container"
+
+[elements.btn_play]
+type = "text"
+parent = "menu_panel"
+class = "menu-item"
+text = "Play"
+
+[elements.btn_quit]
+type = "text"
+parent = "menu_panel"
+class = "menu-item"
+text = "Quit"
+```
+
+```rust
+// scripts/menu.rhai
+let menu_handle = 0;
+let selected = 0;
+
+fn on_init() {
+    menu_handle = load_ui("ui/main_menu.ui.toml");
+}
+
+fn on_update() {
+    // Highlight selected item
+    if selected == 0 {
+        ui_set_color("btn_play", 1.0, 0.85, 0.2, 1.0);
+        ui_set_color("btn_quit", 0.6, 0.6, 0.6, 1.0);
+    } else {
+        ui_set_color("btn_play", 0.6, 0.6, 0.6, 1.0);
+        ui_set_color("btn_quit", 1.0, 0.85, 0.2, 1.0);
+    }
+
+    if is_action_just_pressed("move_forward") { selected = 0; }
+    if is_action_just_pressed("move_backward") { selected = 1; }
+
+    if is_action_just_pressed("interact") {
+        if selected == 0 { load_scene("scenes/level1.scene.toml"); }
+    }
+}
+```
+
+#### When to Use Each UI Approach
+
+| Approach | Best For |
+|----------|----------|
+| **Data-driven** (`.ui.toml` + `.style.toml`) | Menus, HUD panels, dialog boxes, score displays --- anything with stable structure |
+| **Procedural** (`draw_*` API) | Crosshairs, damage flashes, debug overlays, dynamic effects --- anything computed per-frame |
+| **Both together** | Load a HUD layout for structure, use `draw_*` for dynamic overlays on top |
 
 ## Hot-Reload
 
