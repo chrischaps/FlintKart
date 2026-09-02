@@ -36,6 +36,16 @@ engine/target/release/flint render scenes/oval_plus.scene.toml --output test.png
 - `tools/` - Asset generators (Python)
 - `engine/` - Flint engine (git subtree)
 
+## Engine Subtree Workflow
+
+The engine lives at `engine/` as a git subtree. Remote: `engine` → `https://github.com/chrischaps/Flint.git`.
+
+- **Engine's main branch is `main`** (not `master`). Always target `main` for engine pushes.
+- **Routine engine changes**: push to `main` via `git subtree push --prefix=engine engine main`
+- **Risky or diverged changes**: push to a feature branch (e.g., `feature/fog-density-override`) and merge via PR
+- If subtree push to `main` fails with non-fast-forward, push to a feature branch instead — do NOT force push
+- **Pulling engine updates**: `git subtree pull --prefix=engine engine main --squash`
+
 ## Architecture
 
 - Vehicle physics are 100% script-driven (`kart_controller.rhai`)
