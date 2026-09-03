@@ -211,6 +211,52 @@ fn rank_karts(karts) {
     }
 }
 
+fn find_closest_segment(track_id, kx, ky, kz) {
+    // Parse segment names from track_graph component
+    let names_str = get_field(track_id, "track_graph", "segment_names");
+    if names_str == () || names_str == "" { return (); }
+    let names = names_str.split(",");
+
+    let best_dist = 999999.0;
+    let best_seg = -1;
+    let best_t = 0.0;
+
+    let i = 0;
+    while i < names.len() {
+        let seg_eid = get_entity(names[i]);
+        if seg_eid >= 0 {
+            let closest = spline_closest_point(seg_eid, kx, ky, kz);
+            if closest != () && closest["dist_sq"] < best_dist {
+                best_dist = closest["dist_sq"];
+                best_seg = seg_eid;
+                best_t = closest["t"];
+            }
+        }
+        i += 1;
+    }
+
+    if best_seg < 0 { return (); }
+
+    // Compute canonical progress from segment_info
+    let ps = get_field(best_seg, "segment_info", "progress_start");
+    let pe = get_field(best_seg, "segment_info", "progress_end");
+    let canonical_progress = 0.0;
+    if pe >= ps {
+        canonical_progress = ps + (pe - ps) * best_t;
+    } else {
+        let range = (1.0 - ps) + pe;
+        canonical_progress = ps + range * best_t;
+        if canonical_progress >= 1.0 { canonical_progress = canonical_progress - 1.0; }
+    }
+
+    #{
+        segment_entity: best_seg,
+        local_t: best_t,
+        canonical_progress: canonical_progress,
+        dist_sq: best_dist
+    }
+}
+
 fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
     // Skip karts that already finished all laps
     let finish_time = get_field(kart_id, "race_progress", "finish_time");
@@ -231,10 +277,21 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
     let ky = kart_pos["y"];
     let kz = kart_pos["z"];
 
-    let closest = spline_closest_point(track_id, kx, ky, kz);
-    if closest == () { return; }
+    let best_t;
 
-    let best_t = closest["t"];
+    if has_component(track_id, "track_graph") {
+        // Branching track: find closest segment, compute canonical progress
+        let seg_result = find_closest_segment(track_id, kx, ky, kz);
+        if seg_result == () { return; }
+        best_t = seg_result["canonical_progress"];
+        set_field(kart_id, "race_progress", "current_segment",
+                  entity_name(seg_result["segment_entity"]));
+    } else {
+        // Traditional single spline
+        let closest = spline_closest_point(track_id, kx, ky, kz);
+        if closest == () { return; }
+        best_t = closest["t"];
+    }
 
     let prev_t = get_field(kart_id, "race_progress", "spline_t");
 

@@ -1,0 +1,114 @@
+# The Crossroads — Branching track with a shortcut
+#
+# A flowing closed circuit with one branching shortcut path.
+# The shortcut is shorter but elevated — requires a jump to enter.
+#
+# Layout (top-down, Z goes up on screen):
+#
+#                          ┌── Shortcut (elevated) ──┐
+#                          │                          │
+#    START ─── curve ─── FORK ─── long way ─── MERGE ─── back to START
+#      (0,0,0)
+#
+# ~400m canonical path, ~200m shortcut
+
+[track]
+name = "The Crossroads"
+closed = true
+
+[sampling]
+spacing = 1.5
+
+[road]
+width = 12.0
+height = 0.3
+offset = [0.0, -0.15]
+color = [0.25, 0.25, 0.28, 1.0]
+stripe_color = [0.3, 0.3, 0.33, 1.0]
+stripe_width = 3.0
+chunk_size = 30
+friction = 0.8
+restitution = 0.1
+
+[walls]
+width = 0.5
+height = 1.5
+left_color = [0.8, 0.12, 0.12, 1.0]
+right_color = [0.12, 0.12, 0.8, 1.0]
+left_stripe = [0.95, 0.95, 0.95, 1.0]
+right_stripe = [0.95, 0.95, 0.95, 1.0]
+stripe_width = 2.0
+friction = 0.3
+restitution = 0.5
+
+[environment]
+skybox = "textures/skybox_kart.png"
+
+[post_process]
+bloom_enabled = true
+bloom_intensity = 0.05
+bloom_threshold = 0.9
+vignette_enabled = true
+vignette_intensity = 0.35
+vignette_smoothness = 0.9
+exposure = 1.1
+ssao_enabled = true
+ssao_radius = 0.8
+ssao_intensity = 0.7
+fog_enabled = true
+fog_color = [0.68, 0.78, 0.90]
+fog_density = 0.002
+fog_start = 40.0
+fog_height_enabled = true
+fog_height_falloff = 0.015
+fog_height_origin = 0.0
+
+# ─── Control Points ─────────────────────────────────────
+# Start/finish straight (heading -Z)
+[[control_points]]
+position = [0, 0, 0]
+
+[[control_points]]
+position = [0, 0, -40]
+
+# Right-hand sweep into fork zone
+[[control_points]]
+position = [20, 0, -80]
+
+# Fork junction — shortcut branches off here
+[[control_points]]
+position = [60, 0, -100]
+fork = "shortcut"
+
+# Canonical path: long sweeping route
+[[control_points]]
+position = [100, 0, -110]
+
+[[control_points]]
+position = [140, 0, -80]
+
+[[control_points]]
+position = [150, 0, -40]
+
+# Merge junction — shortcut reconnects
+[[control_points]]
+position = [130, 0, 0]
+merge = "shortcut"
+
+# Return leg back to start
+[[control_points]]
+position = [100, 0, 20]
+
+[[control_points]]
+position = [50, 0, 20]
+
+# ─── Branch: Shortcut ───────────────────────────────────
+# Elevated direct path from fork to merge
+[branches.shortcut]
+entry_type = "positional"
+
+[[branches.shortcut.control_points]]
+position = [80, 3, -80]
+
+[[branches.shortcut.control_points]]
+position = [110, 4, -50]

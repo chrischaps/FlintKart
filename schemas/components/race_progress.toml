@@ -36,3 +36,8 @@ default = 0.0
 [component.race_progress.fields.passed_start]
 type = "bool"
 default = false
+
+# Entity name of the segment the kart is on (branching tracks only)
+[component.race_progress.fields.current_segment]
+type = "string"
+default = ""
