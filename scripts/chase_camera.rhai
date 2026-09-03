@@ -124,6 +124,14 @@ fn on_update() {
     tgt_y = lerp(tgt_y, ideal_tgt_y, t);
     tgt_z = lerp(tgt_z, ideal_tgt_z, t);
 
+    // ── Read item state ──
+    let item_boost_on = false;
+    let spinout_on = false;
+    if has_component(kart_id, "item_holder") {
+        item_boost_on = get_field(kart_id, "item_holder", "item_boost_active");
+        spinout_on = get_field(kart_id, "item_holder", "spinout_active");
+    }
+
     // ── Screen Shake ──
     let wall_impact = get_field(kart_id, "kart_state", "wall_impact");
     if wall_impact > 1.0 {
@@ -174,14 +182,6 @@ fn on_update() {
     if manager_id >= 0 {
         race_state = get_field(manager_id, "race_state", "state");
         countdown_timer = get_field(manager_id, "race_state", "countdown_timer");
-    }
-
-    // ── Read item state ──
-    let item_boost_on = false;
-    let spinout_on = false;
-    if has_component(kart_id, "item_holder") {
-        item_boost_on = get_field(kart_id, "item_holder", "item_boost_active");
-        spinout_on = get_field(kart_id, "item_holder", "spinout_active");
     }
 
     let target_fov = 60.0;
