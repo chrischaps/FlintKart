@@ -32,6 +32,11 @@ let shake_timer = 0.0;
 // Dynamic FOV state
 let current_fov = 60.0;
 
+// Occlusion fading state (track chunks that block the camera)
+let chunk_ids = [];
+let chunk_opacities = [];
+let chunks_initialized = false;
+
 fn on_update() {
     let dt = delta_time();
     if dt <= 0.0 { return; }
@@ -327,6 +332,100 @@ fn on_update() {
     if audio_cutoff < 800.0 { audio_cutoff = 800.0; }
     if audio_cutoff > 20000.0 { audio_cutoff = 20000.0; }
     set_audio_lowpass(audio_cutoff);
+
+    // ── Occlusion Fading — fade track chunks that block camera view ──
+
+    // Initialize chunk tracking on first frame
+    if !chunks_initialized {
+        chunk_ids = find_entities_with("spline_chunk");
+        chunk_opacities = [];
+        let i = 0;
+        while i < chunk_ids.len() {
+            chunk_opacities.push(1.0);
+            i += 1;
+        }
+        chunks_initialized = true;
+    }
+
+    if chunk_ids.len() > 0 {
+        // Direction from camera to kart
+        let dx = kx - cam_x;
+        let dy = ky - cam_y;
+        let dz = kz - cam_z;
+        let player_dist = sqrt(dx * dx + dy * dy + dz * dz);
+
+        if player_dist > 0.5 {
+            let inv_dist = 1.0 / player_dist;
+            let ndx = dx * inv_dist;
+            let ndy = dy * inv_dist;
+            let ndz = dz * inv_dist;
+
+            // Mark which chunks are occluding (by index)
+            let occluding = [];
+            let ci = 0;
+            while ci < chunk_ids.len() {
+                occluding.push(false);
+                ci += 1;
+            }
+
+            // Cast 4 rays toward different points on the kart
+            let ray_targets = [
+                [kx, ky + 0.5, kz],
+                [kx, ky + 1.2, kz],
+                [kx + fwd_z * 0.8, ky + 0.5, kz - fwd_x * 0.8],
+                [kx - fwd_z * 0.8, ky + 0.5, kz + fwd_x * 0.8],
+            ];
+
+            let ri = 0;
+            while ri < 4 {
+                let rtgt = ray_targets[ri];
+                let rdx = rtgt[0] - cam_x;
+                let rdy = rtgt[1] - cam_y;
+                let rdz = rtgt[2] - cam_z;
+                let rd = sqrt(rdx * rdx + rdy * rdy + rdz * rdz);
+                if rd > 0.1 {
+                    let rinv = 1.0 / rd;
+                    let hit = raycast(cam_x, cam_y, cam_z, rdx * rinv, rdy * rinv, rdz * rinv, rd);
+                    if hit != () {
+                        if hit.distance < rd - 0.5 {
+                            let hit_ent = hit.entity;
+                            if has_component(hit_ent, "spline_chunk") {
+                                // Find which chunk index this is
+                                let fi = 0;
+                                while fi < chunk_ids.len() {
+                                    if chunk_ids[fi] == hit_ent {
+                                        occluding[fi] = true;
+                                    }
+                                    fi += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                ri += 1;
+            }
+
+            // Smooth fade each chunk toward target opacity
+            let fade_speed = 4.0;
+            let fi = 0;
+            while fi < chunk_ids.len() {
+                let target_opacity = if occluding[fi] { 0.15 } else { 1.0 };
+                let current = chunk_opacities[fi];
+                let diff = target_opacity - current;
+
+                if abs(diff) > 0.001 {
+                    let new_opacity = current + diff * clamp(fade_speed * dt, 0.0, 1.0);
+                    // Snap if very close
+                    if abs(target_opacity - new_opacity) < 0.005 {
+                        new_opacity = target_opacity;
+                    }
+                    chunk_opacities[fi] = new_opacity;
+                    set_field(chunk_ids[fi], "material", "opacity", new_opacity);
+                }
+                fi += 1;
+            }
+        }
+    }
 
     // Apply camera with shake offset
     set_camera_position(cam_x + shake_x, cam_y + shake_y, cam_z);

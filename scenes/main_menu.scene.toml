@@ -39,47 +39,31 @@ fog_height_enabled = false
 #  DISPLAY KART — decorative kart for the title screen
 # ============================================================
 
-[entities.display_kart]
-[entities.display_kart.transform]
+[prefabs.display]
+template = "kart"
+prefix = "display"
+[prefabs.display.overrides.kart.transform]
 position = [0, 0.5, 0]
 rotation = [0, -30, 0]
-[entities.display_kart.model]
-asset = "kart_body"
-
-[entities.display_kart_wheel_fl]
-parent = "display_kart"
-[entities.display_kart_wheel_fl.transform]
-position = [-0.73, 0.275, -1.0]
-[entities.display_kart_wheel_fl.model]
-asset = "kart_wheel"
-
-[entities.display_kart_wheel_fr]
-parent = "display_kart"
-[entities.display_kart_wheel_fr.transform]
-position = [0.73, 0.275, -1.0]
-[entities.display_kart_wheel_fr.model]
-asset = "kart_wheel"
-
-[entities.display_kart_wheel_rl]
-parent = "display_kart"
-[entities.display_kart_wheel_rl.transform]
-position = [-0.73, 0.275, 0.85]
-[entities.display_kart_wheel_rl.model]
-asset = "kart_wheel"
-
-[entities.display_kart_wheel_rr]
-parent = "display_kart"
-[entities.display_kart_wheel_rr.transform]
-position = [0.73, 0.275, 0.85]
-[entities.display_kart_wheel_rr.model]
-asset = "kart_wheel"
-
-[entities.display_kart_driver]
-parent = "display_kart"
-[entities.display_kart_driver.transform]
-position = [0.0, 0.12, 0.15]
-[entities.display_kart_driver.model]
-asset = "kart_driver"
+[prefabs.display.overrides.kart.kart_state]
+input_enabled = false
+# Disable gameplay scripts — menu.rhai handles all animation
+[prefabs.display.overrides.kart.script]
+source = ""
+[prefabs.display.overrides.visuals.script]
+source = ""
+[prefabs.display.overrides.audio_ctrl.script]
+source = ""
+# Silence engine audio (menu has its own music)
+[prefabs.display.overrides.engine_idle.audio_source]
+autoplay = false
+volume = 0.0
+[prefabs.display.overrides.engine_mid.audio_source]
+autoplay = false
+volume = 0.0
+[prefabs.display.overrides.engine_high.audio_source]
+autoplay = false
+volume = 0.0
 
 
 # ============================================================

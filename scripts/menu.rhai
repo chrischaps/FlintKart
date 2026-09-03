@@ -175,11 +175,11 @@ fn on_update() {
     // ── Lazy entity lookup — retry until found ──
     if !entities_found {
         kart_id = get_entity("display_kart");
-        wheel_fl_id = get_entity("display_kart_wheel_fl");
-        wheel_fr_id = get_entity("display_kart_wheel_fr");
-        wheel_rl_id = get_entity("display_kart_wheel_rl");
-        wheel_rr_id = get_entity("display_kart_wheel_rr");
-        driver_id = get_entity("display_kart_driver");
+        wheel_fl_id = get_entity("display_wheel_fl");
+        wheel_fr_id = get_entity("display_wheel_fr");
+        wheel_rl_id = get_entity("display_wheel_rl");
+        wheel_rr_id = get_entity("display_wheel_rr");
+        driver_id = get_entity("display_driver");
         skid_snd_id = get_entity("snd_tire_skid");
         dust_l_id = get_entity("display_dust_l");
         dust_r_id = get_entity("display_dust_r");

@@ -358,11 +358,49 @@ fn on_update() {
     py = py + vy * dt;
     pz = pz + vz * dt;
 
-    // Prevent falling through world
-    if py < -10.0 {
-        px = 0.0;
-        py = 2.0;
-        pz = 5.0;
+    // ── Off-track respawn (Trike 7270966) — two conditions:
+    //   1. Fell through the world (py < -10)
+    //   2. Grounded on a non-track surface (terrain, infield) — detected by
+    //      being grounded but >10m from the track spline
+    let needs_respawn = py < -10.0;
+    let track_eid = get_entity("track_path");
+    if !needs_respawn && track_eid >= 0 {
+        let closest = spline_closest_point(track_eid, px, py, pz);
+        if closest != () {
+            if grounded && closest["dist_sq"] > 100.0 {
+                needs_respawn = true;
+            }
+        }
+    }
+
+    if needs_respawn {
+        let placed = false;
+        if track_eid >= 0 {
+            let closest = spline_closest_point(track_eid, px, py, pz);
+            if closest != () {
+                let respawn_t = closest["t"];
+                // If the nearest point is inside a gap, respawn at the landing zone
+                if spline_is_gap(track_eid, respawn_t) {
+                    let gap_info = spline_gap_at(track_eid, respawn_t);
+                    if gap_info != () {
+                        respawn_t = gap_info["end_t"];
+                    }
+                }
+                let sample = spline_sample_at(track_eid, respawn_t);
+                if sample != () {
+                    px = sample["x"];
+                    py = sample["y"] + 1.0;
+                    pz = sample["z"];
+                    yaw = rad_to_deg(atan2(-sample["fwd_x"], -sample["fwd_z"]));
+                    placed = true;
+                }
+            }
+        }
+        if !placed {
+            px = 0.0;
+            py = 2.0;
+            pz = 5.0;
+        }
         vx = 0.0;
         vy = 0.0;
         vz = 0.0;
@@ -370,6 +408,8 @@ fn on_update() {
         drift_state = "none";
         drift_angle = 0.0;
         drift_direction = 0.0;
+        // Let race_manager accept the progress jump this frame
+        set_field(me, "kart_state", "respawned", true);
     }
 
     // ── Wall Collision (radial raycasts) ──
