@@ -237,6 +237,19 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
     let best_t = closest["t"];
 
     let prev_t = get_field(kart_id, "race_progress", "spline_t");
+
+    // Enforce monotonic progress: the closest-point search can snap backward
+    // when airborne, over gaps, or where two track sections pass close together.
+    // A respawn is allowed to jump anywhere (kart_controller sets kart_state.respawned).
+    let respawned = get_field(kart_id, "kart_state", "respawned");
+    if respawned == true {
+        set_field(kart_id, "kart_state", "respawned", false);
+    } else {
+        let delta_t = best_t - prev_t;
+        if delta_t > 0.5 { delta_t = delta_t - 1.0; }     // wrap-around forward
+        if delta_t < -0.5 { delta_t = delta_t + 1.0; }    // wrap-around backward
+        if delta_t < -0.05 { best_t = prev_t; }            // reject backward jumps >5%
+    }
     set_field(kart_id, "race_progress", "prev_spline_t", prev_t);
     set_field(kart_id, "race_progress", "spline_t", best_t);
 

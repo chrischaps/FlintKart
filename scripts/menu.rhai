@@ -782,7 +782,7 @@ fn on_draw_ui() {
             // Feature 3: Slide-in from offscreen
             let cx = final_x;
             if card_anim_t < 1.0 {
-                let offscreen = if ci == 0 {
+                let offscreen = if ci % 2 == 0 {
                     -(final_x + card_w + 100.0)
                 } else {
                     sw + 100.0 - final_x

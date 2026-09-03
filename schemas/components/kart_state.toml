@@ -56,3 +56,7 @@ default = false
 [component.kart_state.fields.wall_impact]
 type = "float"
 default = 0.0
+
+[component.kart_state.fields.respawned]
+type = "bool"
+default = false

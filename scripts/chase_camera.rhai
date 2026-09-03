@@ -295,8 +295,8 @@ fn on_update() {
 
     // ── Fog clears with speed: full density at rest, 20% at max ──
     let track_id = get_entity("track_path");
-    if track_id >= 0 {
-        let base_fog = get_field(track_id, "track_info", "fog_density");
+    let base_fog = if track_id >= 0 { get_field(track_id, "track_info", "fog_density") } else { () };
+    if base_fog != () {
         let fog_scale = 1.0 - speed_ratio * 0.8;
         if drift_state == "boost" {
             // Extra clearing during boost

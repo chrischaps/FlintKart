@@ -35,6 +35,7 @@ let driver = -1;
 // Track previous drift state for transition detection
 let prev_drift_state = "none";
 let prev_boost_tier = 0;
+let prev_shield_on = false;
 
 fn on_init() {
     let me = this_entity();
@@ -135,11 +136,18 @@ fn on_update() {
             let sg = 0.9 + pulse * 0.1;
             let sb = 0.3 + pulse * 0.2;
             set_material_color(kart, sr, sg, sb, 1.0);
-        } else if !has_component(kart, "ai_input") {
-            // Player kart — restore default white when no shield
-            // (AI karts have their own color set by ai_driver.rhai)
-            // Only reset if we were previously shielded (cheap check: color is greenish)
+        } else if prev_shield_on {
+            // Shield just ended — restore the racer's base color
+            // (racer_info carries each kart's color; player defaults to white)
+            let br = 1.0; let bg = 1.0; let bb = 1.0;
+            if has_component(kart, "racer_info") {
+                br = get_field(kart, "racer_info", "color_r");
+                bg = get_field(kart, "racer_info", "color_g");
+                bb = get_field(kart, "racer_info", "color_b");
+            }
+            set_material_color(kart, br, bg, bb, 1.0);
         }
+        prev_shield_on = shield_on;
     }
 
     // ── Lights ──

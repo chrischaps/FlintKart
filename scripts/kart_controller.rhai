@@ -271,7 +271,9 @@ fn on_update() {
             turn_rate = turn_rate * 1.2;
         }
 
-        yaw = yaw - steering * turn_rate * dt;
+        // Steering direction flips when reversing (front wheels lead the swing)
+        let steer_sign = if speed < 0.0 { -1.0 } else { 1.0 };
+        yaw = yaw - steering * steer_sign * turn_rate * dt;
         yaw = wrap_angle(yaw);
     }
 
