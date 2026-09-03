@@ -6,6 +6,18 @@
 
 let me = this_entity();
 
+// --- Touch virtual joystick state ---
+let touch_mode = false;        // latches on after first touch detected
+let joy_active = false;        // is joystick touch currently held
+let joy_anchor_x = 0.0;       // anchor position in pixels
+let joy_anchor_y = 0.0;
+let joy_current_x = 0.0;      // current thumb position in pixels
+let joy_current_y = 0.0;
+let joy_steer = 0.0;          // computed analog values
+let joy_throttle = 0.0;
+let joy_brake = 0.0;
+let drift_touch = false;      // is drift button held
+
 fn on_update() {
     let me = this_entity();
     let dt = delta_time();
@@ -81,6 +93,97 @@ fn on_update() {
         }
     }
 
+    // --- Touch Virtual Joystick Detection ---
+    let tc = touch_count();
+    if tc > 0 && !has_component(me, "ai_input") {
+        touch_mode = true;
+    }
+
+    if touch_mode && !has_component(me, "ai_input") {
+        let sw = screen_width();
+        let sh = screen_height();
+        let max_radius = 80.0;
+        let dead_zone = 0.15 * max_radius;
+
+        // Drift button position: bottom-right
+        let drift_cx = sw - 100.0;
+        let drift_cy = sh - 140.0;
+        let drift_r = 50.0;
+
+        let found_joy = false;
+        let found_drift = false;
+
+        let ti = 0;
+        while ti < tc {
+            let tx_norm = touch_x(ti);
+            let ty_norm = touch_y(ti);
+            if tx_norm >= 0.0 {
+                let tx = tx_norm * sw;
+                let ty = ty_norm * sh;
+
+                // Check drift button first
+                let ddx = tx - drift_cx;
+                let ddy = ty - drift_cy;
+                let drift_dist = sqrt(ddx * ddx + ddy * ddy);
+                if drift_dist < drift_r + 20.0 {
+                    found_drift = true;
+                } else if tx < sw * 0.5 {
+                    // Left half — virtual joystick
+                    if !joy_active {
+                        joy_anchor_x = tx;
+                        joy_anchor_y = ty;
+                    }
+                    joy_current_x = tx;
+                    joy_current_y = ty;
+                    found_joy = true;
+
+                    // Compute offset from anchor
+                    let dx = tx - joy_anchor_x;
+                    let dy = ty - joy_anchor_y;
+                    let dist = sqrt(dx * dx + dy * dy);
+
+                    // Clamp visual thumb to max radius
+                    if dist > max_radius {
+                        joy_current_x = joy_anchor_x + (dx / dist) * max_radius;
+                        joy_current_y = joy_anchor_y + (dy / dist) * max_radius;
+                    }
+
+                    if dist > dead_zone {
+                        let effective = dist - dead_zone;
+                        let effective_max = max_radius - dead_zone;
+                        let norm_x = (dx / dist) * effective / effective_max;
+                        let norm_y = (dy / dist) * effective / effective_max;
+
+                        joy_steer = clamp(norm_x, -1.0, 1.0);
+                        // Screen Y inverted: up = negative dy = throttle
+                        if norm_y < 0.0 {
+                            joy_throttle = clamp(-norm_y, 0.0, 1.0);
+                            joy_brake = 0.0;
+                        } else {
+                            joy_throttle = 0.0;
+                            joy_brake = clamp(norm_y, 0.0, 1.0);
+                        }
+                    } else {
+                        joy_steer = 0.0;
+                        joy_throttle = 0.0;
+                        joy_brake = 0.0;
+                    }
+                }
+            }
+            ti = ti + 1;
+        }
+
+        if !found_joy {
+            joy_active = false;
+            joy_steer = 0.0;
+            joy_throttle = 0.0;
+            joy_brake = 0.0;
+        } else {
+            joy_active = true;
+        }
+        drift_touch = found_drift;
+    }
+
     // --- Input ---
     let throttle = 0.0;
     let steering = 0.0;
@@ -101,6 +204,20 @@ fn on_update() {
 
         steering = clamp(action_value("steering"), -1.0, 1.0);
         drift_input = is_action_pressed("drift");
+
+        // Overlay touch joystick input
+        steering = clamp(steering + joy_steer, -1.0, 1.0);
+        if joy_throttle > 0.0 {
+            throttle = clamp(throttle + joy_throttle, 0.0, 1.0);
+        }
+        if joy_brake > 0.0 {
+            if speed > 1.0 {
+                brake_amount = clamp(brake_amount + joy_brake, 0.0, 1.0);
+            } else {
+                throttle = -0.3 * joy_brake;
+            }
+        }
+        if drift_touch { drift_input = true; }
     } else if has_component(me, "ai_input") {
         throttle = clamp(get_field(me, "ai_input", "throttle"), -1.0, 1.0);
         steering = clamp(get_field(me, "ai_input", "steering"), -1.0, 1.0);
@@ -613,4 +730,41 @@ fn on_update() {
         set_field(me, "drift_state", "boost_speed_bonus", boost_speed_bonus);
         set_field(me, "drift_state", "hop_timer", hop_timer);
     }
+}
+
+fn on_draw_ui() {
+    if !touch_mode { return; }
+    let me = this_entity();
+    if has_component(me, "ai_input") { return; }
+
+    let sw = screen_width();
+    let sh = screen_height();
+    let layer = -1;
+
+    // --- Virtual Joystick ---
+    if joy_active {
+        let max_radius = 80.0;
+        // Outer ring: faint white showing max deflection
+        draw_circle_outline_ex(joy_anchor_x, joy_anchor_y, max_radius,
+            1.0, 1.0, 1.0, 0.15, 2.0, layer);
+        // Thumb: smaller filled circle at current position
+        draw_circle_ex(joy_current_x, joy_current_y, 24.0,
+            1.0, 1.0, 1.0, 0.35, layer);
+    }
+
+    // --- Drift Button ---
+    let drift_cx = sw - 100.0;
+    let drift_cy = sh - 140.0;
+    let drift_r = 50.0;
+    let drift_alpha = if drift_touch { 0.4 } else { 0.15 };
+
+    // Fill
+    draw_circle_ex(drift_cx, drift_cy, drift_r,
+        1.0, 1.0, 1.0, drift_alpha, layer);
+    // Outline
+    draw_circle_outline_ex(drift_cx, drift_cy, drift_r,
+        1.0, 1.0, 1.0, 0.3, 2.0, layer);
+    // Label
+    draw_text_ex(drift_cx - 22.0, drift_cy - 8.0, "DRIFT", 16.0,
+        1.0, 1.0, 1.0, 0.5, layer);
 }
