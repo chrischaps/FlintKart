@@ -40,6 +40,7 @@ let pause_options = ["Resume", "Restart Race", "Track Select", "Main Menu"];
 let finish_selection = 0;
 let finish_options = ["Restart", "Track Select", "Main Menu"];
 let finish_menu_active = false;  // becomes true after a short delay post-finish
+let hud_touch_active = false;   // latches on after first touch/tap detected
 let prev_finish_steer = 0;      // edge detection for steering in finish menu
 
 // Transition fade
@@ -184,6 +185,41 @@ fn on_draw_ui() {
                     load_scene("scenes/main_menu.scene.toml");
                 }
             }
+
+            // Touch: tap menu options directly
+            let p_tc = tap_count();
+            if p_tc > 0 { hud_touch_active = true; }
+            if touch_count() > 0 { hud_touch_active = true; }
+            let p_ti = 0;
+            while p_ti < p_tc {
+                let ptx = tap_x(p_ti) * sw;
+                let pty = tap_y(p_ti) * sh;
+                let p_menu_y = sh * 0.42;
+                let p_row_h = 48.0;
+                if ptx > sw * 0.25 && ptx < sw * 0.75 && pty >= p_menu_y - 10.0 && pty < p_menu_y + pause_options.len() * p_row_h {
+                    let tapped = floor((pty - p_menu_y + 10.0) / p_row_h);
+                    if tapped >= 0 && tapped < pause_options.len() {
+                        pause_selection = tapped;
+                        if tapped == 0 {
+                            pop_state();
+                        } else if tapped == 1 {
+                            pop_state();
+                            play_sound("audio/countdown_beep.ogg", 0.3);
+                            reload_scene();
+                        } else if tapped == 2 {
+                            pop_state();
+                            persist_set("menu_screen", "select");
+                            play_sound("audio/countdown_beep.ogg", 0.3);
+                            load_scene("scenes/main_menu.scene.toml");
+                        } else if tapped == 3 {
+                            pop_state();
+                            play_sound("audio/countdown_beep.ogg", 0.3);
+                            load_scene("scenes/main_menu.scene.toml");
+                        }
+                    }
+                }
+                p_ti += 1;
+            }
         }
 
         // Draw fade on top if active
@@ -203,6 +239,28 @@ fn on_draw_ui() {
                     push_state("paused");
                     pause_selection = 0;
                     return;
+                }
+                // Touch: pause button (top-right corner)
+                let pb_tc = tap_count();
+                if pb_tc > 0 { hud_touch_active = true; }
+                if touch_count() > 0 { hud_touch_active = true; }
+                let pb_i = 0;
+                while pb_i < pb_tc {
+                    let pb_tx = tap_x(pb_i) * sw;
+                    let pb_ty = tap_y(pb_i) * sh;
+                    if pb_tx > sw - 64.0 && pb_ty < 52.0 {
+                        push_state("paused");
+                        pause_selection = 0;
+                        return;
+                    }
+                    pb_i += 1;
+                }
+                // Draw pause button for touch users
+                if hud_touch_active {
+                    draw_rect_ex(sw - 56.0, 8.0, 48.0, 40.0, 0.15, 0.15, 0.2, 0.4, 8.0, 3);
+                    // Two vertical bars (pause icon)
+                    draw_rect_ex(sw - 44.0, 16.0, 8.0, 24.0, 1.0, 1.0, 1.0, 0.6, 2.0, 3);
+                    draw_rect_ex(sw - 30.0, 16.0, 8.0, 24.0, 1.0, 1.0, 1.0, 0.6, 2.0, 3);
                 }
             }
         }
@@ -793,6 +851,31 @@ fn on_draw_ui() {
                 // Main Menu
                 play_sound("audio/countdown_beep.ogg", 0.3);
                 load_scene("scenes/main_menu.scene.toml");
+            }
+        }
+
+        // Touch: tap finish menu options
+        if finish_menu_active {
+            let f_tc = tap_count();
+            let f_ti = 0;
+            while f_ti < f_tc {
+                let ftx = tap_x(f_ti) * sw;
+                let fty = tap_y(f_ti) * sh;
+                // Check each option — horizontal layout
+                let foi = 0;
+                while foi < finish_options.len() {
+                    let fo_cx = opt_start_x + foi * opt_gap;
+                    let fo_half_w = 80.0;
+                    if ftx > fo_cx - fo_half_w && ftx < fo_cx + fo_half_w && fty > opt_y - 12.0 && fty < opt_y + 32.0 {
+                        finish_selection = foi;
+                        play_sound("audio/countdown_beep.ogg", 0.3);
+                        if foi == 0 { reload_scene(); }
+                        else if foi == 1 { persist_set("menu_screen", "select"); load_scene("scenes/main_menu.scene.toml"); }
+                        else if foi == 2 { load_scene("scenes/main_menu.scene.toml"); }
+                    }
+                    foi += 1;
+                }
+                f_ti += 1;
             }
         }
     }

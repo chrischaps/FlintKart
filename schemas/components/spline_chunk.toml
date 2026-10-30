@@ -1,0 +1,14 @@
+[component.spline_chunk]
+description = "Chunked section of spline mesh for camera occlusion fading"
+
+[component.spline_chunk.fields.chunk_index]
+type = "int"
+default = 0
+
+[component.spline_chunk.fields.t_start]
+type = "float"
+default = 0.0
+
+[component.spline_chunk.fields.t_end]
+type = "float"
+default = 0.0

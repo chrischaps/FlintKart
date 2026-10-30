@@ -1,0 +1,614 @@
+[2m2026-09-03T17:52:53.198599Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_brain' component 'ai_driver': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198666Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'player_kart' component 'kart_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198675Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'player_kart' component 'racer_info': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198680Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'player_kart' component 'kart_visual_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198684Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'player_kart' component 'kart_physics': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198688Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'player_kart' component 'drift_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198704Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'player_kart' component 'race_progress': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198708Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'player_kart' component 'race_position': Invalid field type: expected string, got integer
+[2m2026-09-03T17:52:53.198712Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'player_kart' component 'item_holder': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198733Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r1_l3' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198760Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r1_l1' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198765Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r3_l1' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198770Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'track_path' component 'track_info': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198779Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_brain' component 'ai_driver': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198791Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r2_l3' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198833Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r4_l1' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198852Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_brain' component 'ai_driver': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198869Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r4_l3' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198880Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r4_l2' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198895Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r2_l4' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198921Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r3_l3' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198975Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_brain' component 'ai_driver': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.198982Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_brain' component 'ai_driver': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199005Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r4_l4' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199010Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_kart' component 'kart_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199014Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_kart' component 'racer_info': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199018Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_kart' component 'kart_visual_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199022Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_kart' component 'kart_physics': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199026Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_kart' component 'drift_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199030Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_kart' component 'race_progress': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199033Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_kart' component 'ai_input': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199037Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_kart' component 'race_position': Invalid field type: expected string, got integer
+[2m2026-09-03T17:52:53.199040Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai3_kart' component 'item_holder': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199050Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'race_manager' component 'race_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199070Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_kart' component 'kart_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199074Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_kart' component 'racer_info': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199077Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_kart' component 'kart_visual_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199080Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_kart' component 'kart_physics': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199084Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_kart' component 'drift_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199087Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_kart' component 'race_progress': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199091Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_kart' component 'ai_input': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199095Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_kart' component 'race_position': Invalid field type: expected string, got integer
+[2m2026-09-03T17:52:53.199098Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai2_kart' component 'item_holder': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199106Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r1_l2' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199113Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'item_manager' component 'item_config': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199126Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r1_l4' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199133Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r2_l2' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199141Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_kart' component 'kart_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199149Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_kart' component 'racer_info': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199153Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_kart' component 'kart_visual_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199156Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_kart' component 'kart_physics': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199160Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_kart' component 'drift_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199163Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_kart' component 'race_progress': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199167Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_kart' component 'ai_input': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199171Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_kart' component 'race_position': Invalid field type: expected string, got integer
+[2m2026-09-03T17:52:53.199174Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai1_kart' component 'item_holder': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199200Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_kart' component 'kart_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199206Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_kart' component 'racer_info': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199209Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_kart' component 'kart_visual_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199213Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_kart' component 'kart_physics': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199216Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_kart' component 'drift_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199220Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_kart' component 'race_progress': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199223Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_kart' component 'ai_input': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199227Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_kart' component 'race_position': Invalid field type: expected string, got integer
+[2m2026-09-03T17:52:53.199230Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai4_kart' component 'item_holder': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199239Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r3_l2' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199245Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r3_l4' component 'item_box': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199250Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_kart' component 'kart_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199261Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_kart' component 'racer_info': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199264Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_kart' component 'kart_visual_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199268Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_kart' component 'kart_physics': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199271Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_kart' component 'drift_state': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199274Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_kart' component 'race_progress': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199279Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_kart' component 'ai_input': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199282Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_kart' component 'race_position': Invalid field type: expected string, got integer
+[2m2026-09-03T17:52:53.199286Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ai5_kart' component 'item_holder': Invalid field type: expected string, got float
+[2m2026-09-03T17:52:53.199308Z[0m [33m WARN[0m [2mflint_scene::loader[0m[2m:[0m [scene] entity 'ibox_r2_l1' component 'item_box': Invalid field type: expected string, got float
+Loaded scene: Flint Kart — Oval Plus
+Entities: 137
+
+Controls:
+  WASD     - Move
+  Mouse    - Look
+  Space    - Jump
+  Shift    - Sprint
+  Escape   - Release cursor / Exit
+  F2       - Rendering stats overlay
+  F3       - Scene debug panels
+  F4       - Rendering & Effects menu
+  F11      - Toggle fullscreen
+[2m2026-09-03T17:52:53.645523Z[0m [33m WARN[0m [2mwgpu_hal::vulkan::conv[0m[2m:[0m Unrecognized present mode 1000361000
+Loaded model: kart_light (1 meshes, 2 nodes, bounds: 0.18 x 0.10 x 0.06 (min [-0.09, -0.05, -0.03], max [0.09, 0.05, 0.03]))
+Loaded model: item_trap (13 meshes, 14 nodes, bounds: 0.70 x 0.70 x 0.70 (min [-0.35, -0.35, -0.35], max [0.35, 0.35, 0.35]))
+  Expanded node: trap_2__world (animated, local TRS)
+  Expanded node: trap_2__world__part_0 (animated, local TRS)
+  Expanded node: trap_2__world__part_1 (animated, local TRS)
+  Expanded node: trap_2__world__part_2 (animated, local TRS)
+  Expanded node: trap_2__world__part_3 (animated, local TRS)
+  Expanded node: trap_2__world__part_4 (animated, local TRS)
+  Expanded node: trap_2__world__part_5 (animated, local TRS)
+  Expanded node: trap_2__world__part_6 (animated, local TRS)
+  Expanded node: trap_2__world__part_7 (animated, local TRS)
+  Expanded node: trap_2__world__part_8 (animated, local TRS)
+  Expanded node: trap_2__world__part_9 (animated, local TRS)
+  Expanded node: trap_2__world__part_10 (animated, local TRS)
+  Expanded node: trap_2__world__part_11 (animated, local TRS)
+  Expanded node: trap_2__world__part_12 (animated, local TRS)
+Loaded model: kart_body (10 meshes, 10 nodes, bounds: 1.86 x 0.75 x 2.81 (min [-0.93, 0.00, -1.50], max [0.93, 0.75, 1.31]))
+  Expanded node: player_kart__body_part_0 (animated, local TRS)
+  Expanded node: player_kart__body_part_1 (animated, local TRS)
+  Expanded node: player_kart__body_part_2 (animated, local TRS)
+  Expanded node: player_kart__body_part_3 (animated, local TRS)
+  Expanded node: player_kart__body_part_4 (animated, local TRS)
+  Expanded node: player_kart__body_part_5 (animated, local TRS)
+  Expanded node: player_kart__body_part_6 (animated, local TRS)
+  Expanded node: player_kart__body_part_7 (animated, local TRS)
+  Expanded node: player_kart__body_part_8 (animated, local TRS)
+  Expanded node: player_kart__body_part_9 (animated, local TRS)
+Loaded model: finish_line (16 meshes, 17 nodes, bounds: 12.00 x 0.02 x 2.00 (min [-6.00, -0.01, -1.00], max [6.00, 0.01, 1.00]))
+  Expanded node: finish_line__world (animated, local TRS)
+  Expanded node: finish_line__world__checker_0 (animated, local TRS)
+  Expanded node: finish_line__world__checker_1 (animated, local TRS)
+  Expanded node: finish_line__world__checker_2 (animated, local TRS)
+  Expanded node: finish_line__world__checker_3 (animated, local TRS)
+  Expanded node: finish_line__world__checker_4 (animated, local TRS)
+  Expanded node: finish_line__world__checker_5 (animated, local TRS)
+  Expanded node: finish_line__world__checker_6 (animated, local TRS)
+  Expanded node: finish_line__world__checker_7 (animated, local TRS)
+  Expanded node: finish_line__world__checker_8 (animated, local TRS)
+  Expanded node: finish_line__world__checker_9 (animated, local TRS)
+  Expanded node: finish_line__world__checker_10 (animated, local TRS)
+  Expanded node: finish_line__world__checker_11 (animated, local TRS)
+  Expanded node: finish_line__world__checker_12 (animated, local TRS)
+  Expanded node: finish_line__world__checker_13 (animated, local TRS)
+  Expanded node: finish_line__world__checker_14 (animated, local TRS)
+  Expanded node: finish_line__world__checker_15 (animated, local TRS)
+Loaded model: item_box (6 meshes, 7 nodes, bounds: 0.68 x 0.70 x 0.70 (min [-0.34, -0.32, -0.34], max [0.34, 0.38, 0.36]))
+  Expanded node: ibox_r2_l3__world (animated, local TRS)
+  Expanded node: ibox_r2_l3__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r2_l3__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r2_l3__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r2_l3__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r2_l3__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r2_l3__world__part_5 (animated, local TRS)
+Loaded model: kart_wheel (2 meshes, 3 nodes, bounds: 0.22 x 0.55 x 0.55 (min [-0.11, -0.28, -0.28], max [0.11, 0.28, 0.28]))
+  Expanded node: ai5_wheel_rr__world (animated, local TRS)
+  Expanded node: ai5_wheel_rr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai5_wheel_rr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ibox_r1_l4__world (animated, local TRS)
+  Expanded node: ibox_r1_l4__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r1_l4__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r1_l4__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r1_l4__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r1_l4__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r1_l4__world__part_5 (animated, local TRS)
+  Expanded node: trap_8__world (animated, local TRS)
+  Expanded node: trap_8__world__part_0 (animated, local TRS)
+  Expanded node: trap_8__world__part_1 (animated, local TRS)
+  Expanded node: trap_8__world__part_2 (animated, local TRS)
+  Expanded node: trap_8__world__part_3 (animated, local TRS)
+  Expanded node: trap_8__world__part_4 (animated, local TRS)
+  Expanded node: trap_8__world__part_5 (animated, local TRS)
+  Expanded node: trap_8__world__part_6 (animated, local TRS)
+  Expanded node: trap_8__world__part_7 (animated, local TRS)
+  Expanded node: trap_8__world__part_8 (animated, local TRS)
+  Expanded node: trap_8__world__part_9 (animated, local TRS)
+  Expanded node: trap_8__world__part_10 (animated, local TRS)
+  Expanded node: trap_8__world__part_11 (animated, local TRS)
+  Expanded node: trap_8__world__part_12 (animated, local TRS)
+  Expanded node: ai3_wheel_fr__world (animated, local TRS)
+  Expanded node: ai3_wheel_fr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai3_wheel_fr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_0 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_1 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_2 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_3 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_4 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_5 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_6 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_7 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_8 (animated, local TRS)
+  Expanded node: ai1_kart__body_part_9 (animated, local TRS)
+  Expanded node: ai4_wheel_rl__world (animated, local TRS)
+  Expanded node: ai4_wheel_rl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai4_wheel_rl__world__wheel_part_1 (animated, local TRS)
+Loaded model: item_projectile (3 meshes, 4 nodes, bounds: 0.50 x 0.50 x 0.85 (min [-0.25, -0.25, -0.25], max [0.25, 0.25, 0.60]))
+  Expanded node: proj_5__world (animated, local TRS)
+  Expanded node: proj_5__world__part_0 (animated, local TRS)
+  Expanded node: proj_5__world__part_1 (animated, local TRS)
+  Expanded node: proj_5__world__part_2 (animated, local TRS)
+  Expanded node: trap_1__world (animated, local TRS)
+  Expanded node: trap_1__world__part_0 (animated, local TRS)
+  Expanded node: trap_1__world__part_1 (animated, local TRS)
+  Expanded node: trap_1__world__part_2 (animated, local TRS)
+  Expanded node: trap_1__world__part_3 (animated, local TRS)
+  Expanded node: trap_1__world__part_4 (animated, local TRS)
+  Expanded node: trap_1__world__part_5 (animated, local TRS)
+  Expanded node: trap_1__world__part_6 (animated, local TRS)
+  Expanded node: trap_1__world__part_7 (animated, local TRS)
+  Expanded node: trap_1__world__part_8 (animated, local TRS)
+  Expanded node: trap_1__world__part_9 (animated, local TRS)
+  Expanded node: trap_1__world__part_10 (animated, local TRS)
+  Expanded node: trap_1__world__part_11 (animated, local TRS)
+  Expanded node: trap_1__world__part_12 (animated, local TRS)
+  Expanded node: ibox_r4_l1__world (animated, local TRS)
+  Expanded node: ibox_r4_l1__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r4_l1__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r4_l1__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r4_l1__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r4_l1__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r4_l1__world__part_5 (animated, local TRS)
+  Expanded node: player_wheel_rl__world (animated, local TRS)
+  Expanded node: player_wheel_rl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: player_wheel_rl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai1_wheel_rr__world (animated, local TRS)
+  Expanded node: ai1_wheel_rr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai1_wheel_rr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai3_wheel_fl__world (animated, local TRS)
+  Expanded node: ai3_wheel_fl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai3_wheel_fl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ibox_r3_l3__world (animated, local TRS)
+  Expanded node: ibox_r3_l3__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r3_l3__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r3_l3__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r3_l3__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r3_l3__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r3_l3__world__part_5 (animated, local TRS)
+  Expanded node: ibox_r3_l2__world (animated, local TRS)
+  Expanded node: ibox_r3_l2__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r3_l2__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r3_l2__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r3_l2__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r3_l2__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r3_l2__world__part_5 (animated, local TRS)
+  Expanded node: ibox_r1_l1__world (animated, local TRS)
+  Expanded node: ibox_r1_l1__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r1_l1__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r1_l1__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r1_l1__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r1_l1__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r1_l1__world__part_5 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_0 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_1 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_2 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_3 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_4 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_5 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_6 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_7 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_8 (animated, local TRS)
+  Expanded node: ai4_kart__body_part_9 (animated, local TRS)
+  Expanded node: ai2_wheel_fr__world (animated, local TRS)
+  Expanded node: ai2_wheel_fr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai2_wheel_fr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ibox_r4_l4__world (animated, local TRS)
+  Expanded node: ibox_r4_l4__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r4_l4__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r4_l4__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r4_l4__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r4_l4__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r4_l4__world__part_5 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_0 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_1 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_2 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_3 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_4 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_5 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_6 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_7 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_8 (animated, local TRS)
+  Expanded node: ai5_kart__body_part_9 (animated, local TRS)
+  Expanded node: player_wheel_fl__world (animated, local TRS)
+  Expanded node: player_wheel_fl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: player_wheel_fl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai3_wheel_rr__world (animated, local TRS)
+  Expanded node: ai3_wheel_rr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai3_wheel_rr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ibox_r2_l1__world (animated, local TRS)
+  Expanded node: ibox_r2_l1__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r2_l1__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r2_l1__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r2_l1__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r2_l1__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r2_l1__world__part_5 (animated, local TRS)
+  Expanded node: ibox_r4_l3__world (animated, local TRS)
+  Expanded node: ibox_r4_l3__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r4_l3__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r4_l3__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r4_l3__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r4_l3__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r4_l3__world__part_5 (animated, local TRS)
+  Expanded node: ibox_r1_l3__world (animated, local TRS)
+  Expanded node: ibox_r1_l3__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r1_l3__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r1_l3__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r1_l3__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r1_l3__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r1_l3__world__part_5 (animated, local TRS)
+  Expanded node: ai5_wheel_fl__world (animated, local TRS)
+  Expanded node: ai5_wheel_fl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai5_wheel_fl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: trap_4__world (animated, local TRS)
+  Expanded node: trap_4__world__part_0 (animated, local TRS)
+  Expanded node: trap_4__world__part_1 (animated, local TRS)
+  Expanded node: trap_4__world__part_2 (animated, local TRS)
+  Expanded node: trap_4__world__part_3 (animated, local TRS)
+  Expanded node: trap_4__world__part_4 (animated, local TRS)
+  Expanded node: trap_4__world__part_5 (animated, local TRS)
+  Expanded node: trap_4__world__part_6 (animated, local TRS)
+  Expanded node: trap_4__world__part_7 (animated, local TRS)
+  Expanded node: trap_4__world__part_8 (animated, local TRS)
+  Expanded node: trap_4__world__part_9 (animated, local TRS)
+  Expanded node: trap_4__world__part_10 (animated, local TRS)
+  Expanded node: trap_4__world__part_11 (animated, local TRS)
+  Expanded node: trap_4__world__part_12 (animated, local TRS)
+  Expanded node: ibox_r1_l2__world (animated, local TRS)
+  Expanded node: ibox_r1_l2__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r1_l2__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r1_l2__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r1_l2__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r1_l2__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r1_l2__world__part_5 (animated, local TRS)
+  Expanded node: ai2_wheel_fl__world (animated, local TRS)
+  Expanded node: ai2_wheel_fl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai2_wheel_fl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai3_wheel_rl__world (animated, local TRS)
+  Expanded node: ai3_wheel_rl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai3_wheel_rl__world__wheel_part_1 (animated, local TRS)
+Loaded model: kart_driver (8 meshes, 8 nodes, bounds: 0.70 x 0.93 x 0.73 (min [-0.35, -0.15, -0.58], max [0.35, 0.78, 0.15]))
+  Expanded node: ai2_driver__driver_part_0 (animated, local TRS)
+  Expanded node: ai2_driver__driver_part_1 (animated, local TRS)
+  Expanded node: ai2_driver__driver_part_1.001 (animated, local TRS)
+  Expanded node: ai2_driver__driver_part_2 (animated, local TRS)
+  Expanded node: ai2_driver__driver_part_2.001 (animated, local TRS)
+  Expanded node: ai2_driver__driver_part_3 (animated, local TRS)
+  Expanded node: ai2_driver__driver_part_4 (animated, local TRS)
+  Expanded node: ai2_driver__driver_part_5 (animated, local TRS)
+  Expanded node: player_wheel_rr__world (animated, local TRS)
+  Expanded node: player_wheel_rr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: player_wheel_rr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ibox_r3_l1__world (animated, local TRS)
+  Expanded node: ibox_r3_l1__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r3_l1__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r3_l1__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r3_l1__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r3_l1__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r3_l1__world__part_5 (animated, local TRS)
+  Expanded node: ai4_wheel_rr__world (animated, local TRS)
+  Expanded node: ai4_wheel_rr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai4_wheel_rr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: trap_6__world (animated, local TRS)
+  Expanded node: trap_6__world__part_0 (animated, local TRS)
+  Expanded node: trap_6__world__part_1 (animated, local TRS)
+  Expanded node: trap_6__world__part_2 (animated, local TRS)
+  Expanded node: trap_6__world__part_3 (animated, local TRS)
+  Expanded node: trap_6__world__part_4 (animated, local TRS)
+  Expanded node: trap_6__world__part_5 (animated, local TRS)
+  Expanded node: trap_6__world__part_6 (animated, local TRS)
+  Expanded node: trap_6__world__part_7 (animated, local TRS)
+  Expanded node: trap_6__world__part_8 (animated, local TRS)
+  Expanded node: trap_6__world__part_9 (animated, local TRS)
+  Expanded node: trap_6__world__part_10 (animated, local TRS)
+  Expanded node: trap_6__world__part_11 (animated, local TRS)
+  Expanded node: trap_6__world__part_12 (animated, local TRS)
+  Expanded node: player_wheel_fr__world (animated, local TRS)
+  Expanded node: player_wheel_fr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: player_wheel_fr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai3_driver__driver_part_0 (animated, local TRS)
+  Expanded node: ai3_driver__driver_part_1 (animated, local TRS)
+  Expanded node: ai3_driver__driver_part_1.001 (animated, local TRS)
+  Expanded node: ai3_driver__driver_part_2 (animated, local TRS)
+  Expanded node: ai3_driver__driver_part_2.001 (animated, local TRS)
+  Expanded node: ai3_driver__driver_part_3 (animated, local TRS)
+  Expanded node: ai3_driver__driver_part_4 (animated, local TRS)
+  Expanded node: ai3_driver__driver_part_5 (animated, local TRS)
+  Expanded node: proj_3__world (animated, local TRS)
+  Expanded node: proj_3__world__part_0 (animated, local TRS)
+  Expanded node: proj_3__world__part_1 (animated, local TRS)
+  Expanded node: proj_3__world__part_2 (animated, local TRS)
+  Expanded node: player_driver__driver_part_0 (animated, local TRS)
+  Expanded node: player_driver__driver_part_1 (animated, local TRS)
+  Expanded node: player_driver__driver_part_1.001 (animated, local TRS)
+  Expanded node: player_driver__driver_part_2 (animated, local TRS)
+  Expanded node: player_driver__driver_part_2.001 (animated, local TRS)
+  Expanded node: player_driver__driver_part_3 (animated, local TRS)
+  Expanded node: player_driver__driver_part_4 (animated, local TRS)
+  Expanded node: player_driver__driver_part_5 (animated, local TRS)
+  Expanded node: trap_3__world (animated, local TRS)
+  Expanded node: trap_3__world__part_0 (animated, local TRS)
+  Expanded node: trap_3__world__part_1 (animated, local TRS)
+  Expanded node: trap_3__world__part_2 (animated, local TRS)
+  Expanded node: trap_3__world__part_3 (animated, local TRS)
+  Expanded node: trap_3__world__part_4 (animated, local TRS)
+  Expanded node: trap_3__world__part_5 (animated, local TRS)
+  Expanded node: trap_3__world__part_6 (animated, local TRS)
+  Expanded node: trap_3__world__part_7 (animated, local TRS)
+  Expanded node: trap_3__world__part_8 (animated, local TRS)
+  Expanded node: trap_3__world__part_9 (animated, local TRS)
+  Expanded node: trap_3__world__part_10 (animated, local TRS)
+  Expanded node: trap_3__world__part_11 (animated, local TRS)
+  Expanded node: trap_3__world__part_12 (animated, local TRS)
+  Expanded node: ibox_r3_l4__world (animated, local TRS)
+  Expanded node: ibox_r3_l4__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r3_l4__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r3_l4__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r3_l4__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r3_l4__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r3_l4__world__part_5 (animated, local TRS)
+  Expanded node: ai1_driver__driver_part_0 (animated, local TRS)
+  Expanded node: ai1_driver__driver_part_1 (animated, local TRS)
+  Expanded node: ai1_driver__driver_part_1.001 (animated, local TRS)
+  Expanded node: ai1_driver__driver_part_2 (animated, local TRS)
+  Expanded node: ai1_driver__driver_part_2.001 (animated, local TRS)
+  Expanded node: ai1_driver__driver_part_3 (animated, local TRS)
+  Expanded node: ai1_driver__driver_part_4 (animated, local TRS)
+  Expanded node: ai1_driver__driver_part_5 (animated, local TRS)
+  Expanded node: ai4_driver__driver_part_0 (animated, local TRS)
+  Expanded node: ai4_driver__driver_part_1 (animated, local TRS)
+  Expanded node: ai4_driver__driver_part_1.001 (animated, local TRS)
+  Expanded node: ai4_driver__driver_part_2 (animated, local TRS)
+  Expanded node: ai4_driver__driver_part_2.001 (animated, local TRS)
+  Expanded node: ai4_driver__driver_part_3 (animated, local TRS)
+  Expanded node: ai4_driver__driver_part_4 (animated, local TRS)
+  Expanded node: ai4_driver__driver_part_5 (animated, local TRS)
+  Expanded node: proj_6__world (animated, local TRS)
+  Expanded node: proj_6__world__part_0 (animated, local TRS)
+  Expanded node: proj_6__world__part_1 (animated, local TRS)
+  Expanded node: proj_6__world__part_2 (animated, local TRS)
+  Expanded node: proj_2__world (animated, local TRS)
+  Expanded node: proj_2__world__part_0 (animated, local TRS)
+  Expanded node: proj_2__world__part_1 (animated, local TRS)
+  Expanded node: proj_2__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r4_l2__world (animated, local TRS)
+  Expanded node: ibox_r4_l2__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r4_l2__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r4_l2__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r4_l2__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r4_l2__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r4_l2__world__part_5 (animated, local TRS)
+  Expanded node: ai5_wheel_fr__world (animated, local TRS)
+  Expanded node: ai5_wheel_fr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai5_wheel_fr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_0 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_1 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_2 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_3 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_4 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_5 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_6 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_7 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_8 (animated, local TRS)
+  Expanded node: ai2_kart__body_part_9 (animated, local TRS)
+  Expanded node: ibox_r2_l4__world (animated, local TRS)
+  Expanded node: ibox_r2_l4__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r2_l4__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r2_l4__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r2_l4__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r2_l4__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r2_l4__world__part_5 (animated, local TRS)
+  Expanded node: proj_1__world (animated, local TRS)
+  Expanded node: proj_1__world__part_0 (animated, local TRS)
+  Expanded node: proj_1__world__part_1 (animated, local TRS)
+  Expanded node: proj_1__world__part_2 (animated, local TRS)
+  Expanded node: trap_5__world (animated, local TRS)
+  Expanded node: trap_5__world__part_0 (animated, local TRS)
+  Expanded node: trap_5__world__part_1 (animated, local TRS)
+  Expanded node: trap_5__world__part_2 (animated, local TRS)
+  Expanded node: trap_5__world__part_3 (animated, local TRS)
+  Expanded node: trap_5__world__part_4 (animated, local TRS)
+  Expanded node: trap_5__world__part_5 (animated, local TRS)
+  Expanded node: trap_5__world__part_6 (animated, local TRS)
+  Expanded node: trap_5__world__part_7 (animated, local TRS)
+  Expanded node: trap_5__world__part_8 (animated, local TRS)
+  Expanded node: trap_5__world__part_9 (animated, local TRS)
+  Expanded node: trap_5__world__part_10 (animated, local TRS)
+  Expanded node: trap_5__world__part_11 (animated, local TRS)
+  Expanded node: trap_5__world__part_12 (animated, local TRS)
+  Expanded node: trap_7__world (animated, local TRS)
+  Expanded node: trap_7__world__part_0 (animated, local TRS)
+  Expanded node: trap_7__world__part_1 (animated, local TRS)
+  Expanded node: trap_7__world__part_2 (animated, local TRS)
+  Expanded node: trap_7__world__part_3 (animated, local TRS)
+  Expanded node: trap_7__world__part_4 (animated, local TRS)
+  Expanded node: trap_7__world__part_5 (animated, local TRS)
+  Expanded node: trap_7__world__part_6 (animated, local TRS)
+  Expanded node: trap_7__world__part_7 (animated, local TRS)
+  Expanded node: trap_7__world__part_8 (animated, local TRS)
+  Expanded node: trap_7__world__part_9 (animated, local TRS)
+  Expanded node: trap_7__world__part_10 (animated, local TRS)
+  Expanded node: trap_7__world__part_11 (animated, local TRS)
+  Expanded node: trap_7__world__part_12 (animated, local TRS)
+  Expanded node: ai5_wheel_rl__world (animated, local TRS)
+  Expanded node: ai5_wheel_rl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai5_wheel_rl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ibox_r2_l2__world (animated, local TRS)
+  Expanded node: ibox_r2_l2__world__part_0 (animated, local TRS)
+  Expanded node: ibox_r2_l2__world__part_1 (animated, local TRS)
+  Expanded node: ibox_r2_l2__world__part_2 (animated, local TRS)
+  Expanded node: ibox_r2_l2__world__part_3 (animated, local TRS)
+  Expanded node: ibox_r2_l2__world__part_4 (animated, local TRS)
+  Expanded node: ibox_r2_l2__world__part_5 (animated, local TRS)
+  Expanded node: ai4_wheel_fl__world (animated, local TRS)
+  Expanded node: ai4_wheel_fl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai4_wheel_fl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_0 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_1 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_2 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_3 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_4 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_5 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_6 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_7 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_8 (animated, local TRS)
+  Expanded node: ai3_kart__body_part_9 (animated, local TRS)
+  Expanded node: ai1_wheel_fr__world (animated, local TRS)
+  Expanded node: ai1_wheel_fr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai1_wheel_fr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai2_wheel_rl__world (animated, local TRS)
+  Expanded node: ai2_wheel_rl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai2_wheel_rl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai1_wheel_fl__world (animated, local TRS)
+  Expanded node: ai1_wheel_fl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai1_wheel_fl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: proj_4__world (animated, local TRS)
+  Expanded node: proj_4__world__part_0 (animated, local TRS)
+  Expanded node: proj_4__world__part_1 (animated, local TRS)
+  Expanded node: proj_4__world__part_2 (animated, local TRS)
+  Expanded node: ai4_wheel_fr__world (animated, local TRS)
+  Expanded node: ai4_wheel_fr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai4_wheel_fr__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai1_wheel_rl__world (animated, local TRS)
+  Expanded node: ai1_wheel_rl__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai1_wheel_rl__world__wheel_part_1 (animated, local TRS)
+  Expanded node: ai5_driver__driver_part_0 (animated, local TRS)
+  Expanded node: ai5_driver__driver_part_1 (animated, local TRS)
+  Expanded node: ai5_driver__driver_part_1.001 (animated, local TRS)
+  Expanded node: ai5_driver__driver_part_2 (animated, local TRS)
+  Expanded node: ai5_driver__driver_part_2.001 (animated, local TRS)
+  Expanded node: ai5_driver__driver_part_3 (animated, local TRS)
+  Expanded node: ai5_driver__driver_part_4 (animated, local TRS)
+  Expanded node: ai5_driver__driver_part_5 (animated, local TRS)
+  Expanded node: ai2_wheel_rr__world (animated, local TRS)
+  Expanded node: ai2_wheel_rr__world__wheel_part_0 (animated, local TRS)
+  Expanded node: ai2_wheel_rr__world__wheel_part_1 (animated, local TRS)
+[2m2026-09-03T17:52:53.922121Z[0m [33m WARN[0m [2mgilrs::gamepad[0m[2m:[0m No mapping found for UUID 00000000-0000-0000-0000-000000000000
+	Default mapping will be used.
+[2m2026-09-03T17:52:53.922212Z[0m [33m WARN[0m [2mgilrs::gamepad[0m[2m:[0m No mapping found for UUID 00000000-0000-0000-0000-000000000000
+	Default mapping will be used.
+[2m2026-09-03T17:52:53.922222Z[0m [33m WARN[0m [2mgilrs::gamepad[0m[2m:[0m No mapping found for UUID 00000000-0000-0000-0000-000000000000
+	Default mapping will be used.
+[2m2026-09-03T17:52:53.922226Z[0m [33m WARN[0m [2mgilrs::gamepad[0m[2m:[0m No mapping found for UUID 00000000-0000-0000-0000-000000000000
+	Default mapping will be used.
+[2m2026-09-03T17:52:53.922638Z[0m [33m WARN[0m [2megui_wgpu::renderer[0m[2m:[0m Detected a linear (sRGBA aware) framebuffer Bgra8UnormSrgb. egui prefers Rgba8Unorm or Bgra8Unorm
+Loaded spline 'track_path': 15 control points → 331 samples (closed)
+  Mesh 'track_road': 12x0.3 @ offset [0.0, -0.2] → 5296 verts, 2648 tris
+  Mesh 'track_wall_left': 0.5x1.5 @ offset [-6.2, 0.8] → 5296 verts, 2648 tris
+  Mesh 'track_wall_right': 0.5x1.5 @ offset [6.2, 0.8] → 5296 verts, 2648 tris
+Spline generation complete: 1 splines, 3 meshes.
+Loaded skybox: textures/skybox_kart.png (2048x1024)
+Loaded audio: audio/engine_mid.ogg
+Loaded audio: audio/engine_idle.ogg
+Loaded audio: audio/engine_high.ogg
+Loaded audio: audio/tire_skid.ogg
+Loaded audio: audio/tire_roll.ogg
+Loaded audio: audio/wind_rush.ogg
+Loaded audio: audio/crowd_ambient.ogg
+Loaded audio: audio/race_music.ogg
+Preloaded audio: audio/boost_whoosh.ogg
+Preloaded audio: audio/countdown_beep.ogg
+Preloaded audio: audio/countdown_go.ogg
+Preloaded audio: audio/item_collect.ogg
+Preloaded audio: audio/item_projectile_fire.ogg
+Preloaded audio: audio/item_projectile_hit.ogg
+Preloaded audio: audio/item_shield_activate.ogg
+Preloaded audio: audio/item_shield_break.ogg
+Preloaded audio: audio/item_spinout.ogg
+Preloaded audio: audio/item_trap_drop.ogg
+Preloaded audio: audio/item_trap_trigger.ogg
+Preloaded audio: audio/landing_thud.ogg
+Preloaded audio: audio/lap_complete.ogg
+Preloaded audio: audio/menu_launch.ogg
+Preloaded audio: audio/position_change.ogg
+Preloaded audio: audio/race_finish.ogg
+Animation system initialized (0 property clips, 0 skeletal clips, 0 node clips, 0 sprite clips, 0 sequences, 0 property entities, 0 skeletal entities, 0 node entities, 0 sprite entities, 0 sequence entities)
+[particles] Discovered 9 emitter(s)
+[script] Loaded: ai3_audio_ctrl → engine_audio.rhai
+[script] Loaded: ai5_kart → kart_controller.rhai
+[script] Loaded: ai1_kart → kart_controller.rhai
+[script] Loaded: ai2_visuals → kart_visuals.rhai
+[script] Loaded: hud → hud.rhai
+[script] Loaded: ai2_brain → ai_driver.rhai
+[script] Loaded: ai3_kart → kart_controller.rhai
+[script] Loaded: ai5_brain → ai_driver.rhai
+[script] Loaded: ai4_audio_ctrl → engine_audio.rhai
+[script] Loaded: ai5_visuals → kart_visuals.rhai
+[script] Loaded: ai1_brain → ai_driver.rhai
+[script] Loaded: item_manager → item_manager.rhai
+[script] Loaded: ai4_kart → kart_controller.rhai
+[script] Loaded: race_manager → race_manager.rhai
+[script] Loaded: ai1_audio_ctrl → engine_audio.rhai
+[script] Loaded: ai1_visuals → kart_visuals.rhai
+[script] Loaded: player_kart → kart_controller.rhai
+[script] Loaded: ai4_visuals → kart_visuals.rhai
+[script] Loaded: player_audio_ctrl → engine_audio.rhai
+[script] Loaded: ai3_visuals → kart_visuals.rhai
+[script] Loaded: player_visuals → kart_visuals.rhai
+[script] Loaded: ai3_brain → ai_driver.rhai
+[script] Loaded: ai4_brain → ai_driver.rhai
+[script] Loaded: chase_camera → chase_camera.rhai
+[script] Loaded: ai2_audio_ctrl → engine_audio.rhai
+[script] Loaded: ai2_kart → kart_controller.rhai
+[script] Loaded: ai5_audio_ctrl → engine_audio.rhai
+[ui] Loaded ui/race_hud.ui.toml (handle 1)
+Script system initialized (27 scripts)

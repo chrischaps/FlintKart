@@ -1,0 +1,43 @@
+[component.track_graph]
+description = "Track graph topology — marks a branching track with segment children"
+
+[component.track_graph.fields.segment_count]
+type = "integer"
+default = 0
+
+[component.track_graph.fields.node_count]
+type = "integer"
+default = 0
+
+[component.track_graph.fields.closed]
+type = "bool"
+default = true
+
+[component.track_graph.fields.total_length]
+type = "float"
+default = 0.0
+
+# Comma-separated segment entity names — scripts iterate these
+[component.track_graph.fields.segment_names]
+type = "string"
+default = ""
+
+# Comma-separated canonical segment entity names in order
+[component.track_graph.fields.canonical_names]
+type = "string"
+default = ""
+
+# Comma-separated node IDs
+[component.track_graph.fields.node_ids]
+type = "string"
+default = ""
+
+# Comma-separated canonical progress values (parallel with node_ids)
+[component.track_graph.fields.node_progress]
+type = "string"
+default = ""
+
+# Per-node outgoing segment names: "node_id:seg1,seg2;node_id:seg3"
+[component.track_graph.fields.node_outgoing]
+type = "string"
+default = ""

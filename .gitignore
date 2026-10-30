@@ -23,3 +23,6 @@ nul
 
 # Render evidence (flint-render skill)
 renders/
+
+# Android build output
+build/

@@ -131,6 +131,48 @@ parent = "select_screen"
 class = "card-desc"
 text = "dramatic 29m summit flyover."
 
+# ── Card 3: The Crossroads ──
+
+[elements.card_3_border]
+type = "rect"
+parent = "select_screen"
+class = "card-border"
+
+[elements.card_3_bg]
+type = "rect"
+parent = "select_screen"
+class = "card-bg"
+
+[elements.card_3_number]
+type = "text"
+parent = "select_screen"
+class = "card-number"
+text = "3"
+
+[elements.card_3_name]
+type = "text"
+parent = "select_screen"
+class = "card-name"
+text = "The Crossroads"
+
+[elements.card_3_length]
+type = "text"
+parent = "select_screen"
+class = "card-length"
+text = "450m"
+
+[elements.card_3_desc1]
+type = "text"
+parent = "select_screen"
+class = "card-desc"
+text = "Flowing circuit with a forked"
+
+[elements.card_3_desc2]
+type = "text"
+parent = "select_screen"
+class = "card-desc"
+text = "elevated shortcut. Jump to enter."
+
 # ── Selection arrows ──
 
 [elements.arrow_left]

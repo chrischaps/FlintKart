@@ -1,0 +1,22 @@
+[spline]
+name = "seg_main_0"
+closed = false
+
+[sampling]
+spacing = 1.5
+
+[[control_points]]
+position = [0.0, 0.0, 0.0]
+twist = 0.0
+
+[[control_points]]
+position = [0.0, 0.0, -40.0]
+twist = 0.0
+
+[[control_points]]
+position = [20.0, 0.0, -80.0]
+twist = 0.0
+
+[[control_points]]
+position = [60.0, 0.0, -100.0]
+twist = 0.0

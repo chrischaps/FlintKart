@@ -891,6 +891,7 @@ fog_density = 0.003
 [entities.track_road]
 [entities.track_road.spline_mesh]
 spline = "track_path"
+chunk_size = 30
 width = 10.0
 height = 0.3
 offset = [0.0, -0.15]
@@ -902,6 +903,7 @@ restitution = 0.1
 [entities.track_wall_left]
 [entities.track_wall_left.spline_mesh]
 spline = "track_path"
+chunk_size = 30
 width = 0.5
 height = 1.5
 offset = [-5.25, 0.75]
@@ -915,6 +917,7 @@ restitution = 0.5
 [entities.track_wall_right]
 [entities.track_wall_right.spline_mesh]
 spline = "track_path"
+chunk_size = 30
 width = 0.5
 height = 1.5
 offset = [5.25, 0.75]
