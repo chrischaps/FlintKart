@@ -26,6 +26,19 @@ answers a question the player has ("am I drifting?", "did that hit?",
 Drift tiers read **sky → sun → grape** (blue, orange, purple sparks). This is
 the language players already know from the genre, in our palette.
 
+## How it runs
+
+Each sub-issue (#3–#12) is its own Signal session and its own PR, in
+dependency order: #4 after #3, #10 after #6, #11 after #5. A close-out pass
+(`close-epic`) closes #2 once all ten have landed. Work targets
+`engine-catchup`, which has The Crossroads, touch controls and the current
+engine. `master` is February's game. A session that finds itself on `master`
+should branch from `origin/engine-catchup` before it starts.
+
+When a ticket below says "owns", that stream may edit those files freely.
+"May touch lightly" means a small, contained edit in another stream's file.
+Keeping to it lets tickets land in any order without stepping on each other.
+
 ## Workstreams
 
 | stream | issue | owns (edits freely) | may touch lightly |
