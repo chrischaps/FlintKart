@@ -184,3 +184,37 @@ code = "ArrowDown"
 type = "gamepad_button"
 button = "DPadDown"
 gamepad = "any"
+
+# --- On a phone (Flint#133, #134): the engine's on-screen controls ---
+# The left thumb drives: a floating stick that lands under the thumb, with
+# left/right steering, pushed up for gas and down to brake or reverse (as
+# the old script joystick did). The right thumb holds DRIFT and taps ITEM.
+# The HUD keeps its own pause button, and puts these away under the pause
+# and finish menus (set_touch_controls) so the rows can be tapped.
+[touch_controls]
+opacity = 0.85
+
+[[touch_controls.sticks]]
+anchor = "bottom_left"
+offset = [120, 110]
+radius = 60
+deadzone = 0.12
+x = "steering"
+up = "accelerate"
+down = "brake"
+region = [0.0, 0.3, 0.5, 0.7]
+
+# Both sit above the HUD's speed readout in the bottom-right corner; on a
+# short screen the HUD's standings board gives way to them (hud.rhai).
+[[touch_controls.buttons]]
+action = "drift"
+anchor = "bottom_right"
+offset = [92, 140]
+radius = 46
+
+[[touch_controls.buttons]]
+action = "use_item"
+label = "item"
+anchor = "bottom_right"
+offset = [196, 108]
+radius = 32

@@ -41,6 +41,7 @@ let finish_selection = 0;
 let finish_options = ["Restart", "Track Select", "Main Menu"];
 let finish_menu_active = false;  // becomes true after a short delay post-finish
 let hud_touch_active = false;   // latches on after first touch/tap detected
+let touch_controls_out = -1;    // last set_touch_controls(): -1 unset, 0 away, 1 out
 let prev_finish_steer = 0;      // edge detection for steering in finish menu
 
 // Transition fade
@@ -112,6 +113,15 @@ fn on_draw_ui() {
 
     // ── Pause system ──
     let cur_state = current_state();
+
+    // The engine's touch stick and buttons (config/input.toml) are out while
+    // racing and put away under the pause and finish menus, so every tap
+    // reaches the menu rows instead of a floating stick.
+    let want_controls = if cur_state != "paused" && !finish_menu_active { 1 } else { 0 };
+    if want_controls != touch_controls_out {
+        set_touch_controls(want_controls == 1);
+        touch_controls_out = want_controls;
+    }
     if cur_state == "paused" {
         // Dark overlay
         draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.05, 0.7, 0.0, 0);
@@ -256,7 +266,7 @@ fn on_draw_ui() {
                     pb_i += 1;
                 }
                 // Draw pause button for touch users
-                if hud_touch_active {
+                if hud_touch_active || touch_controls_visible() {
                     draw_rect_ex(sw - 56.0, 8.0, 48.0, 40.0, 0.15, 0.15, 0.2, 0.4, 8.0, 3);
                     // Two vertical bars (pause icon)
                     draw_rect_ex(sw - 44.0, 16.0, 8.0, 24.0, 1.0, 1.0, 1.0, 0.6, 2.0, 3);
@@ -490,7 +500,10 @@ fn on_draw_ui() {
     }
 
     // --- Leaderboard (right side, during racing/countdown/finishing) ---
-    if state == "racing" || state == "countdown" {
+    // On a short touch screen the right thumb's DRIFT and ITEM need that
+    // side: the board gives way, and the big position stays.
+    let board_room = !(touch_controls_visible() && sh < 600.0);
+    if (state == "racing" || state == "countdown") && board_room {
         let all_karts = find_entities_with("race_position");
         let num = all_karts.len();
         if num > 0 {
@@ -996,7 +1009,7 @@ fn on_draw_ui() {
 
             // Key hint below (only when holding, not during active effects)
             if held_item != "none" && !shield_on && !iboost_on && !spinout_on {
-                let hint = "[E]";
+                let hint = if touch_controls_visible() { "ITEM" } else { "[E]" };
                 let hm = measure_text(hint, 12.0);
                 let hx = box_x + (box_w - hm["width"]) / 2.0;
                 draw_text(hx, box_y + box_h + 4.0, hint, 12.0, 0.6, 0.6, 0.65, 0.7);

@@ -70,6 +70,10 @@ let line_burst = 1.0;
 
 
 fn on_scene_enter() {
+    // Menus are tapped: keep the engine's touch stick and buttons away
+    // (the race HUD brings them back).
+    set_touch_controls(false);
+
     // Return-from-race routing
     let menu_screen = persist_get("menu_screen");
     if menu_screen == "select" {
@@ -164,6 +168,7 @@ fn on_scene_enter() {
 }
 
 fn on_init() {
+    set_touch_controls(false);
     if !menu_ui_loaded {
         menu_ui_handle = load_ui("ui/main_menu.ui.toml");
         menu_ui_loaded = menu_ui_handle >= 0;
@@ -885,6 +890,12 @@ fn on_draw_ui() {
         }
 
         ui_set_style("select_hint", "y", sh * 0.82);
+        // A finger reads its own hint, not the keys'.
+        ui_set_text("select_hint", if touch_active {
+            "Tap a track to choose it  |  tap it again to race"
+        } else {
+            "A/D to browse  |  ENTER to race  |  BACKSPACE for title"
+        });
 
         // ── Touch: back button (visible after touch detected) ──
         if touch_active {

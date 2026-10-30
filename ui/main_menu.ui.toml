@@ -29,7 +29,7 @@ src = "logo.png"
 type = "text"
 parent = "title_screen"
 class = "prompt"
-text = "Press ENTER"
+text = "Press ENTER or tap"
 
 [elements.version]
 type = "text"
