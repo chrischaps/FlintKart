@@ -15,10 +15,6 @@ import math
 import os
 import sys
 
-import numpy as np
-import trimesh
-from trimesh.visual.material import PBRMaterial
-
 # Python 3.11+ ships tomllib; older versions need tomli
 try:
     import tomllib
@@ -42,307 +38,6 @@ def v_scale(a, s):
 def v_dist(a, b):
     d = v_sub(a, b)
     return math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2])
-
-def v_cross(a, b):
-    return [a[1]*b[2] - a[2]*b[1],
-            a[2]*b[0] - a[0]*b[2],
-            a[0]*b[1] - a[1]*b[0]]
-
-def v_normalize(a):
-    mag = math.sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2])
-    if mag < 1e-10:
-        return [0, 0, 0]
-    return [a[0]/mag, a[1]/mag, a[2]/mag]
-
-
-# ────────────────────────────────────────────────────────────────
-#  Spline frame evaluation (matches engine's basis vector math)
-# ────────────────────────────────────────────────────────────────
-
-def evaluate_spline_frame(control_points, cp_index, local_t, closed):
-    """
-    Evaluate position and basis vectors at a point on a Catmull-Rom spline.
-
-    Matches the engine's computation in flint-core/src/spline.rs:
-    - forward = finite-difference tangent (normalized)
-    - right = forward × world_up (normalized)
-    - up = right × forward (normalized)
-
-    Args:
-        control_points: list of dicts with "position" and optional "twist"
-        cp_index: which segment (0-based, between CP[cp_index] and CP[cp_index+1])
-        local_t: parameter within that segment [0, 1]
-        closed: whether the spline is a closed loop
-
-    Returns: (position, forward, right, up) as lists of 3 floats
-    """
-    n = len(control_points)
-    positions = [cp["position"] for cp in control_points]
-
-    if closed:
-        p0 = positions[(cp_index - 1) % n]
-        p1 = positions[cp_index % n]
-        p2 = positions[(cp_index + 1) % n]
-        p3 = positions[(cp_index + 2) % n]
-    else:
-        # Open spline with phantom endpoints at boundaries
-        if cp_index == 0:
-            p0 = v_sub(v_scale(positions[0], 2), positions[1])
-        else:
-            p0 = positions[cp_index - 1]
-        p1 = positions[cp_index]
-        p2 = positions[min(cp_index + 1, n - 1)]
-        if cp_index + 2 >= n:
-            p3 = v_sub(v_scale(positions[n - 1], 2), positions[n - 2])
-        else:
-            p3 = positions[cp_index + 2]
-
-    position = catmull_rom(p0, p1, p2, p3, local_t)
-
-    # Forward via finite difference (matches engine dt=0.001)
-    dt = 0.001
-    next_t = local_t + dt
-    if next_t <= 1.0:
-        pos_next = catmull_rom(p0, p1, p2, p3, next_t)
-    else:
-        # Spill into next segment
-        next_seg = cp_index + 1
-        if closed:
-            np0 = positions[(next_seg - 1) % n]
-            np1 = positions[next_seg % n]
-            np2 = positions[(next_seg + 1) % n]
-            np3 = positions[(next_seg + 2) % n]
-        else:
-            ns = min(next_seg, n - 2)
-            np0 = positions[max(0, ns - 1)] if ns > 0 else v_sub(v_scale(positions[0], 2), positions[1])
-            np1 = positions[ns]
-            np2 = positions[min(ns + 1, n - 1)]
-            np3 = positions[min(ns + 2, n - 1)] if ns + 2 < n else v_sub(v_scale(positions[n - 1], 2), positions[n - 2])
-        pos_next = catmull_rom(np0, np1, np2, np3, next_t - 1.0)
-
-    forward = v_normalize(v_sub(pos_next, position))
-
-    # Basis vectors (no twist for fill geometry — twist is 0 at flat junctions)
-    world_up = [0, 1, 0]
-    right = v_normalize(v_cross(forward, world_up))
-    up = v_normalize(v_cross(right, forward))
-
-    return position, forward, right, up
-
-
-def compute_road_edge(position, right, up, road_width, road_offset, road_height, side):
-    """
-    Compute the top-surface edge of the road on the given side.
-
-    Matches engine's spline_gen.rs corner computation:
-      center = position + right * offset_x + up * offset_y
-      edge = center + right * (±road_width/2) + up * (road_height/2)
-
-    Args:
-        side: "left" (-right direction) or "right" (+right direction)
-    Returns: [x, y, z] world position of the road top edge
-    """
-    hw = road_width / 2.0
-    hh = road_height / 2.0
-    # Road center offset
-    center = v_add(position, v_add(v_scale(right, road_offset[0]),
-                                    v_scale(up, road_offset[1])))
-    if side == "left":
-        edge = v_add(center, v_add(v_scale(right, -hw), v_scale(up, hh)))
-    else:
-        edge = v_add(center, v_add(v_scale(right, hw), v_scale(up, hh)))
-    return edge
-
-
-# ────────────────────────────────────────────────────────────────
-#  Junction fill mesh generation
-# ────────────────────────────────────────────────────────────────
-
-def _sample_canonical_edge(canonical_cps, cp_idx_start, cp_idx_end, closed,
-                            road_width, road_offset, road_height, side, num_samples=10):
-    """
-    Sample road edge positions along the canonical spline from cp_idx_start to cp_idx_end.
-
-    For a closed spline with n CPs, the global t for cp_index i at local_t=0 is i/n.
-    Returns list of [x, y, z] edge positions.
-    """
-    n = len(canonical_cps)
-    edges = []
-    for i in range(num_samples + 1):
-        frac = i / num_samples
-        # Interpolate between the two CP positions on the spline
-        if closed:
-            # Global t from 0 to 1
-            t_start = cp_idx_start / n
-            t_end = cp_idx_end / n
-            # Handle wrap-around
-            if t_end <= t_start:
-                t_end += 1.0
-            global_t = t_start + frac * (t_end - t_start)
-            if global_t >= 1.0:
-                global_t -= 1.0
-            # Convert global t to segment + local_t
-            scaled = global_t * n
-            seg = int(scaled) % n
-            local_t = scaled - int(scaled)
-        else:
-            seg_start = cp_idx_start
-            seg_end = cp_idx_end
-            seg_frac = seg_start + frac * (seg_end - seg_start)
-            seg = int(seg_frac)
-            seg = min(seg, n - 2)
-            local_t = seg_frac - seg
-            local_t = max(0.0, min(1.0, local_t))
-
-        pos, fwd, right, up = evaluate_spline_frame(canonical_cps, seg, local_t, closed)
-        edge = compute_road_edge(pos, right, up, road_width, road_offset, road_height, side)
-        edges.append(edge)
-    return edges
-
-
-def generate_junction_fill_glb(canonical_cps, fork_cp_idx, branch_cps,
-                                branch_skip_t, side, road_cfg,
-                                is_fork, closed, output_path):
-    """
-    Generate a curved fill mesh at a fork or merge junction.
-
-    Creates a triangle fan from the branch road's visible edge point to
-    multiple sample points along the canonical road edge, producing a
-    smooth curved fill that follows the road curvature.
-
-    The mesh uses world-space coordinates (entity placed at origin).
-    """
-    road_width = road_cfg["width"]
-    road_height = road_cfg["height"]
-    road_offset = road_cfg["offset"]
-    road_color = road_cfg["color"]
-
-    n_canonical = len(canonical_cps)
-    n_branch = len(branch_cps)
-    branch_edge_side = "right" if side == "left" else "left"
-
-    # Compute branch edge point (where branch road becomes/was visible)
-    branch_seg = int(branch_skip_t * (n_branch - 1))
-    branch_local_t = branch_skip_t * (n_branch - 1) - branch_seg
-    branch_seg = min(branch_seg, n_branch - 2)
-    pos_c, fwd_c, right_c, up_c = evaluate_spline_frame(
-        branch_cps, branch_seg, branch_local_t, closed=False)
-    edge_c = compute_road_edge(pos_c, right_c, up_c,
-                                road_width, road_offset, road_height, branch_edge_side)
-
-    # Sample canonical edge points
-    if is_fork:
-        next_cp = (fork_cp_idx + 1) % n_canonical if closed else min(fork_cp_idx + 1, n_canonical - 1)
-        canonical_edges = _sample_canonical_edge(
-            canonical_cps, fork_cp_idx, next_cp, closed,
-            road_width, road_offset, road_height, side, num_samples=10)
-    else:
-        prev_cp = (fork_cp_idx - 1) % n_canonical if closed else max(fork_cp_idx - 1, 0)
-        canonical_edges = _sample_canonical_edge(
-            canonical_cps, prev_cp, fork_cp_idx, closed,
-            road_width, road_offset, road_height, side, num_samples=10)
-
-    # Build triangle fan: branch edge point (C) to each pair of adjacent canonical edges
-    all_verts = [edge_c]  # vertex 0 = branch edge point
-    for e in canonical_edges:
-        all_verts.append(e)
-
-    vertices = np.array(all_verts, dtype=np.float32)
-
-    # Triangle fan from vertex 0 to canonical edge strip (vertices 1..N)
-    faces = []
-    for i in range(1, len(canonical_edges)):
-        # Test winding for first triangle to determine order
-        v0 = np.array(all_verts[0])
-        v1 = np.array(all_verts[i])
-        v2 = np.array(all_verts[i + 1])
-        normal = np.cross(v1 - v0, v2 - v0)
-        if normal[1] < 0:
-            faces.append([0, i + 1, i])
-        else:
-            faces.append([0, i, i + 1])
-
-    if not faces:
-        return
-
-    faces = np.array(faces, dtype=np.int64)
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
-
-    # Apply road color as PBR material. With a fill texture (plain asphalt,
-    # no markings) the fill is mapped from above in world metres, so its grain
-    # matches the road it joins whatever way the junction turns.
-    color_rgba = [int(c * 255) for c in road_color[:3]] + [255]
-    fill_texture = road_cfg.get("fill_texture")
-    if fill_texture:
-        from PIL import Image
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        image = Image.open(os.path.join(project_root, fill_texture)).convert("RGB")
-        tile = road_cfg.get("fill_texture_length", 6.0)
-        uv = np.stack([vertices[:, 0] / tile, vertices[:, 2] / tile], axis=1)
-        mesh.visual = trimesh.visual.TextureVisuals(
-            uv=uv,
-            material=PBRMaterial(
-                baseColorTexture=image,
-                baseColorFactor=color_rgba,
-                metallicFactor=0.0,
-                roughnessFactor=road_cfg.get("roughness", 0.85),
-            ),
-        )
-    else:
-        mesh.visual = trimesh.visual.TextureVisuals(
-            material=PBRMaterial(
-                baseColorFactor=color_rgba,
-                metallicFactor=0.0,
-                roughnessFactor=0.7,
-            )
-        )
-
-    scene = trimesh.Scene()
-    scene.add_geometry(mesh, node_name="junction_fill")
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    # Normals, or the importer leaves them zero and the fill renders unlit
-    scene.export(output_path, file_type="glb", include_normals=True)
-    print(f"  wrote {output_path}")
-
-
-# ────────────────────────────────────────────────────────────────
-#  Junction side detection
-# ────────────────────────────────────────────────────────────────
-
-def compute_junction_side(canonical_cps, junction_cp_index, branch_direction_pos, closed):
-    """
-    Determine which side of the canonical path a branch departs toward.
-
-    Uses cross product of canonical forward direction at the junction vs
-    the direction toward the branch's first interior point.
-
-    Returns "left" or "right".
-    """
-    n = len(canonical_cps)
-    junction_pos = canonical_cps[junction_cp_index]["position"]
-
-    # Canonical forward direction at junction
-    if closed:
-        prev_pos = canonical_cps[(junction_cp_index - 1) % n]["position"]
-        next_pos = canonical_cps[(junction_cp_index + 1) % n]["position"]
-    else:
-        prev_idx = max(0, junction_cp_index - 1)
-        next_idx = min(n - 1, junction_cp_index + 1)
-        prev_pos = canonical_cps[prev_idx]["position"]
-        next_pos = canonical_cps[next_idx]["position"]
-
-    canonical_fwd = v_normalize(v_sub(next_pos, prev_pos))
-
-    # Direction from junction toward the branch point
-    branch_dir = v_normalize(v_sub(branch_direction_pos, junction_pos))
-
-    # Cross product: canonical_fwd × branch_dir
-    # In Y-up right-hand coords: positive Y means branch is to the LEFT,
-    # negative Y means branch is to the RIGHT
-    cross = v_cross(canonical_fwd, branch_dir)
-
-    return "left" if cross[1] >= 0 else "right"
 
 
 # ────────────────────────────────────────────────────────────────
@@ -551,12 +246,24 @@ def parse_track(track_data):
             print(f"  WARNING: Branch '{branch_name}' missing fork or merge annotation, skipping.")
             continue
 
-        # Build the segment CPs: fork CP -> branch intermediates -> merge CP
+        # Build the segment CPs: fork CP -> branch intermediates -> merge CP.
+        # The engine sweeps a branch's road the whole length of its spline,
+        # so its ends lie on the main road. Every point at the main road's
+        # height (the junctions, and the points where the branch peels off or
+        # runs back in) is written `tuck` metres under it: the main road's
+        # surface hides the branch there, and the union of the two slabs is
+        # the junction. The branch climbs only on its raised points.
+        tuck = branch_data.get("tuck", 0.06)
+        grades = (cps[fork_cp_idx]["position"][1], cps[merge_cp_idx]["position"][1])
         branch_cps_raw = branch_data.get("control_points", [])
-        seg_cps = [cps[fork_cp_idx]]  # Start with fork junction CP
-        for bcp in branch_cps_raw:
-            seg_cps.append(bcp)
-        seg_cps.append(cps[merge_cp_idx])  # End with merge junction CP
+        seg_cps = []
+        for bcp in [cps[fork_cp_idx]] + list(branch_cps_raw) + [cps[merge_cp_idx]]:
+            x, y, z = bcp["position"]
+            for grade in grades:
+                if abs(y - grade) < 0.01:
+                    y = grade - tuck
+                    break
+            seg_cps.append({"position": [x, y, z], "twist": bcp.get("twist", 0.0)})
 
         from_node = junction_to_node[fork_cp_idx]
         to_node = junction_to_node[merge_cp_idx]
@@ -638,22 +345,12 @@ def fmt_color(arr, precision=2):
 #  Spline file writers
 # ────────────────────────────────────────────────────────────────
 
-def write_segment_spline(filepath, seg_id, spacing, control_points,
-                         context_start=None, context_end=None,
-                         cap_start=True, cap_end=True):
+def write_segment_spline(filepath, seg_id, spacing, control_points):
     """Write a single open-spline .spline.toml for a segment."""
     lines = []
     lines.append(f'[spline]')
     lines.append(f'name = "{seg_id}"')
     lines.append(f'closed = false')
-    if context_start is not None:
-        lines.append(f'context_start = {fmt_array(context_start)}')
-    if context_end is not None:
-        lines.append(f'context_end = {fmt_array(context_end)}')
-    if not cap_start:
-        lines.append(f'cap_start = false')
-    if not cap_end:
-        lines.append(f'cap_end = false')
     lines.append(f'')
     lines.append(f'[sampling]')
     lines.append(f'spacing = {fmt_float(spacing, 1)}')
@@ -701,9 +398,6 @@ def write_canonical_spline(filepath, track_name, closed, spacing, canonical_cps)
 def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
                    canonical_total_length, segment_lengths, canonical_segment_ids,
                    node_progress_values,
-                   canonical_wall_l_skips=None, canonical_wall_r_skips=None,
-                   branch_wall_skips=None,
-                   junction_fills=None,
                    grid=None, start_yaw=0.0):
     """Generate the complete scene TOML string. `grid` is six start slots
     (x, y, z, yaw) along the road behind the line (track_lib.grid_slots)."""
@@ -1271,11 +965,6 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.extend(surface_lines(wall_left_surface, wall_left_stripe, wall_stripe_width))
     lines.append(f'friction = {fmt_float(wall_friction, 1)}')
     lines.append(f'restitution = {fmt_float(wall_restitution, 1)}')
-    if canonical_wall_l_skips:
-        starts = [s for s, _ in canonical_wall_l_skips]
-        ends = [e for _, e in canonical_wall_l_skips]
-        lines.append(f'skip_starts = {fmt_array(starts, 4)}')
-        lines.append(f'skip_ends = {fmt_array(ends, 4)}')
     lines.append(f'')
 
     lines.append(f'[entities.track_wall_r]')
@@ -1288,11 +977,6 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.extend(surface_lines(wall_right_surface, wall_right_stripe, wall_stripe_width))
     lines.append(f'friction = {fmt_float(wall_friction, 1)}')
     lines.append(f'restitution = {fmt_float(wall_restitution, 1)}')
-    if canonical_wall_r_skips:
-        starts = [s for s, _ in canonical_wall_r_skips]
-        ends = [e for _, e in canonical_wall_r_skips]
-        lines.append(f'skip_starts = {fmt_array(starts, 4)}')
-        lines.append(f'skip_ends = {fmt_array(ends, 4)}')
     lines.append(f'')
 
     if verges:
@@ -1337,13 +1021,6 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
             lines.append(f'chunk_size = {road_chunk_size}')
             lines.append(f'friction = {fmt_float(road_friction, 1)}')
             lines.append(f'restitution = {fmt_float(road_restitution, 1)}')
-            # Skip road surface at junction endpoints (same ranges as walls)
-            if branch_wall_skips and sid in branch_wall_skips and branch_wall_skips[sid]["left"]:
-                road_skips = branch_wall_skips[sid]["left"]
-                starts = [s for s, _ in road_skips]
-                ends = [e for _, e in road_skips]
-                lines.append(f'skip_starts = {fmt_array(starts, 4)}')
-                lines.append(f'skip_ends = {fmt_array(ends, 4)}')
             lines.append(f'')
 
             # Left wall
@@ -1357,12 +1034,6 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
             lines.extend(surface_lines(wall_left_surface, wall_left_stripe, wall_stripe_width))
             lines.append(f'friction = {fmt_float(wall_friction, 1)}')
             lines.append(f'restitution = {fmt_float(wall_restitution, 1)}')
-            if branch_wall_skips and sid in branch_wall_skips and branch_wall_skips[sid]["left"]:
-                l_skips = branch_wall_skips[sid]["left"]
-                starts = [s for s, _ in l_skips]
-                ends = [e for _, e in l_skips]
-                lines.append(f'skip_starts = {fmt_array(starts, 4)}')
-                lines.append(f'skip_ends = {fmt_array(ends, 4)}')
             lines.append(f'')
 
             # Right wall
@@ -1376,29 +1047,14 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
             lines.extend(surface_lines(wall_right_surface, wall_right_stripe, wall_stripe_width))
             lines.append(f'friction = {fmt_float(wall_friction, 1)}')
             lines.append(f'restitution = {fmt_float(wall_restitution, 1)}')
-            if branch_wall_skips and sid in branch_wall_skips and branch_wall_skips[sid]["right"]:
-                r_skips = branch_wall_skips[sid]["right"]
-                starts = [s for s, _ in r_skips]
-                ends = [e for _, e in r_skips]
-                lines.append(f'skip_starts = {fmt_array(starts, 4)}')
-                lines.append(f'skip_ends = {fmt_array(ends, 4)}')
             lines.append(f'')
 
-            # No verges on branches: the engine doesn't honour skip_starts /
-            # skip_ends yet, so a branch verge would lie across the main road
-            # at the fork and merge.
-
-    # ── Junction fill meshes ──────────────────────────────
-    if junction_fills:
-        lines.append(f'# ── Junction fill geometry ──')
-        lines.append(f'')
-        for fill_name in junction_fills:
-            lines.append(f'[entities.{fill_name}]')
-            lines.append(f'[entities.{fill_name}.transform]')
-            lines.append(f'position = [0, 0, 0]')
-            lines.append(f'[entities.{fill_name}.model]')
-            lines.append(f'asset = "{fill_name}"')
-            lines.append(f'')
+            # Verges like the main road's. Near the fork and merge they lie
+            # on the main road; a cutter (generate_crossroads_walls.py on
+            # The Crossroads) removes those stretches, as it does the walls.
+            if verges:
+                lines.extend(verge_lines(f"{sid}_verge_l", sid, verges, road_width, "left"))
+                lines.extend(verge_lines(f"{sid}_verge_r", sid, verges, road_width, "right"))
 
     return "\n".join(lines)
 
@@ -1523,205 +1179,6 @@ def main():
     print(f"  Node progress: {[f'{p:.4f}' for p in node_progress_values]}")
     print()
 
-    # ── Compute context points for junction tangent matching ──
-    # For each node, find the canonical segment arriving/departing so we can
-    # give adjacent segments the correct phantom tangent at boundaries.
-    arriving_at = {}   # node_id → list of segments ending at this node
-    departing_from = {} # node_id → list of segments starting at this node
-    for seg in segments:
-        departing_from.setdefault(seg["from_node"], []).append(seg)
-        arriving_at.setdefault(seg["to_node"], []).append(seg)
-
-    # Branch segments get context points for tangent matching at junctions.
-    # Canonical segments don't need them — their mesh comes from the
-    # canonical closed spline which has no seams.
-    for seg in segments:
-        if seg["is_canonical"]:
-            seg["context_start"] = None
-            seg["context_end"] = None
-        else:
-            # context_start: second-to-last CP of canonical segment arriving at our from_node
-            ctx_start = None
-            for arr in arriving_at.get(seg["from_node"], []):
-                if arr["is_canonical"] and len(arr["cps"]) >= 2:
-                    ctx_start = arr["cps"][-2]["position"]
-                    break
-            # context_end: second CP of canonical segment departing from our to_node
-            ctx_end = None
-            for dep in departing_from.get(seg["to_node"], []):
-                if dep["is_canonical"] and len(dep["cps"]) >= 2:
-                    ctx_end = dep["cps"][1]["position"]
-                    break
-            seg["context_start"] = ctx_start
-            seg["context_end"] = ctx_end
-
-    # ── Compute wall skip ranges at junctions ──
-    # For each junction where a branch forks/merges, determine which canonical
-    # wall to open and which branch wall to suppress near the junction.
-    cps = track_data["control_points"]
-    n_canonical = len(canonical_cps)
-    canonical_wall_l_skips = []  # list of (t_start, t_end)
-    canonical_wall_r_skips = []
-
-    # Per-branch-segment skip ranges: seg_id -> {"left": [...], "right": [...]}
-    branch_wall_skips = {}
-
-    for seg in segments:
-        if seg["is_canonical"]:
-            continue
-
-        sid = seg["id"]
-        branch_wall_skips[sid] = {"left": [], "right": []}
-
-        # Find fork and merge CP indices in the original track CPs
-        fork_cp_idx = None
-        merge_cp_idx = None
-        for n_info in nodes:
-            if n_info["id"] == seg["from_node"]:
-                fork_cp_idx = n_info["cp_index"]
-            if n_info["id"] == seg["to_node"]:
-                merge_cp_idx = n_info["cp_index"]
-
-        if fork_cp_idx is None or merge_cp_idx is None:
-            continue
-
-        # Branch CPs (including junction endpoints)
-        branch_n = len(seg["cps"])
-
-        # --- Fork junction ---
-        # First interior branch CP (the one after the fork junction)
-        if branch_n >= 2:
-            branch_first_interior = seg["cps"][1]["position"]
-        else:
-            branch_first_interior = seg["cps"][-1]["position"]
-
-        fork_side = compute_junction_side(
-            cps, fork_cp_idx, branch_first_interior, closed)
-
-        # Canonical wall skip at fork: suppress 1 CP-span on each side
-        k = fork_cp_idx
-        t_lo = max(0.0, (k - 1) / n_canonical)
-        t_hi = min(1.0, (k + 1) / n_canonical)
-        if fork_side == "left":
-            canonical_wall_l_skips.append((t_lo, t_hi))
-        else:
-            canonical_wall_r_skips.append((t_lo, t_hi))
-
-        # Branch wall skip at fork end (t=0): suppress first segment on BOTH sides
-        # Both walls must be removed where branch is coincident with canonical road
-        if branch_n > 1:
-            branch_skip_t = 1.0 / (branch_n - 1)
-            branch_wall_skips[sid]["left"].append((0.0, branch_skip_t))
-            branch_wall_skips[sid]["right"].append((0.0, branch_skip_t))
-
-        # --- Merge junction ---
-        if branch_n >= 2:
-            branch_last_interior = seg["cps"][-2]["position"]
-        else:
-            branch_last_interior = seg["cps"][0]["position"]
-
-        merge_side = compute_junction_side(
-            cps, merge_cp_idx, branch_last_interior, closed)
-
-        # Canonical wall skip at merge
-        k = merge_cp_idx
-        t_lo = max(0.0, (k - 1) / n_canonical)
-        t_hi = min(1.0, (k + 1) / n_canonical)
-        if merge_side == "left":
-            canonical_wall_l_skips.append((t_lo, t_hi))
-        else:
-            canonical_wall_r_skips.append((t_lo, t_hi))
-
-        # Branch wall skip at merge end (t=1): suppress last segment on BOTH sides
-        # Both walls must be removed where branch rejoins canonical road
-        if branch_n > 1:
-            branch_skip_t = (branch_n - 2) / (branch_n - 1)
-            branch_wall_skips[sid]["left"].append((branch_skip_t, 1.0))
-            branch_wall_skips[sid]["right"].append((branch_skip_t, 1.0))
-
-    if canonical_wall_l_skips or canonical_wall_r_skips:
-        print("  Wall skip ranges:")
-        if canonical_wall_l_skips:
-            print(f"    canonical left wall: {canonical_wall_l_skips}")
-        if canonical_wall_r_skips:
-            print(f"    canonical right wall: {canonical_wall_r_skips}")
-        for sid, skips in branch_wall_skips.items():
-            if skips["left"] or skips["right"]:
-                print(f"    {sid}: L={skips['left']} R={skips['right']}")
-        print()
-
-    # ── Generate junction fill meshes ──
-    models_dir = os.path.join(project_root, "models")
-    junction_fills = []
-    road_cfg = {
-        "width": track_data.get("road", {}).get("width", 12.0),
-        "height": track_data.get("road", {}).get("height", 0.3),
-        "offset": track_data.get("road", {}).get("offset", [0.0, -0.15]),
-        "color": track_data.get("road", {}).get("color", [0.25, 0.25, 0.28, 1.0]),
-    }
-    for key in ("fill_texture", "fill_texture_length", "roughness"):
-        if key in track_data.get("road", {}):
-            road_cfg[key] = track_data["road"][key]
-
-    for seg in segments:
-        if seg["is_canonical"]:
-            continue
-
-        sid = seg["id"]
-        branch_n = len(seg["cps"])
-        if branch_n < 2:
-            continue
-
-        # Find fork and merge CP indices + sides (reuse from wall skip computation)
-        fork_cp_idx = None
-        merge_cp_idx = None
-        for n_info in nodes:
-            if n_info["id"] == seg["from_node"]:
-                fork_cp_idx = n_info["cp_index"]
-            if n_info["id"] == seg["to_node"]:
-                merge_cp_idx = n_info["cp_index"]
-
-        if fork_cp_idx is None or merge_cp_idx is None:
-            continue
-
-        # Branch CPs as dicts with position/twist for evaluate_spline_frame
-        branch_cps_clean = []
-        for cp in seg["cps"]:
-            branch_cps_clean.append({
-                "position": cp["position"],
-                "twist": cp.get("twist", 0.0),
-            })
-
-        # Fork fill
-        fork_side = compute_junction_side(
-            cps, fork_cp_idx, seg["cps"][1]["position"], closed)
-        fork_skip_t = 1.0 / (branch_n - 1)  # end of first branch segment
-
-        fill_name = f"jfill_{sid}_fork"
-        fill_path = os.path.join(models_dir, f"{fill_name}.glb")
-        generate_junction_fill_glb(
-            canonical_cps, fork_cp_idx, branch_cps_clean,
-            fork_skip_t, fork_side, road_cfg,
-            is_fork=True, closed=closed, output_path=fill_path)
-        junction_fills.append(fill_name)
-
-        # Merge fill
-        merge_side = compute_junction_side(
-            cps, merge_cp_idx, seg["cps"][-2]["position"], closed)
-        merge_skip_t = (branch_n - 2) / (branch_n - 1)  # start of last branch segment
-
-        fill_name = f"jfill_{sid}_merge"
-        fill_path = os.path.join(models_dir, f"{fill_name}.glb")
-        generate_junction_fill_glb(
-            canonical_cps, merge_cp_idx, branch_cps_clean,
-            merge_skip_t, merge_side, road_cfg,
-            is_fork=False, closed=closed, output_path=fill_path)
-        junction_fills.append(fill_name)
-
-    if junction_fills:
-        print(f"  Generated {len(junction_fills)} junction fill meshes")
-        print()
-
     # ── Write per-segment spline files ──
     print("Writing spline files:")
     for seg in segments:
@@ -1731,14 +1188,8 @@ def main():
                 "position": cp["position"],
                 "twist": cp.get("twist", 0.0),
             })
-        has_neighbor_start = seg.get("context_start") is not None
-        has_neighbor_end = seg.get("context_end") is not None
         filepath = os.path.join(splines_dir, f'{seg["id"]}.spline.toml')
-        write_segment_spline(filepath, seg["id"], spacing, clean_cps,
-                             context_start=seg.get("context_start"),
-                             context_end=seg.get("context_end"),
-                             cap_start=not has_neighbor_start,
-                             cap_end=not has_neighbor_end)
+        write_segment_spline(filepath, seg["id"], spacing, clean_cps)
 
     # ── Write canonical spline ──
     canonical_path = os.path.join(splines_dir, "canonical.spline.toml")
@@ -1763,10 +1214,6 @@ def main():
         nodes, segments,
         canonical_total, segment_lengths, canonical_segment_ids,
         node_progress_values,
-        canonical_wall_l_skips=canonical_wall_l_skips,
-        canonical_wall_r_skips=canonical_wall_r_skips,
-        branch_wall_skips=branch_wall_skips,
-        junction_fills=junction_fills,
         grid=grid, start_yaw=start_yaw,
     )
 

@@ -2,20 +2,23 @@
 """
 generate_crossroads_walls.py - Open The Crossroads' shortcut by cutting its walls.
 
-Every road on a branching track gets a wall on each side. Where two roads
-meet (a fork or a merge), those walls run straight across the other road:
-the main road's inner wall seals the shortcut's mouth, and the shortcut's
-walls cut across the main road. The engine's spline_mesh draws a wall along a
-whole spline and has no way to leave part of it out, so this tool samples
-each road exactly as the engine does (Catmull-Rom, closed or open), offsets
-the wall line, drops every stretch of wall that would stand on another road,
-and writes each surviving stretch as its own small spline whose control
-points ARE the wall line (so its spline_mesh has a zero lateral offset).
+Every road on a branching track gets a wall on each side and a grass verge
+beyond each wall. Where two roads meet (a fork or a merge), those run
+straight across the other road: the main road's inner wall seals the
+shortcut's mouth, its verge lies over the shortcut (the shortcut is tucked
+6 cm under the main road there, and the verge's top is 3 cm under it), and
+the shortcut's walls and verges cut across the main road. The engine's spline_mesh draws
+along a whole spline and has no way to leave part of it out, so this tool
+samples each road exactly as the engine does (Catmull-Rom, closed or open),
+offsets the wall or verge line, drops every stretch that would stand on
+another road, and writes each surviving stretch as its own small spline
+whose control points ARE that line (so its spline_mesh has a zero lateral
+offset).
 
 Writes:
   splines/the_crossroads/walls/<wall>_<n>.spline.toml
   the "Walls" block of scenes/the_crossroads.scene.toml (between markers;
-  the original whole-spline wall entities are removed)
+  the original whole-spline wall and verge entities are removed)
 
 Usage:
     python tools/generate_crossroads_walls.py
@@ -34,6 +37,8 @@ WALL_DIR_REL = "splines/the_crossroads/walls"
 ROAD_HALF_WIDTH = 6.0
 WALL_OFFSET = 6.25      # wall centre from road centre
 WALL_CLEARANCE = 0.35   # keep a cut wall this far outside the other road's edge
+VERGE_OFFSET = 8.0      # verge centre from road centre (it is 4 m wide)
+VERGE_HALF_WIDTH = 2.0
 MIN_PIECE_M = 3.0       # shorter stretches of wall are dropped
 CP_SPACING_M = 2.0      # control-point spacing of a wall piece
 SAMPLE_SPACING = 0.5    # how finely the road is walked when cutting
@@ -44,13 +49,25 @@ ROADS = [
     ("seg_branch_shortcut", "splines/the_crossroads/seg_branch_shortcut.spline.toml", False),
 ]
 
-# The walls these replace: (entity, road, side), side -1 = left, +1 = right.
-# Each piece keeps its wall's look (colour, texture, friction...) from the scene.
+# The strips these replace: (entity, road, side, centre offset, mesh height
+# offset, probes across the strip, clearance), side -1 = left, +1 = right. A
+# point of the strip is cut when any probe stands on another road. Each piece
+# keeps its strip's look (colour, texture, friction...) from the scene.
+WALL = (WALL_OFFSET, 0.75, (0.0,), WALL_CLEARANCE)
+VERGE = (VERGE_OFFSET, -0.18, (-VERGE_HALF_WIDTH, 0.0, VERGE_HALF_WIDTH), 0.0)
+# The shortcut's verges sit 6 cm under the main road's wherever they meet,
+# so they are cut only where their centre line is on the main road: what
+# overhangs is hidden, and it fills the gore between the two roads
+BRANCH_VERGE = (VERGE_OFFSET, -0.18, (0.0,), 0.0)
 WALLS = [
-    ("track_wall_l", "track_path", -1),
-    ("track_wall_r", "track_path", 1),
-    ("seg_branch_shortcut_wall_l", "seg_branch_shortcut", -1),
-    ("seg_branch_shortcut_wall_r", "seg_branch_shortcut", 1),
+    ("track_wall_l", "track_path", -1) + WALL,
+    ("track_wall_r", "track_path", 1) + WALL,
+    ("seg_branch_shortcut_wall_l", "seg_branch_shortcut", -1) + WALL,
+    ("seg_branch_shortcut_wall_r", "seg_branch_shortcut", 1) + WALL,
+    ("track_verge_l", "track_path", -1) + VERGE,
+    ("track_verge_r", "track_path", 1) + VERGE,
+    ("seg_branch_shortcut_verge_l", "seg_branch_shortcut", -1) + BRANCH_VERGE,
+    ("seg_branch_shortcut_verge_r", "seg_branch_shortcut", 1) + BRANCH_VERGE,
 ]
 
 # spline_mesh keys the cut replaces (skip_* asks for gaps the engine can't make)
@@ -132,7 +149,7 @@ def load_points(rel):
 
 # ── Where a wall stands on another road ─────────────────────────────
 
-def on_road(p, road, closed):
+def on_road(p, road, closed, clearance):
     """True when p lies on the road's surface (plus clearance for a wall)."""
     best = None
     best_d = 1e18
@@ -152,7 +169,7 @@ def on_road(p, road, closed):
     if abs(dy) > 2.0:  # passes over or under it
         return False
     side = abs(dx * right[0] + dz * right[2])
-    return side < ROAD_HALF_WIDTH + WALL_CLEARANCE
+    return side < ROAD_HALF_WIDTH + clearance
 
 
 def pieces_of(wall_pts, keep, closed):
@@ -235,18 +252,19 @@ def main():
 
     scene_lines = [BEGIN, "# Each stretch of wall is its own spline whose points are the wall line,",
                    "# cut wherever it would stand on another road. Regenerate, don't hand-edit.", ""]
-    for wall, road_name, side in WALLS:
+    for wall, road_name, side, offset, lift, probes, clearance in WALLS:
         style = wall_style(scene, wall)
         road, closed = roads[road_name]
-        wall_pts = [tuple(p[a] + r[a] * WALL_OFFSET * side for a in range(3)) for p, _, r in road]
-        keep = [not any(on_road(w, other, oc) for oname, (other, oc) in roads.items()
-                        if oname != road_name)
-                for w in wall_pts]
+        wall_pts = [tuple(p[a] + r[a] * offset * side for a in range(3)) for p, _, r in road]
+        keep = [not any(on_road(tuple(w[a] + r[a] * d for a in range(3)), other, oc, clearance)
+                        for oname, (other, oc) in roads.items() if oname != road_name
+                        for d in probes)
+                for w, (_, _, r) in zip(wall_pts, road)]
         if all(keep):
-            # Nothing crosses this wall: keep it whole on its own road
+            # Nothing crosses this strip: keep it whole on its own road
             print(f"  {wall}: whole")
             scene_lines += [f"[entities.{wall}]", f"[entities.{wall}.spline_mesh]",
-                            f'spline = "{road_name}"', f"offset = [{WALL_OFFSET * side}, 0.75]"]
+                            f'spline = "{road_name}"', f"offset = [{offset * side}, {lift}]"]
             scene_lines += style + [""]
             continue
         runs = pieces_of(wall_pts, keep, closed)
@@ -263,20 +281,22 @@ def main():
             scene_lines += [f"[entities.{piece}]", f"[entities.{piece}.spline]",
                             f'file = "{WALL_DIR_REL}/{piece}.spline.toml"',
                             f"[entities.{piece}.spline_mesh]", f'spline = "{piece}"',
-                            "offset = [0.0, 0.75]"]
+                            f"offset = [0.0, {lift}]"]
             scene_lines += style + [""]
     scene_lines.append(END)
     block = "\n".join(scene_lines) + "\n"
 
-    # Drop the whole-spline walls (each entity runs to the next blank line),
-    # and any earlier generated block
-    for wall, _, _ in WALLS:
+    # Drop the whole-spline walls and verges (each entity runs to the next
+    # blank line), then put the block where the earlier one stood, or on a
+    # first run ahead of the set dressing
+    for wall, *_ in WALLS:
         scene = re.sub(rf"\[entities\.{wall}\]\n(?:(?!\n\n).)*\n\n", "", scene, flags=re.S)
     if BEGIN in scene:
-        scene = re.sub(re.escape(BEGIN) + r".*?" + re.escape(END) + r"\n", "", scene, flags=re.S)
-    anchor = "# ── Junction fill geometry ──"
-    if anchor in scene:
-        scene = scene.replace(anchor, block + "\n" + anchor, 1)
+        at = scene.index(BEGIN)
+        scene = scene[:at] + block + scene[scene.index(END, at) + len(END) + 1:]
+    elif "#  SET DRESSING" in scene:
+        at = scene.rfind("# ====", 0, scene.index("#  SET DRESSING"))
+        scene = scene[:at] + block + "\n\n" + scene[at:]
     else:
         scene = scene.rstrip("\n") + "\n\n" + block
     with open(SCENE, "w", encoding="utf-8") as f:

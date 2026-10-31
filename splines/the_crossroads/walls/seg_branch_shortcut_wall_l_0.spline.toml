@@ -6,197 +6,185 @@ closed = false
 spacing = 1.5
 
 [[control_points]]
-position = [71.178, 1.158, -97.660]
+position = [82.089, -0.090, -101.990]
 twist = 0.0
 
 [[control_points]]
-position = [72.719, 1.436, -96.120]
+position = [84.014, -0.034, -100.859]
 twist = 0.0
 
 [[control_points]]
-position = [74.282, 1.709, -94.557]
+position = [85.775, 0.038, -99.603]
 twist = 0.0
 
 [[control_points]]
-position = [75.885, 1.974, -92.954]
+position = [87.418, 0.122, -98.241]
 twist = 0.0
 
 [[control_points]]
-position = [77.305, 2.192, -91.534]
+position = [88.959, 0.218, -96.795]
 twist = 0.0
 
 [[control_points]]
-position = [78.779, 2.399, -90.060]
+position = [90.413, 0.325, -95.285]
 twist = 0.0
 
 [[control_points]]
-position = [80.317, 2.593, -88.522]
+position = [91.791, 0.440, -93.729]
 twist = 0.0
 
 [[control_points]]
-position = [81.932, 2.772, -86.907]
+position = [93.105, 0.563, -92.141]
 twist = 0.0
 
 [[control_points]]
-position = [83.343, 2.909, -85.496]
+position = [94.361, 0.692, -90.538]
 twist = 0.0
 
 [[control_points]]
-position = [84.779, 3.032, -84.063]
+position = [95.564, 0.826, -88.935]
 twist = 0.0
 
 [[control_points]]
-position = [86.522, 3.178, -82.413]
+position = [97.095, 1.009, -86.826]
 twist = 0.0
 
 [[control_points]]
-position = [88.108, 3.301, -80.991]
+position = [98.548, 1.195, -84.786]
 twist = 0.0
 
 [[control_points]]
-position = [89.800, 3.422, -79.523]
+position = [99.924, 1.380, -82.858]
 twist = 0.0
 
 [[control_points]]
-position = [91.584, 3.541, -78.007]
+position = [101.390, 1.580, -80.758]
 twist = 0.0
 
 [[control_points]]
-position = [93.445, 3.654, -76.440]
+position = [102.780, 1.812, -78.612]
 twist = 0.0
 
 [[control_points]]
-position = [94.979, 3.740, -75.146]
+position = [104.086, 2.065, -76.461]
 twist = 0.0
 
 [[control_points]]
-position = [96.545, 3.821, -73.813]
+position = [105.321, 2.327, -74.316]
 twist = 0.0
 
 [[control_points]]
-position = [98.137, 3.895, -72.438]
+position = [106.499, 2.587, -72.190]
 twist = 0.0
 
 [[control_points]]
-position = [99.747, 3.962, -71.018]
+position = [107.632, 2.831, -70.093]
 twist = 0.0
 
 [[control_points]]
-position = [101.368, 4.020, -69.549]
+position = [108.731, 3.049, -68.037]
 twist = 0.0
 
 [[control_points]]
-position = [102.991, 4.069, -68.027]
+position = [109.807, 3.228, -66.033]
 twist = 0.0
 
 [[control_points]]
-position = [104.611, 4.107, -66.449]
+position = [110.869, 3.356, -64.094]
 twist = 0.0
 
 [[control_points]]
-position = [106.220, 4.135, -64.811]
+position = [111.954, 3.425, -62.170]
 twist = 0.0
 
 [[control_points]]
-position = [107.809, 4.150, -63.108]
+position = [113.063, 3.448, -60.209]
 twist = 0.0
 
 [[control_points]]
-position = [109.372, 4.152, -61.337]
+position = [114.160, 3.433, -58.258]
 twist = 0.0
 
 [[control_points]]
-position = [110.899, 4.139, -59.493]
+position = [115.246, 3.384, -56.319]
 twist = 0.0
 
 [[control_points]]
-position = [112.384, 4.111, -57.573]
+position = [116.321, 3.305, -54.391]
 twist = 0.0
 
 [[control_points]]
-position = [113.817, 4.067, -55.572]
+position = [117.385, 3.200, -52.473]
 twist = 0.0
 
 [[control_points]]
-position = [115.190, 4.006, -53.488]
+position = [118.438, 3.072, -50.567]
 twist = 0.0
 
 [[control_points]]
-position = [116.486, 3.925, -51.340]
+position = [119.480, 2.926, -48.672]
 twist = 0.0
 
 [[control_points]]
-position = [117.719, 3.822, -49.128]
+position = [120.510, 2.765, -46.788]
 twist = 0.0
 
 [[control_points]]
-position = [118.896, 3.700, -46.855]
+position = [121.529, 2.594, -44.915]
 twist = 0.0
 
 [[control_points]]
-position = [120.023, 3.560, -44.527]
+position = [122.543, 2.387, -43.045]
 twist = 0.0
 
 [[control_points]]
-position = [121.105, 3.404, -42.150]
+position = [123.563, 2.130, -41.161]
 twist = 0.0
 
 [[control_points]]
-position = [122.148, 3.232, -39.730]
+position = [124.581, 1.839, -39.273]
 twist = 0.0
 
 [[control_points]]
-position = [123.156, 3.048, -37.273]
+position = [125.591, 1.526, -37.392]
 twist = 0.0
 
 [[control_points]]
-position = [123.892, 2.902, -35.408]
+position = [126.584, 1.208, -35.528]
 twist = 0.0
 
 [[control_points]]
-position = [124.612, 2.750, -33.528]
+position = [127.555, 0.898, -33.691]
 twist = 0.0
 
 [[control_points]]
-position = [125.320, 2.593, -31.635]
+position = [128.497, 0.610, -31.892]
 twist = 0.0
 
 [[control_points]]
-position = [126.015, 2.431, -29.732]
+position = [129.622, 0.304, -29.710]
 twist = 0.0
 
 [[control_points]]
-position = [126.700, 2.266, -27.820]
+position = [130.668, 0.085, -27.641]
 twist = 0.0
 
 [[control_points]]
-position = [127.377, 2.098, -25.903]
+position = [131.597, -0.048, -25.853]
 twist = 0.0
 
 [[control_points]]
-position = [128.047, 1.928, -23.984]
+position = [132.556, -0.118, -24.082]
 twist = 0.0
 
 [[control_points]]
-position = [128.711, 1.756, -22.065]
+position = [133.524, -0.140, -22.298]
 twist = 0.0
 
 [[control_points]]
-position = [129.371, 1.583, -20.148]
+position = [134.479, -0.131, -20.464]
 twist = 0.0
 
 [[control_points]]
-position = [130.028, 1.409, -18.237]
-twist = 0.0
-
-[[control_points]]
-position = [130.684, 1.237, -16.333]
-twist = 0.0
-
-[[control_points]]
-position = [131.339, 1.065, -14.441]
-twist = 0.0
-
-[[control_points]]
-position = [131.777, 0.951, -13.188]
+position = [135.212, -0.110, -18.936]
 twist = 0.0

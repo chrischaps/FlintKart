@@ -1,7 +1,7 @@
 # The Crossroads — Branching track with a shortcut
 #
 # A flowing closed circuit with one branching shortcut path.
-# The shortcut is shorter but elevated — requires a jump to enter.
+# The shortcut is shorter and raised: it climbs over the infield.
 #
 # Layout (top-down, Z goes up on screen):
 #
@@ -10,7 +10,7 @@
 #    START ─── curve ─── FORK ─── long way ─── MERGE ─── back to START
 #      (0,0,0)
 #
-# ~400m canonical path, ~200m shortcut
+# ~400m canonical path; the shortcut saves ~48m on the long way
 
 [track]
 name = "The Crossroads"
@@ -30,8 +30,6 @@ texture = "textures/road_asphalt.png"
 normal_texture = "textures/road_asphalt_normal.png"
 texture_length = 12.0
 roughness = 0.85
-fill_texture = "textures/road_asphalt_plain.png"   # junction fills
-fill_texture_length = 6.0
 chunk_size = 30
 friction = 0.8
 restitution = 0.1
@@ -139,12 +137,31 @@ position = [100, 0, 20]
 position = [50, 0, 20]
 
 # ─── Branch: Shortcut ───────────────────────────────────
-# Elevated direct path from fork to merge
+# A raised cut across the infield from fork to merge. It peels off the main
+# road at ~30 degrees and runs back in the same way. Points at y = 0 are at
+# the main road's height: the build tool writes them `tuck` metres under it,
+# so wherever the two roads overlap the main road's surface hides the
+# shortcut and the union of the slabs makes a clean Y. It climbs only once
+# it is clear of the main road (tools/check_branch_overlap.py checks this).
 [branches.shortcut]
 entry_type = "positional"
+tuck = 0.06
 
 [[branches.shortcut.control_points]]
-position = [80, 3, -80]
+position = [80, 0, -96]     # still on the main road, peeling off
 
 [[branches.shortcut.control_points]]
-position = [110, 4, -50]
+position = [95, 1.4, -79]   # clear of it: climb
+
+[[branches.shortcut.control_points]]
+position = [106, 3.4, -60]
+
+[[branches.shortcut.control_points]]
+position = [116, 2.6, -42]
+
+[[branches.shortcut.control_points]]
+position = [125, 0.1, -25]  # down again before the main road (a hair
+                            # above grade, so the curve doesn't dip)
+
+[[branches.shortcut.control_points]]
+position = [131, 0, -12]    # running in alongside it
