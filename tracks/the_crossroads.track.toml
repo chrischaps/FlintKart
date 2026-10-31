@@ -23,9 +23,15 @@ spacing = 1.5
 width = 12.0
 height = 0.3
 offset = [0.0, -0.15]
-color = [0.25, 0.25, 0.28, 1.0]
-stripe_color = [0.3, 0.3, 0.33, 1.0]
-stripe_width = 3.0
+color = [1.0, 1.0, 1.0, 1.0]
+# Textures from tools/generate_road_textures.py; without `texture` the road
+# falls back to stripe_color / stripe_width vertex stripes
+texture = "textures/road_asphalt.png"
+normal_texture = "textures/road_asphalt_normal.png"
+texture_length = 12.0
+roughness = 0.85
+fill_texture = "textures/road_asphalt_plain.png"   # junction fills
+fill_texture_length = 6.0
 chunk_size = 30
 friction = 0.8
 restitution = 0.1
@@ -33,13 +39,23 @@ restitution = 0.1
 [walls]
 width = 0.5
 height = 1.5
-left_color = [0.8, 0.12, 0.12, 1.0]
-right_color = [0.12, 0.12, 0.8, 1.0]
-left_stripe = [0.95, 0.95, 0.95, 1.0]
-right_stripe = [0.95, 0.95, 0.95, 1.0]
-stripe_width = 2.0
+left_color = [1.0, 1.0, 1.0, 1.0]
+right_color = [1.0, 1.0, 1.0, 1.0]
+left_texture = "textures/road_barrier_tomato.png"
+right_texture = "textures/road_barrier_sky.png"
+texture_length = 4.0
+roughness = 0.7
 friction = 0.3
 restitution = 0.5
+
+# Grass shoulders beyond each barrier
+[verges]
+width = 4.0
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
 
 [environment]
 skybox = "textures/skybox_kart.png"

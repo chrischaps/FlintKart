@@ -978,42 +978,79 @@ length = 660.0
 name = "Oval Plus"
 fog_density = 0.002
 
-# Road surface — wide, thin slab centered on the spline
+# Road surface — wide, thin slab centered on the spline. Asphalt with
+# tomato/cream curbs, cream edge lines and a dashed sun centre line, one
+# repeat every 12 m (tools/generate_road_textures.py)
 [entities.track_road]
 [entities.track_road.spline_mesh]
 spline = "track_path"
 width = 12.0
 height = 0.3
 offset = [0.0, -0.15]
-color = [0.25, 0.25, 0.28, 1.0]
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_asphalt.png"
+normal_texture = "textures/road_asphalt_normal.png"
+texture_length = 12.0
+roughness = 0.85
 friction = 0.8
 restitution = 0.1
 
-# Left wall — red & white racing barrier stripes
+# Left wall — padded tomato & cream barrier panels
 [entities.track_wall_left]
 [entities.track_wall_left.spline_mesh]
 spline = "track_path"
 width = 0.5
 height = 1.5
 offset = [-6.25, 0.75]
-color = [0.8, 0.12, 0.12, 1.0]
-stripe_color = [0.95, 0.95, 0.95, 1.0]
-stripe_width = 2.0
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_tomato.png"
+texture_length = 4.0
+roughness = 0.7
 friction = 0.3
 restitution = 0.5
 
-# Right wall — blue & white racing barrier stripes
+# Right wall — padded sky & cream barrier panels
 [entities.track_wall_right]
 [entities.track_wall_right.spline_mesh]
 spline = "track_path"
 width = 0.5
 height = 1.5
 offset = [6.25, 0.75]
-color = [0.15, 0.15, 0.8, 1.0]
-stripe_color = [0.95, 0.95, 0.95, 1.0]
-stripe_width = 2.0
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_sky.png"
+texture_length = 4.0
+roughness = 0.7
 friction = 0.3
 restitution = 0.5
+
+# Grass verges — a shoulder of meadow beyond each barrier, a hair below the
+# road so the asphalt always wins where they meet. Scenery only (no
+# collider): a kart over the wall falls and respawns as it always has
+[entities.track_verge_left]
+[entities.track_verge_left.spline_mesh]
+spline = "track_path"
+width = 4.0
+height = 0.3
+offset = [-8.0, -0.18]
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
+
+[entities.track_verge_right]
+[entities.track_verge_right.spline_mesh]
+spline = "track_path"
+width = 4.0
+height = 0.3
+offset = [8.0, -0.18]
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
 
 
 # ============================================================
