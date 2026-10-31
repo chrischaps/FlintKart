@@ -13,6 +13,15 @@
 // Countdown: a flyover that sweeps from in front of the grid round to the chase spot by GO.
 // Finished: swings round to a low orbit of the player's kart with shallow
 //   depth of field, while race_manager plays the finish in slow motion.
+// Both keep the kart in sight. The set dressing has no colliders, so
+//   dress_track.py leaves a camera_stage round the start/finish line: boxes
+//   round the gantry legs, pillars, trees and stands, and the ground's
+//   heights. The flyover is planned over its first 0.7 s, a step a frame, while
+//   it hangs in front of the grid: it takes the side that's clearer, and
+//   where something would cover the kart it rises or pulls in along the line
+//   to it, a little early so it never pops.
+//   The orbit swings round on the road's side of the kart and pulls in
+//   (quickly) whenever the line to the kart is blocked, easing back out after.
 // A respawn or restart cuts, with a soft flash, instead of dragging the
 //   camera across the map.
 // reduce_motion (persisted by settings) scales shake, kicks, roll, radial
@@ -67,10 +76,233 @@ let orbit_y = 0.0;
 let orbit_z = 0.0;
 let prev_finish_elapsed = 0.0;
 
+// What stands round the start/finish line (camera_stage, see above)
+let stage = ();
+let fly_raw = [[], []];      // flyover plan steps round each side, a few worked out per frame
+let fly_plan = [];           // the chosen side's steps, smoothed: [fraction of the line kept, lift]
+let fly_sign = 0.0;          // the side it swings round, 0 until chosen
+let fly_side = 0.0;          // the same, eased, so choosing it never jumps
+let fly_kx = 0.0;            // where the kart was when the flyover was planned
+let fly_kz = 0.0;
+let orbit_sign = 1.0;        // which way round the finish orbit swings
+let orbit_pull = 1.0;        // fraction of the orbit's offset kept, smoothed
+
 // Occlusion fading state (track chunks that block the camera)
 let chunk_ids = [];
 let chunk_opacities = [];
 let chunks_initialized = false;
+
+// ── The camera stage. Called as methods on the stage map, so its arrays are
+// read in place rather than copied ──
+
+fn load_stage() {
+    let s = #{ boxes: [], ground: [], x0: 0.0, z0: 0.0, step: 1.0, nx: 0, nz: 0,
+               near: [], near_x: 1.0e9, near_z: 1.0e9 };
+    let id = get_entity("dress_camera_stage");
+    if id >= 0 {
+        s.boxes = get_field(id, "camera_stage", "boxes");
+        s.ground = get_field(id, "camera_stage", "ground");
+        s.x0 = get_field(id, "camera_stage", "ground_x0");
+        s.z0 = get_field(id, "camera_stage", "ground_z0");
+        s.step = get_field(id, "camera_stage", "ground_step");
+        s.nx = get_field(id, "camera_stage", "ground_nx");
+        s.nz = get_field(id, "camera_stage", "ground_nz");
+    }
+    s
+}
+
+// Ground height under (x, z), far below anything off the stage's patch
+fn ground_at(x, z) {
+    let n = this.nx;
+    let u = (x - this.x0) / this.step;
+    let v = (z - this.z0) / this.step;
+    if n < 2 || u < 0.0 || v < 0.0 || u >= (n - 1).to_float() || v >= (this.nz - 1).to_float() {
+        return -1.0e9;
+    }
+    let i = u.floor().to_int();
+    let j = v.floor().to_int();
+    let fu = u - i.to_float();
+    let fv = v - j.to_float();
+    let k = j * n + i;
+    let a = this.ground[k] + (this.ground[k + 1] - this.ground[k]) * fu;
+    let b = this.ground[k + n] + (this.ground[k + n + 1] - this.ground[k + n]) * fu;
+    a + (b - a) * fv
+}
+
+// Keep the boxes within `reach` of (x, z) to hand, refreshed as the kart moves
+fn gather_near(x, z, reach) {
+    let mx = x - this.near_x;
+    let mz = z - this.near_z;
+    if mx * mx + mz * mz < 25.0 { return; }
+    this.near_x = x;
+    this.near_z = z;
+    this.near = [];
+    let b = 0;
+    let n = this.boxes.len();
+    while b < n {
+        let dx = this.boxes[b] - x;
+        let dz = this.boxes[b + 2] - z;
+        let r = reach + 5.0 + this.boxes[b + 3] + this.boxes[b + 5];
+        if dx * dx + dz * dz < r * r {
+            for k in 0..8 { this.near.push(this.boxes[b + k]); }
+        }
+        b += 8;
+    }
+}
+
+// How much of the line from a (on the kart) out to b (the camera) is clear,
+// 0-1 from the kart's end: the boxes, the ground, and anything solid (walls,
+// bridges, the road) by raycast. Other karts don't count.
+fn clear_frac(ax, ay, az, bx, by, bz) {
+    let dx = bx - ax;
+    let dy = by - ay;
+    let dz = bz - az;
+    let len = sqrt(dx * dx + dy * dy + dz * dz);
+    if len < 0.01 { return 1.0; }
+    let f = 1.0;
+
+    // Boxes: a slab test in each box's own frame, padded a little
+    let pad = 0.35;
+    let b = 0;
+    let n = this.near.len();
+    let lo_y = if ay < by { ay } else { by };
+    let hi_y = if ay < by { by } else { ay };
+    let flat2 = dx * dx + dz * dz;
+    while b < n {
+        // Cheap rejects first: the line passes above or below the box, or
+        // wide of it seen from above
+        let cy = this.near[b + 1];
+        let hy = this.near[b + 4] + pad;
+        if lo_y > cy + hy || hi_y < cy - hy { b += 8; continue; }
+        let px = this.near[b] - ax;
+        let pz = this.near[b + 2] - az;
+        let along = if flat2 > 1.0e-9 { clamp((px * dx + pz * dz) / flat2, 0.0, 1.0) } else { 0.0 };
+        let qx = px - dx * along;
+        let qz = pz - dz * along;
+        let r2 = this.near[b + 3] * this.near[b + 3] + this.near[b + 5] * this.near[b + 5];
+        if qx * qx + qz * qz > r2 + 2.0 * pad * sqrt(r2) + pad * pad { b += 8; continue; }
+
+        let c = this.near[b + 6];
+        let s = this.near[b + 7];
+        let ox = ax - this.near[b];
+        let oz = az - this.near[b + 2];
+        let o = [c * ox - s * oz, ay - this.near[b + 1], s * ox + c * oz];
+        let d = [c * dx - s * dz, dy, s * dx + c * dz];
+        let h = [this.near[b + 3] + pad, this.near[b + 4] + pad, this.near[b + 5] + pad];
+        let t0 = 0.0;
+        let t1 = f;
+        for k in 0..3 {
+            if abs(d[k]) < 1.0e-6 {
+                if abs(o[k]) > h[k] { t0 = 2.0; }
+            } else {
+                let ta = (-h[k] - o[k]) / d[k];
+                let tb = (h[k] - o[k]) / d[k];
+                if ta > tb { let tmp = ta; ta = tb; tb = tmp; }
+                if ta > t0 { t0 = ta; }
+                if tb < t1 { t1 = tb; }
+            }
+        }
+        // (a box the kart is inside, a deck it's driving on, doesn't count)
+        if t0 > 0.0 && t0 <= t1 && t0 < f { f = t0; }
+        b += 8;
+    }
+
+    // Ground: march out from the kart, wanting more room nearer the camera
+    if this.nx > 1 {
+        let steps = (len / 1.5).ceiling().to_int();
+        if steps < 2 { steps = 2; }
+        for i in 1..=steps {
+            let t = i.to_float() / steps.to_float();
+            if t > f { break; }
+            if ay + dy * t < this.ground_at(ax + dx * t, az + dz * t) + 0.4 + 0.8 * t {
+                f = (i - 1).to_float() / steps.to_float();
+                break;
+            }
+        }
+    }
+
+    // Colliders, cast from just off the kart so the ray doesn't start inside it
+    let s0 = 1.2;
+    if len > s0 + 0.1 {
+        let ux = dx / len;
+        let uy = dy / len;
+        let uz = dz / len;
+        let hit = raycast(ax + ux * s0, ay + uy * s0, az + uz * s0, ux, uy, uz, len - s0);
+        if hit != () && !has_component(hit.entity, "kart_state") {
+            let t = (s0 + hit.distance) / len;
+            if t < f { f = t; }
+        }
+    }
+    if f < 0.0 { f = 0.0; }
+    f
+}
+
+// The flyover's camera offset from the kart at progress u (0-1, eased
+// inside): from dead in front of the grid, round one side (sign), to the
+// chase spot. `sign` 0 holds it in front while the side is still being chosen
+fn fly_offset(u, sign, fwd_x, fwd_z, follow, height) {
+    let e = u * u * (3.0 - 2.0 * u);
+    let a = 3.14159265 * (1.0 + sign * e);
+    let bx = -fwd_x;
+    let bz = -fwd_z;
+    let radius = 15.0 + (follow - 15.0) * e;
+    [(bx * cos(a) - bz * sin(a)) * radius, 6.5 + (height - 6.5) * e, (bx * sin(a) + bz * cos(a)) * radius]
+}
+
+// One step of the flyover plan, one way round: how high it lifts and how
+// much of the line to the kart it keeps, so nothing covers the kart
+fn plan_step(kx, ky, kz, fwd_x, fwd_z, sign, u, follow, height) {
+    let off = fly_offset(u, sign, fwd_x, fwd_z, follow, height);
+    let len = sqrt(off[0] * off[0] + (off[1] - 1.0) * (off[1] - 1.0) + off[2] * off[2]);
+    let best = [0.0, 0.0];
+    // Rather rise than pull in: lift until the line is clear, or keep the
+    // lift that saw most of it
+    for lift in [0.0, 2.5, 5.0, 8.0] {
+        let f = this.clear_frac(kx, ky + 1.0, kz, kx + off[0], ky + off[1] + lift, kz + off[2]);
+        if f >= 0.999 { return [1.0, lift]; }
+        if f > best[0] + 0.15 { best = [f, lift]; }
+    }
+    // stop short of whatever is in the way, but no closer than 3 m
+    let keep = best[0] - 1.0 / len;
+    let least = 3.0 / len;
+    [if keep < least { least } else { keep }, best[1]]
+}
+
+// What one way round costs: its pull-ins and lifts, the less the better
+fn plan_cost(raw) {
+    let cost = 0.0;
+    for st in raw { cost += (1.0 - st[0]) * 2.0 + st[1] * 0.08; }
+    cost
+}
+
+// Smooth a raw plan: pull in and rise a few steps (0.3 s) before an
+// obstacle and ease back out after it, so the camera never jumps
+fn smooth_plan(raw) {
+    let n = raw.len() - 1;
+    let plan = [];
+    for i in 0..=n {
+        let keep = 1.0;
+        let lift = 0.0;
+        for j in (i - 3)..=(i + 3) {
+            if j >= 0 && j <= n {
+                if raw[j][0] < keep { keep = raw[j][0]; }
+                if raw[j][1] > lift { lift = raw[j][1]; }
+            }
+        }
+        plan.push([keep, lift]);
+    }
+    for pass in 0..2 {
+        let soft = [];
+        for i in 0..=n {
+            let a = if i > 0 { i - 1 } else { i };
+            let b = if i < n { i + 1 } else { i };
+            soft.push([(plan[a][0] + plan[i][0] * 2.0 + plan[b][0]) / 4.0,
+                       (plan[a][1] + plan[i][1] * 2.0 + plan[b][1]) / 4.0]);
+        }
+        plan = soft;
+    }
+    plan
+}
 
 fn on_event(name, data) {
     let player = get_entity("player_kart");
@@ -248,21 +480,73 @@ fn on_update() {
     let dof_strength = 0.0;
     let dof_focus = 10.0;
 
+    if stage == () { stage = load_stage(); }
+
     if race_state == "countdown" {
         // Flyover: from in front of the grid, looking back at the pack,
-        // round to the chase spot. Lands exactly on it at GO.
+        // round to the chase spot. Lands on it at GO. It goes round
+        // whichever side hides the kart least, planned over the first frames
+        // (a step a frame each side) while it hangs in front of the grid
         let u = clamp(1.0 - countdown_timer / 4.0, 0.0, 1.0);
         let e = u * u * (3.0 - 2.0 * u);
-        let a = (1.0 - e) * 3.3;
-        let bx = -fwd_x;
-        let bz = -fwd_z;
-        let ox = bx * cos(a) - bz * sin(a);
-        let oz = bx * sin(a) + bz * cos(a);
-        let radius = lerp(15.0, follow_distance, e);
+        let steps = 40;
+        let mx = kx - fly_kx;
+        let mz = kz - fly_kz;
+        if (fly_raw[0].len() > 0 || fly_plan.len() > 0) && mx * mx + mz * mz > 1.0 {
+            fly_raw = [[], []];
+            fly_plan = [];
+            fly_sign = 0.0;
+        }
+        // Only once physics has the road (the second frame): walls and
+        // bridges count only through raycasts
+        if fly_plan.len() == 0 && raycast(kx, ky + 2.0, kz, 0.0, -1.0, 0.0, 10.0) != () {
+            if fly_raw[0].len() == 0 {
+                stage.gather_near(kx, kz, 18.0);
+                fly_kx = kx;
+                fly_kz = kz;
+            }
+            let done = fly_raw[0].len();
+            if done <= steps {
+                let su = done.to_float() / steps.to_float();
+                fly_raw[0].push(stage.plan_step(kx, ky, kz, fwd_x, fwd_z, 1.0, su, follow_distance, height_offset));
+                fly_raw[1].push(stage.plan_step(kx, ky, kz, fwd_x, fwd_z, -1.0, su, follow_distance, height_offset));
+            }
+            if fly_raw[0].len() > steps {
+                // the left-hand sweep unless the right is clearly clearer
+                if plan_cost(fly_raw[0]) < plan_cost(fly_raw[1]) - 0.5 {
+                    fly_sign = 1.0;
+                    fly_plan = smooth_plan(fly_raw[0]);
+                } else {
+                    fly_sign = -1.0;
+                    fly_plan = smooth_plan(fly_raw[1]);
+                }
+            }
+        }
+        fly_side = lerp(fly_side, fly_sign, clamp(4.0 * dt, 0.0, 1.0));
 
-        cam_x = kx + ox * radius;
-        cam_y = ky + lerp(6.5, height_offset, e);
-        cam_z = kz + oz * radius;
+        let off = fly_offset(u, fly_side, fwd_x, fwd_z, follow_distance, height_offset);
+        let keep = 1.0;
+        let lift = 0.0;
+        if fly_plan.len() > 1 {
+            let pf = u * (fly_plan.len() - 1).to_float();
+            let pi = pf.floor().to_int();
+            if pi > fly_plan.len() - 2 { pi = fly_plan.len() - 2; }
+            let pt = pf - pi.to_float();
+            keep = lerp(fly_plan[pi][0], fly_plan[pi + 1][0], pt);
+            lift = lerp(fly_plan[pi][1], fly_plan[pi + 1][1], pt);
+        } else {
+            // still choosing: both sides start in the same place, in front
+            let pi = (u * steps.to_float()).round().to_int();
+            if pi < fly_raw[0].len() {
+                keep = min(fly_raw[0][pi][0], fly_raw[1][pi][0]);
+                lift = max(fly_raw[0][pi][1], fly_raw[1][pi][1]);
+            }
+        }
+
+        // Out along the line from the kart, as far as the plan keeps
+        cam_x = kx + off[0] * keep;
+        cam_y = ky + 1.0 + (off[1] + lift - 1.0) * keep;
+        cam_z = kz + off[2] * keep;
 
         // Look at the pack behind early on, the road ahead by GO
         let aim = look_ahead * e - 6.0 * (1.0 - e);
@@ -279,15 +563,42 @@ fn on_update() {
     } else if finishing {
         // Swing from the chase spot round to a low three-quarter front view,
         // then keep drifting slowly round the kart
+        let aim_y = ky + 1.0;
+        stage.gather_near(kx, kz, 12.0);
         if prev_race_state != "finished" {
             if flash < 0.45 { flash = 0.45; }
             fov_kick_target = 10.0;
+
+            // Swing round the side the road is on, unless the other side's
+            // arc is clearly the more open
+            orbit_sign = 1.0;
+            let lean = 0.0;   // + when the road's centre is to the kart's left
+            let track = get_entity("track_path");
+            if track >= 0 {
+                let cp = spline_closest_point(track, kx, ky, kz);
+                if cp != () { lean = -((cp.x - kx) * right_x + (cp.z - kz) * right_z); }
+            }
+            let best = -1.0e9;
+            for sign in [1.0, -1.0] {
+                let score = if lean * sign > 0.0 { 0.75 } else { 0.0 };
+                for a in [0.9, 1.7, 2.5] {
+                    let sa = a * sign;
+                    let px = -fwd_x * cos(sa) + fwd_z * sin(sa);
+                    let pz = -fwd_x * sin(sa) - fwd_z * cos(sa);
+                    score += stage.clear_frac(kx, aim_y, kz, kx + px * 6.0, ky + 1.5, kz + pz * 6.0);
+                }
+                if score > best + 0.01 {
+                    best = score;
+                    orbit_sign = sign;
+                }
+            }
+            orbit_pull = 1.0;
         }
         let u = clamp(finish_elapsed / 2.4, 0.0, 1.0);
         let e = u * u * (3.0 - 2.0 * u);
         let over = finish_elapsed - 2.4;
         if over < 0.0 { over = 0.0; }
-        let a = e * 2.5 + over * 0.12;
+        let a = (e * 2.5 + over * 0.12) * orbit_sign;
         let bx = -fwd_x;
         let bz = -fwd_z;
         let ox = bx * cos(a) - bz * sin(a);
@@ -311,9 +622,29 @@ fn on_update() {
         orbit_x = lerp(orbit_x, ox * radius, t);
         orbit_y = lerp(orbit_y, lerp(height_offset, 1.5, e), t);
         orbit_z = lerp(orbit_z, oz * radius, t);
-        cam_x = kx + orbit_x;
-        cam_y = ky + orbit_y;
-        cam_z = kz + orbit_z;
+
+        // Pull in along the line to the kart when it's blocked: where the
+        // camera is, where it's heading, and a little further round. Fast
+        // in, slow back out
+        let want_y = lerp(height_offset, 1.5, e);
+        let sa = a + 0.35 * orbit_sign;
+        let keep = stage.clear_frac(kx, aim_y, kz, kx + orbit_x, ky + orbit_y, kz + orbit_z);
+        let k2 = stage.clear_frac(kx, aim_y, kz, kx + ox * radius, ky + want_y, kz + oz * radius);
+        let k3 = stage.clear_frac(kx, aim_y, kz, kx + (bx * cos(sa) - bz * sin(sa)) * radius, ky + want_y,
+                                  kz + (bx * sin(sa) + bz * cos(sa)) * radius);
+        if k2 < keep { keep = k2; }
+        if k3 < keep { keep = k3; }
+        if keep < 0.999 {
+            let len = sqrt(orbit_x * orbit_x + (orbit_y - 1.0) * (orbit_y - 1.0) + orbit_z * orbit_z);
+            keep = keep - 0.8 / max(len, 0.1);
+            let least = 2.5 / max(len, 0.1);
+            if keep < least { keep = least; }
+        }
+        let rate = if keep < orbit_pull { 14.0 } else { 1.5 };
+        orbit_pull = lerp(orbit_pull, keep, clamp(rate * real_dt, 0.0, 1.0));
+        cam_x = kx + orbit_x * orbit_pull;
+        cam_y = aim_y + (ky + orbit_y - aim_y) * orbit_pull;
+        cam_z = kz + orbit_z * orbit_pull;
 
         tgt_x = kx;
         tgt_y = ky + 0.8;

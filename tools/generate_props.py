@@ -151,6 +151,20 @@ class Prop:
 
     def __init__(self):
         self.parts = []
+        self.occluders = None   # [(lo, hi)] boxes that hide what's behind; None = the bounds
+
+    def blockers(self):
+        """Boxes the race camera can't see through (dress_track.py's camera
+        stage). A prop that's mostly air, like an arch, names its own."""
+        if self.occluders is not None:
+            return self.occluders
+        lo, hi = self.bounds()
+        size = hi - lo
+        if size[1] < 1.8 or max(size[0], size[2]) < 0.6:
+            return []                   # cones, tyres, flags: nothing to hide behind
+        # a box round a crown or a roof is mostly empty at the corners
+        mid, half = (lo + hi) / 2, size / 2 * np.array([0.8, 1.0, 0.8])
+        return [(mid - half, mid + half)]
 
     def add(self, vf, color, xform=None):
         v, f = vf
@@ -519,6 +533,10 @@ def gantry(width=16.0, height=7.2):
         p.add(box(0.8, 0.8, 0.5), "ink", T(x, beam_y - 1.1, 0.0))
         p.add(blob(0.22, 1), "glow_red", T(x, beam_y - 1.1, 0.28))
         p.add(blob(0.22, 1), "glow_red", T(x, beam_y - 1.1, -0.28))
+    # the camera sees through the arch: only the legs and the beam block it
+    p.occluders = [(np.array([side * hw - 0.7, 0.0, -0.7]), np.array([side * hw + 0.7, height, 0.7]))
+                   for side in (-1, 1)]
+    p.occluders.append((np.array([-hw - 0.45, beam_y - 1.6, -0.5]), np.array([hw + 0.45, beam_y + 0.7, 0.5])))
     return p
 
 
