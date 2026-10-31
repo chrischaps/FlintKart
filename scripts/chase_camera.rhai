@@ -82,6 +82,7 @@ let fly_raw = [[], []];      // flyover plan steps round each side, a few worked
 let fly_plan = [];           // the chosen side's steps, smoothed: [fraction of the line kept, lift]
 let fly_sign = 0.0;          // the side it swings round, 0 until chosen
 let fly_side = 0.0;          // the same, eased, so choosing it never jumps
+let fly_check = 0;           // the next smoothed step to check for a clear line
 let fly_kx = 0.0;            // where the kart was when the flyover was planned
 let fly_kz = 0.0;
 let orbit_sign = 1.0;        // which way round the finish orbit swings
@@ -513,14 +514,38 @@ fn on_update() {
             }
             if fly_raw[0].len() > steps {
                 // the left-hand sweep unless the right is clearly clearer
-                if plan_cost(fly_raw[0]) < plan_cost(fly_raw[1]) - 0.5 {
-                    fly_sign = 1.0;
-                    fly_plan = smooth_plan(fly_raw[0]);
-                } else {
-                    fly_sign = -1.0;
-                    fly_plan = smooth_plan(fly_raw[1]);
+                let side = if plan_cost(fly_raw[0]) < plan_cost(fly_raw[1]) - 0.5 { 0 } else { 1 };
+                fly_sign = if side == 0 { 1.0 } else { -1.0 };
+                fly_raw = [fly_raw[side], []];
+                fly_plan = smooth_plan(fly_raw[0]);
+                fly_check = 0;
+            }
+        } else if fly_plan.len() > 0 && fly_check <= steps {
+            // Smoothing lends a step its neighbours' lift, and a higher line
+            // can catch what the lower one passed under (a gantry beam).
+            // Check the smoothed steps, two a frame, well ahead of the
+            // camera; where one is blocked, stop it short and smooth again
+            let fixed = false;
+            for k in 0..2 {
+                if fly_check <= steps {
+                    let i = fly_check;
+                    let off = fly_offset(i.to_float() / steps.to_float(), fly_sign, fwd_x, fwd_z,
+                                         follow_distance, height_offset);
+                    let ox = off[0] * fly_plan[i][0];
+                    let oy = (off[1] + fly_plan[i][1] - 1.0) * fly_plan[i][0];
+                    let oz = off[2] * fly_plan[i][0];
+                    let f = stage.clear_frac(kx, ky + 1.0, kz, kx + ox, ky + 1.0 + oy, kz + oz);
+                    if f < 0.97 {
+                        let len = sqrt(ox * ox + oy * oy + oz * oz);
+                        let cap = fly_plan[i][0] * (f - 1.0 / max(len, 0.1));
+                        let least = 3.0 / max(len / fly_plan[i][0], 0.1);
+                        fly_raw[0][i][0] = min(fly_raw[0][i][0], max(cap, least));
+                        fixed = true;
+                    }
+                    fly_check += 1;
                 }
             }
+            if fixed { fly_plan = smooth_plan(fly_raw[0]); }
         }
         fly_side = lerp(fly_side, fly_sign, clamp(4.0 * dt, 0.0, 1.0));
 
