@@ -75,3 +75,8 @@ description = "\"road\", \"curb\", \"offroad\" or \"air\""
 type = "bool"
 default = false
 description = "True while scraping a wall"
+
+[component.kart_state.fields.draft]
+type = "float"
+default = 0.0
+description = "Slipstream 0-1: tucked in behind another kart, for a little more top speed"
