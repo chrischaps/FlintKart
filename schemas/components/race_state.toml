@@ -20,3 +20,27 @@ default = 0.0
 [component.race_state.fields.music_volume]
 type = "float"
 default = 0.0
+
+# Real (unscaled) seconds since the player crossed the line; -1 before.
+# Drives the finish slow motion, the finish camera and the results reveal.
+[component.race_state.fields.finish_elapsed]
+type = "float"
+default = -1.0
+
+# Per-track records (persisted as best_lap.<track> / best_race.<track>),
+# written when the player finishes. 0 = no record yet.
+[component.race_state.fields.record_lap]
+type = "float"
+default = 0.0
+
+[component.race_state.fields.record_race]
+type = "float"
+default = 0.0
+
+[component.race_state.fields.new_lap_record]
+type = "bool"
+default = false
+
+[component.race_state.fields.new_race_record]
+type = "bool"
+default = false

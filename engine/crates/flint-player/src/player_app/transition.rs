@@ -347,6 +347,8 @@ impl PlayerApp {
             Ok((world, scene_file)) => {
                 self.world = world;
                 self.scene_path = new_scene_path.clone();
+                // A slow-motion moment never outlives the scene that asked for it
+                self.clock.time_scale = 1.0;
                 self.skybox_path = scene_file
                     .environment
                     .as_ref()

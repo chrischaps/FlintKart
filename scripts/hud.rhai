@@ -783,8 +783,20 @@ fn on_draw_ui() {
     // ════════════════════════════════════════════════════════
     //  Results
     // ════════════════════════════════════════════════════════
+    // Held back while race_manager's finish camera and slow motion play:
+    // finish_elapsed is real seconds since the line (-1 before), and the
+    // results come in 2.8 s after it. A FINISH! shout fills the wait.
+    let finish_elapsed = get_field(manager_id, "race_state", "finish_elapsed");
+    let has_elapsed = type_of(finish_elapsed) == "f64" && finish_elapsed >= 0.0;
     if state == "finished" {
-        finish_t += dt;
+        if has_elapsed { finish_t = finish_elapsed - 2.8; } else { finish_t += dt; }
+        if has_elapsed && finish_elapsed < 2.8 {
+            let fa = 1.0 - kit::ease_in_cubic((finish_elapsed - 2.3) / 0.5);
+            let fsc = if reduce_motion { 1.0 } else { kit::boing(finish_elapsed, 0.5) };
+            kit::shout_c(th, sw / 2.0, sh * 0.32, "FINISH!", th.t.h1 * k * 1.2, th.c.sun, fsc, fa, 6);
+        }
+    }
+    if state == "finished" && finish_t >= 0.0 {
         finish_sel_t += dt;
         if !finish_menu_active {
             finish_menu_active = true;
@@ -807,7 +819,7 @@ fn on_draw_ui() {
             ci += 1;
         }
 
-        let rects = draw_results(th, k, sw, sh, kart_id, finish_t, finish_options, finish_selection, finish_sel_t, touch_ui);
+        let rects = draw_results(th, k, sw, sh, kart_id, manager_id, finish_t, finish_options, finish_selection, finish_sel_t, touch_ui);
 
         // Navigation: left/right on the steering axis with edge detection
         if finish_t > 0.8 {
@@ -1123,7 +1135,7 @@ fn make_confetti(th, n, sw) {
 
 // Results: a headline, a podium for the top three that rises block by block,
 // the full standings, and the menu pills. Returns the pill rects.
-fn draw_results(th, k, sw, sh, kart_id, t, options, sel, sel_t, touch_ui) {
+fn draw_results(th, k, sw, sh, kart_id, manager_id, t, options, sel, sel_t, touch_ui) {
     kit::rect(0.0, 0.0, sw, sh, kit::fade(th.c.wash, kit::clamp01(t / 0.3)), 0.0, 6);
 
     let sorted = sort_by_position(find_entities_with("race_position"));
@@ -1148,6 +1160,28 @@ fn draw_results(th, k, sw, sh, kart_id, t, options, sel, sel_t, touch_ui) {
     if best < 900.0 {
         kit::pill(th, sw / 2.0 + 8.0 * k, cy, cw, ch, th.c.grape, k, chip_a, 9);
         kit::number(th, sw / 2.0 + cw / 2.0 + 8.0 * k, cy + 5.0 * k, "BEST  " + kit::format_time(best), th.t.md * k, kit::fade(th.c.cream, chip_a), "center", 10);
+    }
+
+    // Track records, kept per track by race_manager: a bouncing sun pill
+    // for a new one, otherwise the standing records on a quiet hint pill
+    let new_race_rec = get_field(manager_id, "race_state", "new_race_record") == true;
+    let new_lap_rec = get_field(manager_id, "race_state", "new_lap_record") == true;
+    let rec_race = get_field(manager_id, "race_state", "record_race");
+    let rec_lap = get_field(manager_id, "race_state", "record_lap");
+    let ry = cy + ch + 14.0 * k;
+    let rec_a = kit::clamp01((t - 0.5) / 0.3);
+    if new_race_rec || new_lap_rec {
+        let rec_str = if new_race_rec && new_lap_rec { "NEW TRACK RECORDS!" }
+                      else if new_race_rec { "NEW TRACK RECORD!" } else { "NEW LAP RECORD!" };
+        let rsc = kit::boing(t - 0.5, 0.3) * (1.0 + 0.03 * sin(t * 7.0));
+        let rw = (kit::measure(rec_str, th.t.md * k, th.f.label).width + 36.0 * k) * rsc;
+        let rh = 30.0 * k * rsc;
+        kit::pill(th, (sw - rw) / 2.0, ry, rw, rh, th.c.sun, k, rec_a, 9);
+        kit::label(th, sw / 2.0, ry + rh / 2.0 - th.t.md * k * rsc * 0.62, rec_str, th.t.md * k * rsc, kit::fade(th.c.ink, rec_a), "center", 10);
+    } else if type_of(rec_race) == "f64" && rec_race > 0.0 {
+        let rec_str = "Track record " + kit::format_time(rec_race);
+        if type_of(rec_lap) == "f64" && rec_lap > 0.0 { rec_str += "  ·  Lap record " + kit::format_time(rec_lap); }
+        kit::hint(th, sw / 2.0, ry, rec_str, k, rec_a, 9);
     }
 
     // ── Podium (left half) ──
@@ -1215,7 +1249,7 @@ fn draw_results(th, k, sw, sh, kart_id, t, options, sel, sel_t, touch_ui) {
             kit::circle(x + 50.0 * k, y + rh / 2.0, 7.0 * k, racer_color(eid), 9);
             kit::label(th, x + 68.0 * k, y + 6.0 * k, racer_name(eid), th.t.md * k, txt, "left", 9);
             let ft = get_field(eid, "race_progress", "finish_time");
-            let ts = if ft <= 0.0 { "racing..." } else if i == 0 || ft - winner_t < 0.01 { kit::format_time(ft) }
+            let ts = if ft <= 0.0 { "racing..." } else if i == 0 || winner_t <= 0.0 || ft - winner_t < 0.01 { kit::format_time(ft) }
                      else { "+" + kit::format_time(ft - winner_t) };
             let tcol = if ft <= 0.0 { if is_me { th.c.ink } else { th.c.quiet } } else { txt };
             kit::number(th, x + tw - 18.0 * k, y + 6.0 * k, ts, th.t.md * k, tcol, "right", 9);
