@@ -245,10 +245,18 @@ fn shout_in(th, x, y, s, size, font, fill, align, a, layer) {
     if sw < 2.0 { sw = 2.0; }
     let sd = size * 0.07;
     if sd < 2.0 { sd = 2.0; }
+    // The engine's `shadow` option drops the bare glyph, which is thinner
+    // than the outlined one and pokes out under it as a ghost. Drop the
+    // whole outlined sticker instead: the same text and stroke, all ink,
+    // drawn first and straight down by sd.
+    let sa = a * 0.85;
+    draw_text_opts(x, y + sd, s, size, #{
+        font: font, color: fade(ink, sa), align: align, layer: layer,
+        stroke: [ink[0], ink[1], ink[2], sa, sw]
+    });
     draw_text_opts(x, y, s, size, #{
         font: font, color: fade(fill, a), align: align, layer: layer,
-        stroke: [ink[0], ink[1], ink[2], a, sw],
-        shadow: [0.0, sd + sw, ink[0], ink[1], ink[2], a * 0.85]
+        stroke: [ink[0], ink[1], ink[2], a, sw]
     });
 }
 
