@@ -25,9 +25,6 @@ version = "1.0"
 description = "Alpine switchback track with hairpins, elevation, and a summit"
 input_config = "config/input.toml"
 
-[environment]
-skybox = "textures/skybox_mountain.png"
-
 [post_process]
 bloom_enabled = true
 bloom_intensity = 0.08
@@ -35,13 +32,16 @@ bloom_threshold = 0.85
 vignette_enabled = true
 vignette_intensity = 0.40
 vignette_smoothness = 0.9
+# A one-step ordered dither: no 8-bit banding in the sky's long gradients
+dither_enabled = true
+dither_intensity = 0.005
 exposure = 1.05
 ssao_enabled = true
 ssao_radius = 1.0
 ssao_intensity = 1.3
 # Golden hour: warm haze pooling in the valley, thinning toward the peaks
 fog_enabled = true
-fog_color = [0.90, 0.74, 0.62]
+fog_color = [0.93, 0.74, 0.58]
 fog_density = 0.0022
 fog_start = 45.0
 fog_height_enabled = true
@@ -54,7 +54,7 @@ fog_height_origin = 0.0
 [entities.sky.sky]
 zenith_color = [0.10, 0.20, 0.52, 1.0]
 horizon_color = [0.96, 0.66, 0.42, 1.0]
-haze_color = [1.0, 0.80, 0.56, 0.55]
+haze_color = [0.91, 0.81, 0.71, 0.55]
 cloud_tint = [1.0, 0.84, 0.72, 0.85]
 cloud_coverage = 0.32
 cloud_density = 0.28

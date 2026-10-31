@@ -187,8 +187,14 @@ fn sticker_r(th, x, y, w, h, face, radius, k, a, layer) {
     rect(x, y, w, h, fade(face, a), radius, layer);
     let inset = 3.0 * k;
     if h > 14.0 * k {
-        rect(x + inset, y + inset, w - inset * 2.0, (h - inset * 2.0) * 0.38,
-             fade(shine_of(th, face), a), radius * 0.75, layer);
+        // The shine's own corner radius, clamped to its height as the renderer
+        // clamps it. Pull its sides in until each corner sits under the face's
+        // corner centre: its round end then nests inside the face's curve
+        // `inset` from the edge, however round the face is (a pill's ends).
+        let sh = (h - inset * 2.0) * 0.38;
+        let sr = min(radius * 0.75, sh / 2.0);
+        let sx = max(inset, radius - sr);
+        rect(x + sx, y + inset, w - sx * 2.0, sh, fade(shine_of(th, face), a), sr, layer);
     }
 }
 
@@ -239,10 +245,18 @@ fn shout_in(th, x, y, s, size, font, fill, align, a, layer) {
     if sw < 2.0 { sw = 2.0; }
     let sd = size * 0.07;
     if sd < 2.0 { sd = 2.0; }
+    // The engine's `shadow` option drops the bare glyph, which is thinner
+    // than the outlined one and pokes out under it as a ghost. Drop the
+    // whole outlined sticker instead: the same text and stroke, all ink,
+    // drawn first and straight down by sd.
+    let sa = a * 0.85;
+    draw_text_opts(x, y + sd, s, size, #{
+        font: font, color: fade(ink, sa), align: align, layer: layer,
+        stroke: [ink[0], ink[1], ink[2], sa, sw]
+    });
     draw_text_opts(x, y, s, size, #{
         font: font, color: fade(fill, a), align: align, layer: layer,
-        stroke: [ink[0], ink[1], ink[2], a, sw],
-        shadow: [0.0, sd + sw, ink[0], ink[1], ink[2], a * 0.85]
+        stroke: [ink[0], ink[1], ink[2], a, sw]
     });
 }
 

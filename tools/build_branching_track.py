@@ -754,8 +754,9 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
                 surf.setdefault(k, walls[k])
     verges = track_data.get("verges", {})
 
-    # Environment
-    skybox = env.get("skybox", "textures/skybox_kart.png")
+    # Environment: a painted skybox only when the recipe names one; the
+    # procedural [sky] below replaces it, so tracks with a sky leave it out
+    skybox = env.get("skybox")
 
     lines = []
 
@@ -786,14 +787,16 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.append(f'')
 
     # ── Environment ─────────────────────────────────────────
-    lines.append(f'[environment]')
-    lines.append(f'skybox = "{skybox}"')
-    lines.append(f'')
+    if skybox:
+        lines.append(f'[environment]')
+        lines.append(f'skybox = "{skybox}"')
+        lines.append(f'')
 
     # ── Post-processing ─────────────────────────────────────
     lines.append(f'[post_process]')
     for key in ["bloom_enabled", "bloom_intensity", "bloom_threshold",
                  "vignette_enabled", "vignette_intensity", "vignette_smoothness",
+                 "dither_enabled", "dither_intensity",
                  "exposure", "ssao_enabled", "ssao_radius", "ssao_intensity",
                  "fog_enabled", "fog_color", "fog_density", "fog_start",
                  "fog_height_enabled", "fog_height_falloff", "fog_height_origin"]:

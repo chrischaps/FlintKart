@@ -25,9 +25,6 @@ version = "1.0"
 description = "Alpine switchback track with hairpins, elevation, and a summit"
 input_config = "config/input.toml"
 
-[environment]
-skybox = "textures/skybox_mountain.png"
-
 [post_process]
 bloom_enabled = true
 bloom_intensity = 0.08
@@ -46,6 +43,22 @@ fog_start = 25.0
 fog_height_enabled = true
 fog_height_falloff = 0.01
 fog_height_origin = 5.0
+
+# Sky: a clear, cool alpine day to suit this copy's blue-grey valley fog
+# (the haze meets the fog colour at the horizon; replaces the painted
+# skybox_mountain.png, which is retired)
+[entities.sky]
+[entities.sky.sky]
+zenith_color = [0.06, 0.22, 0.62, 1.0]
+horizon_color = [0.50, 0.66, 0.88, 1.0]
+haze_color = [1.0, 0.90, 0.82, 0.5]
+cloud_tint = [1.0, 1.0, 1.0, 0.85]
+cloud_coverage = 0.3
+cloud_density = 0.3
+cloud_scale = 0.75
+sun_disc_size = 0.035
+sun_glow = 1.0
+
 
 
 # ============================================================

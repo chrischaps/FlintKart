@@ -424,7 +424,7 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
             // Player kart triggers the finish camera, then the results screen
             if !has_component(kart_id, "ai_input") {
                 set_field(manager, "race_state", "state", "finished");
-                set_field(manager, "race_state", "finishing_timer", 30.0);
+                set_field(manager, "race_state", "finishing_timer", grace_period(total_laps, race_time));
                 set_field(manager, "race_state", "finish_elapsed", 0.0);
                 save_records(manager, get_field(kart_id, "race_progress", "best_lap"), race_time);
                 play_sound("audio/race_finish.ogg", 0.85);
@@ -434,6 +434,25 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
             }
         }
     }
+}
+
+// How long the field gets to finish once the player is over the line:
+// the slowest kart's own pace carried over the laps it has left, with a
+// margin, between 30 s and 90 s. A kart that truly can't finish still
+// runs out of time.
+fn grace_period(total_laps, race_time) {
+    let grace = 30.0;
+    for kid in find_entities_with("kart_state") {
+        let ft = get_field(kid, "race_progress", "finish_time");
+        if ft != () && ft > 0.0 { continue; }
+        let done = get_field(kid, "race_progress", "current_lap").to_float()
+            + get_field(kid, "race_progress", "spline_t");
+        if done < 0.5 { continue; }
+        let home = (total_laps.to_float() - done) * race_time / done;
+        if home * 1.2 + 5.0 > grace { grace = home * 1.2 + 5.0; }
+    }
+    if grace > 90.0 { grace = 90.0; }
+    grace
 }
 
 // The scene file's stem ("scenes/oval_plus.scene.toml" -> "oval_plus"),
