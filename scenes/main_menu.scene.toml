@@ -201,6 +201,7 @@ intensity = 1.0
 position = [0, 0, 0]
 [entities.snd_menu_music.audio_source]
 file = "audio/race_music.ogg"
+bus = "music"
 spatial = false
 loop = true
 autoplay = true

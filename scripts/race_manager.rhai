@@ -8,9 +8,9 @@
 let prev_countdown = "";
 
 // Music volume target levels
-let MUSIC_VOL_COUNTDOWN = 0.25;
-let MUSIC_VOL_RACING = 0.4;
-let MUSIC_VOL_FINISHED = 0.15;
+let MUSIC_VOL_COUNTDOWN = 0.3;
+let MUSIC_VOL_RACING = 0.45;
+let MUSIC_VOL_FINISHED = 0.35;
 
 fn on_init() {
     let me = this_entity();
@@ -32,9 +32,9 @@ fn on_update() {
         let display = get_field(me, "race_state", "countdown_display");
         if display != prev_countdown {
             if display == "3" || display == "2" || display == "1" {
-                play_sound("audio/countdown_beep.ogg", 0.8);
+                play_sound("audio/countdown_beep.ogg", 0.7);
             } else if display == "GO!" {
-                play_sound("audio/countdown_go.ogg", 1.0);
+                play_sound("audio/countdown_go.ogg", 0.85);
             }
             prev_countdown = display;
         }
@@ -360,7 +360,7 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
             if !has_component(kart_id, "ai_input") {
                 set_field(manager, "race_state", "state", "finished");
                 set_field(manager, "race_state", "finishing_timer", 30.0);
-                play_sound("audio/race_finish.ogg", 1.0);
+                play_sound("audio/race_finish.ogg", 0.85);
 
                 // Disable only the player's input — AI keeps racing
                 set_field(kart_id, "kart_state", "input_enabled", false);

@@ -741,14 +741,14 @@ fn on_draw_ui() {
             if is_action_just_pressed("menu_confirm") {
                 screen = "select";
                 card_anim_t = 0.0;
-                play_sound("audio/countdown_beep.ogg", 0.3);
+                play_sound("audio/ui_select.ogg", 0.5);
             }
             // Touch: tap anywhere to continue
             if tap_count() > 0 {
                 touch_active = true;
                 screen = "select";
                 card_anim_t = 0.0;
-                play_sound("audio/countdown_beep.ogg", 0.3);
+                play_sound("audio/ui_select.ogg", 0.5);
             }
             if touch_count() > 0 { touch_active = true; }
         }
@@ -911,7 +911,7 @@ fn on_draw_ui() {
         if launch_state == "none" && card_anim_t >= 1.0 {
             if is_action_just_pressed("menu_back") {
                 screen = "title";
-                play_sound("audio/countdown_beep.ogg", 0.2);
+                play_sound("audio/ui_back.ogg", 0.45);
             }
 
             let steer = action_value("steering");
@@ -922,11 +922,11 @@ fn on_draw_ui() {
             if steer_dir != 0 && steer_dir != prev_steer_dir {
                 if steer_dir > 0 && select_index < num_tracks - 1 {
                     select_index += 1;
-                    play_sound("audio/countdown_beep.ogg", 0.2);
+                    play_sound("audio/ui_hover.ogg", 0.45);
                 }
                 if steer_dir < 0 && select_index > 0 {
                     select_index -= 1;
-                    play_sound("audio/countdown_beep.ogg", 0.2);
+                    play_sound("audio/ui_hover.ogg", 0.45);
                 }
             }
             prev_steer_dir = steer_dir;
@@ -952,7 +952,7 @@ fn on_draw_ui() {
                 // Back button (top-left)
                 if tx < 130.0 && ty < 64.0 {
                     screen = "title";
-                    play_sound("audio/countdown_beep.ogg", 0.2);
+                    play_sound("audio/ui_back.ogg", 0.45);
                 } else {
                     // Check card taps
                     let cci = 0;
@@ -969,7 +969,7 @@ fn on_draw_ui() {
                             } else {
                                 // Tap unselected card → select it
                                 select_index = cci;
-                                play_sound("audio/countdown_beep.ogg", 0.2);
+                                play_sound("audio/ui_hover.ogg", 0.45);
                             }
                         }
                         cci += 1;
