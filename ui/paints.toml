@@ -1,0 +1,31 @@
+# Kart paints for the racer select. menu.rhai shows them and saves the
+# choice as persist key `player_paint` (an index here); hud.rhai paints the
+# player's kart with it when a race scene starts. With nothing saved the
+# kart keeps its model's own colour.
+#
+#   color  the kart body tint (set_material_color), close to the theme
+#          colour of the same name so the HUD dot matches the kart
+
+[[paints]]
+name = "Tomato Rocket"
+color = [0.98, 0.33, 0.25]
+
+[[paints]]
+name = "Sunny Side"
+color = [1.00, 0.78, 0.18]
+
+[[paints]]
+name = "Sky Diver"
+color = [0.25, 0.70, 0.98]
+
+[[paints]]
+name = "Grape Escape"
+color = [0.62, 0.38, 0.95]
+
+[[paints]]
+name = "Mint Condition"
+color = [0.30, 0.90, 0.62]
+
+[[paints]]
+name = "Cream Machine"
+color = [1.00, 0.97, 0.90]
