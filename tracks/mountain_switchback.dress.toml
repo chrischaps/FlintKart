@@ -1,0 +1,181 @@
+# Mountain Switchback — alpine golden hour. The road climbs a real mountain
+# now: pine forest on the flanks, snow on the trees and peaks up high, rock
+# where it's steep, a snow shed over the descent and chalets with lit
+# windows. A ring of tall peaks closes the valley.
+#
+#   python tools/dress_track.py tracks/mountain_switchback.dress.toml
+#
+# 24 control points: CP k is at t = k/24. The summit hairpins are CP 8-11
+# (t 0.33-0.46).
+
+scene = "scenes/mountain_switchback.scene.toml"
+seed = 23
+corridor = 10.0     # road half-width 5 + verge 4 + 1
+chunk = 160.0
+roads = [{ spline = "splines/mountain_switchback.spline.toml", half_width = 5.0 }]
+
+[terrain]
+mode = "alpine"
+margin = 320.0
+spacing = 3.0
+base = -0.8
+lift = 1.0          # the land is as high as the road around it: a mountain
+lift_sigma = 22.0
+hills = 8.0
+hill_scale = 90.0
+ring = 160.0
+ring_start = 120.0
+# the shoulder the summit hairpins hang on, and a peak behind the valley
+massif = [
+    { center = [60.0, -150.0], height = 22.0, radius = 80.0 },
+    { center = [-120.0, -190.0], height = 80.0, radius = 110.0 },
+]
+ring_scale = 70.0
+blend = 40.0
+bridge_cut = 12.0   # open ground under the flyover at the start
+rock_slope = 0.7
+snow_line = 58.0
+texture_size = 2048
+[terrain.colors]
+grass = [0.38, 0.58, 0.27]
+grass_dark = [0.24, 0.44, 0.23]
+rock = [0.55, 0.53, 0.57]
+snow = [0.95, 0.96, 1.00]
+
+[[entity]]
+asset = "prop_gantry"
+name = "dress_gantry"
+t = 0.0
+side = 0
+sink = 0.0
+
+[[entity]]
+asset = "prop_billboard_tires"
+t = 0.03
+side = -1
+offset = 13.0
+
+[[entity]]
+asset = "prop_billboard_flint"
+t = 0.12
+side = 1
+offset = 14.0
+
+[[entity]]
+asset = "prop_billboard_toast"
+t = 0.80
+side = 1
+offset = 14.0
+
+[[place]]
+prop = "grandstand"
+t = 0.015
+side = -1
+offset = 16.0
+seed = 8
+
+[[place]]
+prop = "cabin"
+t = 0.25
+side = 1
+offset = 22.0
+seed = 1
+
+[[place]]
+prop = "cabin"
+t = 0.43
+side = -1
+offset = 20.0
+seed = 2
+
+[[place]]
+prop = "cabin"
+t = 0.70
+side = 1
+offset = 24.0
+seed = 3
+
+[[place]]
+prop = "cabin"
+t = 0.71
+side = 1
+offset = 34.0
+seed = 4
+yaw = 20.0
+
+# a snow shed over the fast descent after the summit
+[[run]]
+prop = "tunnel_shed"
+t0 = 0.525
+t1 = 0.555
+every = 2.4
+side = 0
+
+[[run]]
+prop = "flag"
+t0 = 0.0
+t1 = 0.06
+every = 10.0
+sides = [-1, 1]
+offset = 9.6
+alternate = true
+
+[[run]]
+prop = "tire_stack"
+t0 = 0.36
+t1 = 0.46
+every = 8.0
+side = -1
+offset = 10.5
+
+[[run]]
+prop = "cone"
+t0 = 0.79
+t1 = 0.86
+every = 7.0
+side = -1
+offset = 9.6
+
+[[scatter]]
+prop = "pine"
+count = 380
+near = 15.0
+far = 280.0
+variants = 4
+clump = 0.65
+clump_size = 14.0
+radius = 2.2
+max_h = 62.0
+
+[[scatter]]
+prop = "pine_snow"
+count = 160
+near = 15.0
+far = 300.0
+variants = 3
+clump = 0.5
+radius = 2.2
+min_h = 38.0
+
+[[scatter]]
+prop = "rock"
+count = 90
+near = 13.0
+far = 260.0
+variants = 5
+clump = 0.3
+radius = 2.0
+
+[[scatter]]
+prop = "bush"
+count = 50
+near = 12.0
+far = 90.0
+variants = 3
+radius = 1.4
+max_h = 40.0
+
+# columns under the road wherever it stands clear of the ground
+[pillars]
+every = 11.0
+min_gap = 2.5

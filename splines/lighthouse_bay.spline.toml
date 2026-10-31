@@ -1,0 +1,77 @@
+# Lighthouse Bay — a coastal loop, late afternoon.
+#
+# The start straight runs north along the beach promenade (heading -Z). A
+# rising right-hander climbs onto the headland, past the lighthouse and
+# through a rock tunnel, then a fast descent swings back south along the
+# cliffs to the causeway, which crosses the lagoon on columns a few metres
+# above the water. A banked left-hander along the dunes brings it home.
+# ~780 m. Sea level is y = 0; the road never drops below 2 m.
+
+[spline]
+name = "Lighthouse Bay"
+closed = true
+
+[sampling]
+spacing = 2.0
+
+# Promenade straight (start/finish at the origin, heading -Z)
+[[control_points]]
+position = [0, 2.5, 0]
+twist = 0.0
+
+[[control_points]]
+position = [0, 2.5, -60]
+twist = 0.0
+
+# Rising right-hander onto the headland
+[[control_points]]
+position = [12, 4, -115]
+twist = 4.0
+
+[[control_points]]
+position = [48, 8, -152]
+twist = 6.0
+
+# Headland top: lighthouse off to the left, then the rock tunnel
+[[control_points]]
+position = [95, 11, -165]
+twist = 0.0
+
+[[control_points]]
+position = [140, 10, -150]
+twist = 3.0
+
+# Fast descent along the cliffs
+[[control_points]]
+position = [168, 7, -112]
+twist = 6.0
+
+[[control_points]]
+position = [170, 4.5, -68]
+twist = 2.0
+
+# Causeway across the lagoon
+[[control_points]]
+position = [148, 3.5, -30]
+twist = -3.0
+
+[[control_points]]
+position = [110, 3.5, -8]
+twist = 0.0
+
+[[control_points]]
+position = [72, 3.0, 12]
+twist = 0.0
+
+# Banked left-hander along the dunes, back onto the promenade
+[[control_points]]
+position = [40, 2.5, 42]
+twist = -10.0
+
+[[control_points]]
+position = [12, 2.5, 46]
+twist = -12.0
+
+[[control_points]]
+position = [0, 2.5, 25]
+twist = -4.0

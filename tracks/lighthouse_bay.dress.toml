@@ -1,0 +1,221 @@
+# Lighthouse Bay — a coastal loop at the end of a summer afternoon. Beach
+# huts and umbrellas along the promenade, palms in the dunes, the lighthouse
+# on the headland with a rock tunnel through it, sea stacks off the cliffs,
+# and a causeway on columns across the lagoon. Water on both flanks.
+#
+#   python tools/dress_track.py tracks/lighthouse_bay.dress.toml
+#
+# 14 control points: CP k is at t = k/14. Headland top ~ t 0.29, tunnel
+# t 0.31-0.35, cliff descent t 0.40-0.52, causeway t 0.56-0.70.
+
+scene = "scenes/lighthouse_bay.scene.toml"
+seed = 47
+corridor = 11.0
+chunk = 180.0
+roads = [{ spline = "splines/lighthouse_bay.spline.toml", half_width = 6.0, bridges = [[0.57, 0.70]] }]
+
+[terrain]
+mode = "coast"
+margin = 300.0
+spacing = 3.0
+base = 0.6
+lift = 0.7
+lift_sigma = 40.0
+hills = 6.0
+hill_scale = 100.0
+ring = 26.0
+ring_start = 200.0
+blend = 30.0
+rock_slope = 0.9
+sea_level = 0.0
+sea_floor = -7.0
+# the open sea to the west of the promenade, and north-east past the cliffs
+seas = [
+    { dir = [-1.0, 0.0], shore = 30.0 },
+    { dir = [0.8, -0.6], shore = 205.0 },
+]
+massif = [
+    { center = [105.0, -175.0], height = 12.0, radius = 45.0 },   # the headland
+    { center = [100.0, -205.0], height = 6.0, radius = 28.0 },    # the lighthouse point
+    { center = [108.0, -18.0], height = -12.0, radius = 38.0 },   # the lagoon
+]
+texture_size = 2048
+[terrain.colors]
+grass = [0.48, 0.66, 0.30]
+grass_dark = [0.36, 0.56, 0.28]
+rock = [0.70, 0.60, 0.50]
+sand = [0.96, 0.87, 0.64]
+seabed = [0.78, 0.74, 0.58]
+
+[[entity]]
+asset = "prop_gantry"
+name = "dress_gantry"
+t = 0.0
+side = 0
+sink = 0.0
+
+[[entity]]
+asset = "prop_billboard_surf"
+t = 0.05
+side = 1
+offset = 14.0
+
+[[entity]]
+asset = "prop_billboard_cola"
+t = 0.14
+side = 1
+offset = 15.0
+
+[[entity]]
+asset = "prop_billboard_flint"
+t = 0.48
+side = 1
+offset = 15.0
+
+[[entity]]
+asset = "prop_billboard_toast"
+t = 0.80
+side = -1
+offset = 16.0
+
+[[place]]
+prop = "lighthouse"
+t = 0.275
+side = -1
+offset = 32.0
+seed = 0
+
+[[place]]
+prop = "grandstand"
+t = 0.015
+step_t = 0.045
+count = 2
+side = 1
+offset = 17.5
+seed = 6
+
+[[place]]
+prop = "lifeguard"
+t = 0.08
+side = -1
+offset = 24.0
+
+[[place]]
+prop = "sea_stack"
+t = 0.43
+side = -1
+offset = 62.0
+scale = 2.6
+seed = 1
+
+[[place]]
+prop = "sea_stack"
+t = 0.47
+side = -1
+offset = 75.0
+scale = 3.2
+seed = 2
+
+[[place]]
+prop = "sea_stack"
+t = 0.12
+side = -1
+offset = 70.0
+scale = 2.4
+seed = 3
+
+[[place]]
+prop = "balloon"
+t = 0.62
+side = 1
+offset = 150.0
+y = 60.0
+seed = 1
+
+# beach huts along the promenade, on the sand side
+[[run]]
+prop = "beach_hut"
+t0 = 0.0
+t1 = 0.13
+every = 11.0
+side = -1
+offset = 14.5
+
+[[run]]
+prop = "flag"
+t0 = 0.0
+t1 = 0.10
+every = 9.0
+side = 1
+offset = 11.0
+alternate = true
+
+# the rock tunnel through the headland
+[[run]]
+prop = "tunnel_rock"
+t0 = 0.312
+t1 = 0.345
+every = 2.4
+side = 0
+
+[[run]]
+prop = "tire_stack"
+t0 = 0.78
+t1 = 0.90
+every = 8.0
+side = 1
+offset = 11.6
+
+[[scatter]]
+prop = "palm"
+count = 140
+near = 13.0
+far = 170.0
+variants = 4
+clump = 0.5
+radius = 2.0
+min_h = 0.4
+
+[[scatter]]
+prop = "umbrella"
+count = 45
+near = 13.0
+far = 90.0
+variants = 3
+clump = 0.6
+clump_size = 7.0
+radius = 1.8
+min_h = 0.15
+max_h = 1.6
+
+[[scatter]]
+prop = "rock_warm"
+count = 70
+near = 13.0
+far = 220.0
+variants = 4
+clump = 0.5
+radius = 2.0
+
+[[scatter]]
+prop = "bush"
+count = 70
+near = 12.0
+far = 140.0
+variants = 3
+radius = 1.4
+min_h = 1.2
+
+[[scatter]]
+prop = "tree_round"
+count = 50
+near = 25.0
+far = 220.0
+variants = 3
+clump = 0.6
+radius = 2.5
+min_h = 3.0
+
+[pillars]
+every = 9.0
+min_gap = 1.5
