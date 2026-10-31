@@ -20,3 +20,18 @@ default = 0.0
 [component.kart_visual_state.fields.throttle]
 type = "float"
 default = 0.0
+
+[component.kart_visual_state.fields.roll]
+type = "float"
+default = 0.0
+description = "Body roll in degrees; positive dips the right side"
+
+[component.kart_visual_state.fields.pitch]
+type = "float"
+default = 0.0
+description = "Body pitch in degrees; positive lifts the nose"
+
+[component.kart_visual_state.fields.squash]
+type = "float"
+default = 0.0
+description = "Suspension compression 0-1"

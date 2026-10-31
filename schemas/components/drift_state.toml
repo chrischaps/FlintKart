@@ -32,3 +32,13 @@ default = 0.0
 [component.drift_state.fields.hop_timer]
 type = "float"
 default = 0.0
+
+[component.drift_state.fields.tier]
+type = "int"
+default = 0
+description = "Current drift charge tier (0-3) while hopping or drifting; 0 otherwise"
+
+[component.drift_state.fields.charge]
+type = "float"
+default = 0.0
+description = "Drift charge in seconds; faster when steering into the drift"
