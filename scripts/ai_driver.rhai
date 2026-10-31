@@ -42,6 +42,8 @@ let held_time = 0.0;
 let wobble_phase = 0.0;
 let was_racing = false;
 
+let ROLL_SPEED = 0.35;       // victory-roll pace once over the line, x max_speed
+
 fn on_init() {
     let me = this_entity();
     let kart_name = get_field(me, "ai_driver", "kart");
@@ -202,11 +204,19 @@ fn on_update() {
     let dt = delta_time();
     if dt <= 0.0 { return; }
 
-    // Only drive during the racing phase
+    // Drive while the race runs, and on after the player finishes: the
+    // field still has its own laps to complete in the grace period
     let manager = get_entity("race_manager");
+    let player_done = false;
+    let grace_over = false;
     if manager >= 0 {
         let race_state = get_field(manager, "race_state", "state");
-        if race_state != "racing" {
+        player_done = race_state == "finished";
+        if player_done {
+            let grace = get_field(manager, "race_state", "finishing_timer");
+            grace_over = grace == () || grace <= 0.0;
+        }
+        if race_state != "racing" && !player_done {
             set_field(kart_id, "ai_input", "throttle", 0.0);
             set_field(kart_id, "ai_input", "steering", 0.0);
             set_field(kart_id, "ai_input", "brake", 0.0);
@@ -220,6 +230,11 @@ fn on_update() {
         }
     }
     was_racing = true;
+
+    // Over the line (or out of time to get there): a slow victory roll
+    // along the outside of the road, out of the way of anyone still racing
+    let ft_mine = get_field(kart_id, "race_progress", "finish_time");
+    let rolling = (ft_mine != () && ft_mine > 0.0) || grace_over;
 
     // ── Personality ──
     let lookahead = get_field(me, "ai_driver", "lookahead");
@@ -431,7 +446,7 @@ fn on_update() {
     // the further back in the field it is.
     let rb = 0.0;
     let player = get_entity("player_kart");
-    if player >= 0 && player != kart_id && has_component(player, "race_progress")
+    if player >= 0 && player != kart_id && !player_done && has_component(player, "race_progress")
         && has_component(kart_id, "race_progress") {
         let mine = get_field(kart_id, "race_progress", "current_lap").to_float()
             + get_field(kart_id, "race_progress", "spline_t");
@@ -443,6 +458,7 @@ fn on_update() {
     let top_factor = speed_factor * (1.0 - 0.04 * rb * rubber_band) + pack_push;
     let grip = (0.92 - cornering_caution * 0.8) * (1.0 - 0.06 * rb * rubber_band) + pack_push;
     let top_speed = max_speed * top_factor + draft_speed * draft;
+    if rolling { top_speed = min(top_speed, max_speed * ROLL_SPEED); }
 
     // ── Speed plan ──
     // For each point ahead: the corner speed there, plus what braking can
@@ -489,6 +505,7 @@ fn on_update() {
     let line_plan = (inside + setup) * usable * (0.45 + 0.55 * skill) + line_offset
         + wobble * 1.3 * sin(wobble_phase);
     let straight = abs(bend_ahead) < 0.25;
+    if rolling { line_plan = usable * 0.8; }
 
     // ── Traffic: pass, tuck in, or give room ──
     let fx = here["fwd_x"];
@@ -600,7 +617,7 @@ fn on_update() {
     }
 
     // Empty hands: drift over toward an item box on the way
-    if held == "none" && block_along > 900.0 {
+    if held == "none" && block_along > 900.0 && !rolling {
         let best_along = 999.0;
         let best_lat = 0.0;
         for bx in find_entities_with("item_box") {
@@ -673,7 +690,7 @@ fn on_update() {
         } else if still_bending || (charge_tier < hold_tier && bend_soon * drift_dir > 0.03) {
             drift_input = true;
         }
-    } else if drift_now == "none" && grounded && speed > 13.0 && mode == "drive" {
+    } else if drift_now == "none" && grounded && speed > 13.0 && mode == "drive" && !rolling {
         let bend_dir = sgn(bend_ahead);
         let sharpest = 0.0;
         i = 1;
@@ -776,6 +793,8 @@ fn on_update() {
                 use_item = true;
             }
         }
+        // Nothing thrown once the player has finished: they're celebrating
+        if player_done || rolling { use_item = false; }
         if use_item {
             log(entity_name(kart_id) + " uses " + held + " after " + held_time + "s");
         }
@@ -803,10 +822,9 @@ fn on_update() {
         watch_timer = 0.0;
         let prog = (get_field(kart_id, "race_progress", "current_lap").to_float()
             + get_field(kart_id, "race_progress", "spline_t")) * lap_len;
-        let ft = get_field(kart_id, "race_progress", "finish_time");
         // (a jump bigger than a second's driving is the start line or a
-        // respawn, not progress)
-        if watch_progress < 0.0 || spinning || (ft != () && ft > 0.0)
+        // respawn, not progress; a rolling kart's progress is no longer counted)
+        if watch_progress < 0.0 || spinning || rolling
             || abs(prog - watch_progress) > 60.0 {
             watch_moved = 0.0;
             stall_secs = 0;
