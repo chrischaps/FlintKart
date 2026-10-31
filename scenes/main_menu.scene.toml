@@ -61,7 +61,9 @@ sun_glow = 0.8
 template = "kart"
 prefix = "display"
 [prefabs.display.overrides.kart.transform]
-position = [0, 0.5, 0]
+# Tyres on the lawn (0.07 m here) for the first frame and for `flint render`;
+# menu.rhai then sets every tyre on the ground from scripts/lib/menu_ground.rhai
+position = [0, 0.24, 0]
 rotation = [0, -30, 0]
 [prefabs.display.overrides.kart.kart_state]
 input_enabled = false

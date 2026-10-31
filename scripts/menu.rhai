@@ -13,6 +13,7 @@
 // logo and version line are ui/main_menu.ui.toml elements.
 
 import "kit" as kit;
+import "menu_ground" as menu_ground;
 
 // ── Core state ──
 let screen = "title";           // "title" | "select" | "paint"
@@ -56,6 +57,13 @@ let straight_vz = 0.0;
 let straight_yaw = 0.0;
 let mode_blend = 0.0;          // 0 = donut, 1 = straight
 let entities_found = false;
+// The kart drives on the infield lawn (tools/menu_stage.py), which rolls by
+// a metre over its longest runs, so each tyre reads the ground under it.
+let lawn = ();                 // menu_ground::grid()
+let ground_pitch = 0.0;        // the lawn's slope under the kart, degrees
+let ground_roll = 0.0;
+let wheel_drop = 0.173;        // origin to tyre bottom: 0.273 radius - 0.1 hub height
+let dust_lift = 0.06;          // drift dust and sparks start just off the grass
 
 // ── 3D particle emitters ──
 let dust_l_id = -1;
@@ -230,9 +238,40 @@ fn on_update() {
     wheel_spin = wheel_spin + dt * 400.0;
     if wheel_spin > 360.0 { wheel_spin = wheel_spin - 360.0; }
 
+    // ── Ground: each tyre on the lawn ──
+    // Local +Z = rear of kart. Y-rotation by body_yaw transforms local axes:
+    //   local +Z -> world (sin(yaw), 0, cos(yaw))
+    //   local +X -> world (cos(yaw), 0, -sin(yaw))
+    let rear_dir_x = sin(body_yaw_rad);
+    let rear_dir_z = cos(body_yaw_rad);
+    let right_dir_x = cos(body_yaw_rad);
+    let right_dir_z = -sin(body_yaw_rad);
+    if lawn == () { lawn = menu_ground::grid(); }
+    // wheel contacts: hubs at x = +-0.73, z = -1.0 (front) and 0.85 (rear)
+    let fl_y = menu_ground::height(lawn, kart_x - right_dir_x * 0.73 - rear_dir_x, kart_z - right_dir_z * 0.73 - rear_dir_z);
+    let fr_y = menu_ground::height(lawn, kart_x + right_dir_x * 0.73 - rear_dir_x, kart_z + right_dir_z * 0.73 - rear_dir_z);
+    let rl_x = kart_x - right_dir_x * 0.73 + rear_dir_x * 0.85;
+    let rl_z = kart_z - right_dir_z * 0.73 + rear_dir_z * 0.85;
+    let rr_x = kart_x + right_dir_x * 0.73 + rear_dir_x * 0.85;
+    let rr_z = kart_z + right_dir_z * 0.73 + rear_dir_z * 0.85;
+    let rl_y = menu_ground::height(lawn, rl_x, rl_z);
+    let rr_y = menu_ground::height(lawn, rr_x, rr_z);
+    // the body follows the lawn's slope (+X pitch lifts the nose, +Z roll
+    // lifts the right side), eased so the grid's facets don't twitch it
+    let ease = clamp(10.0 * dt, 0.0, 1.0);
+    let slope_pitch = atan(((fl_y + fr_y) - (rl_y + rr_y)) * 0.5 / 1.85) * 57.2958;
+    let slope_roll = atan(((fr_y + rr_y) - (fl_y + rl_y)) * 0.5 / 1.46) * 57.2958;
+    ground_pitch = ground_pitch + (slope_pitch - ground_pitch) * ease;
+    ground_roll = ground_roll + (slope_roll - ground_roll) * ease;
+    // the drift lean rolls the body over its outside tyres; lift it by what
+    // the lean sinks them, so they stay on the grass and the inside ones lift
+    let lean = -3.5 * donut_dir_blend * drift_factor;
+    let kart_y = (fl_y + fr_y + rl_y + rr_y) * 0.25 + wheel_drop
+        + 0.73 * abs(sin(lean / 57.2958));
+
     if kart_id >= 0 {
-        set_position(kart_id, kart_x, 0.5, kart_z);
-        set_rotation(kart_id, 0.0, body_yaw_deg, -3.5 * donut_dir_blend * drift_factor);
+        set_position(kart_id, kart_x, kart_y, kart_z);
+        set_rotation(kart_id, ground_pitch, body_yaw_deg, ground_roll + lean);
     }
 
     // Wheels: drift steer fades out during straight
@@ -257,29 +296,11 @@ fn on_update() {
         set_rotation(driver_head_id, head_pitch, head_yaw, head_roll);
     }
 
-    // ── Position 3D particle emitters at rear wheels ──
-    // Local +Z = rear of kart. Y-rotation by body_yaw transforms local axes:
-    //   local +Z -> world (sin(yaw), 0, cos(yaw))
-    //   local +X -> world (cos(yaw), 0, -sin(yaw))
-    let rear_dir_x = sin(body_yaw_rad);
-    let rear_dir_z = cos(body_yaw_rad);
-    let right_dir_x = cos(body_yaw_rad);
-    let right_dir_z = -sin(body_yaw_rad);
-
-    // Rear-left wheel: local (-0.73, 0.05, 0.85)
-    let rl_wx = kart_x + right_dir_x * (-0.73) + rear_dir_x * 0.85;
-    let rl_wy = 0.55;
-    let rl_wz = kart_z + right_dir_z * (-0.73) + rear_dir_z * 0.85;
-
-    // Rear-right wheel: local (0.73, 0.05, 0.85)
-    let rr_wx = kart_x + right_dir_x * 0.73 + rear_dir_x * 0.85;
-    let rr_wy = 0.55;
-    let rr_wz = kart_z + right_dir_z * 0.73 + rear_dir_z * 0.85;
-
-    if dust_l_id >= 0 { set_position(dust_l_id, rl_wx, rl_wy, rl_wz); }
-    if dust_r_id >= 0 { set_position(dust_r_id, rr_wx, rr_wy, rr_wz); }
-    if sparks_l_id >= 0 { set_position(sparks_l_id, rl_wx, rl_wy, rl_wz); }
-    if sparks_r_id >= 0 { set_position(sparks_r_id, rr_wx, rr_wy, rr_wz); }
+    // ── Position 3D particle emitters where the rear tyres meet the grass ──
+    if dust_l_id >= 0 { set_position(dust_l_id, rl_x, rl_y + dust_lift, rl_z); }
+    if dust_r_id >= 0 { set_position(dust_r_id, rr_x, rr_y + dust_lift, rr_z); }
+    if sparks_l_id >= 0 { set_position(sparks_l_id, rl_x, rl_y + dust_lift, rl_z); }
+    if sparks_r_id >= 0 { set_position(sparks_r_id, rr_x, rr_y + dust_lift, rr_z); }
 
     // Set emission rates — boost during straight, ramp up during launch
     let dust_rate = 25.0 + mode_blend * 40.0;
@@ -315,9 +336,12 @@ fn on_update() {
 
     // ── Camera: slow orbit tracking the drifting kart ──
     orbit_angle = orbit_angle + dt * 0.15;
+    // (it keeps its height over the lawn below it, and looks at the kart)
     let cam_r = 8.0;
-    set_camera_position(sin(orbit_angle) * cam_r, 3.5, cos(orbit_angle) * cam_r);
-    set_camera_target(kart_x, 0.5, kart_z);
+    let cam_x = sin(orbit_angle) * cam_r;
+    let cam_z = cos(orbit_angle) * cam_r;
+    set_camera_position(cam_x, menu_ground::height(lawn, cam_x, cam_z) + 3.45, cam_z);
+    set_camera_target(kart_x, kart_y, kart_z);
 
     // Subtle bloom/exposure lift during straight boost
     if launch_state == "none" {
