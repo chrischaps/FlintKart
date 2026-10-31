@@ -167,11 +167,11 @@ fn on_draw_ui() {
         } else {
             if is_action_just_pressed("menu_up") && pause_selection > 0 {
                 pause_selection -= 1;
-                play_sound("audio/countdown_beep.ogg", 0.15);
+                play_sound("audio/ui_hover.ogg", 0.45);
             }
             if is_action_just_pressed("menu_down") && pause_selection < pause_options.len() - 1 {
                 pause_selection += 1;
-                play_sound("audio/countdown_beep.ogg", 0.15);
+                play_sound("audio/ui_hover.ogg", 0.45);
             }
             if is_action_just_pressed("menu_confirm") {
                 if pause_selection == 0 {
@@ -180,18 +180,18 @@ fn on_draw_ui() {
                 } else if pause_selection == 1 {
                     // Restart Race
                     pop_state();
-                    play_sound("audio/countdown_beep.ogg", 0.3);
+                    play_sound("audio/ui_select.ogg", 0.5);
                     reload_scene();
                 } else if pause_selection == 2 {
                     // Track Select
                     pop_state();
                     persist_set("menu_screen", "select");
-                    play_sound("audio/countdown_beep.ogg", 0.3);
+                    play_sound("audio/ui_select.ogg", 0.5);
                     load_scene("scenes/main_menu.scene.toml");
                 } else if pause_selection == 3 {
                     // Main Menu
                     pop_state();
-                    play_sound("audio/countdown_beep.ogg", 0.3);
+                    play_sound("audio/ui_select.ogg", 0.5);
                     load_scene("scenes/main_menu.scene.toml");
                 }
             }
@@ -214,16 +214,16 @@ fn on_draw_ui() {
                             pop_state();
                         } else if tapped == 1 {
                             pop_state();
-                            play_sound("audio/countdown_beep.ogg", 0.3);
+                            play_sound("audio/ui_select.ogg", 0.5);
                             reload_scene();
                         } else if tapped == 2 {
                             pop_state();
                             persist_set("menu_screen", "select");
-                            play_sound("audio/countdown_beep.ogg", 0.3);
+                            play_sound("audio/ui_select.ogg", 0.5);
                             load_scene("scenes/main_menu.scene.toml");
                         } else if tapped == 3 {
                             pop_state();
-                            play_sound("audio/countdown_beep.ogg", 0.3);
+                            play_sound("audio/ui_select.ogg", 0.5);
                             load_scene("scenes/main_menu.scene.toml");
                         }
                     }
@@ -840,11 +840,11 @@ fn on_draw_ui() {
         if f_dir != 0 && f_dir != prev_finish_steer {
             if f_dir > 0 && finish_selection < finish_options.len() - 1 {
                 finish_selection += 1;
-                play_sound("audio/countdown_beep.ogg", 0.15);
+                play_sound("audio/ui_hover.ogg", 0.45);
             }
             if f_dir < 0 && finish_selection > 0 {
                 finish_selection -= 1;
-                play_sound("audio/countdown_beep.ogg", 0.15);
+                play_sound("audio/ui_hover.ogg", 0.45);
             }
         }
         prev_finish_steer = f_dir;
@@ -853,16 +853,16 @@ fn on_draw_ui() {
         if is_action_just_pressed("menu_confirm") && finish_menu_active {
             if finish_selection == 0 {
                 // Restart
-                play_sound("audio/countdown_beep.ogg", 0.3);
+                play_sound("audio/ui_select.ogg", 0.5);
                 reload_scene();
             } else if finish_selection == 1 {
                 // Track Select
                 persist_set("menu_screen", "select");
-                play_sound("audio/countdown_beep.ogg", 0.3);
+                play_sound("audio/ui_select.ogg", 0.5);
                 load_scene("scenes/main_menu.scene.toml");
             } else if finish_selection == 2 {
                 // Main Menu
-                play_sound("audio/countdown_beep.ogg", 0.3);
+                play_sound("audio/ui_select.ogg", 0.5);
                 load_scene("scenes/main_menu.scene.toml");
             }
         }
@@ -881,7 +881,7 @@ fn on_draw_ui() {
                     let fo_half_w = 80.0;
                     if ftx > fo_cx - fo_half_w && ftx < fo_cx + fo_half_w && fty > opt_y - 12.0 && fty < opt_y + 32.0 {
                         finish_selection = foi;
-                        play_sound("audio/countdown_beep.ogg", 0.3);
+                        play_sound("audio/ui_select.ogg", 0.5);
                         if foi == 0 { reload_scene(); }
                         else if foi == 1 { persist_set("menu_screen", "select"); load_scene("scenes/main_menu.scene.toml"); }
                         else if foi == 2 { load_scene("scenes/main_menu.scene.toml"); }

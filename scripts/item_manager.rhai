@@ -435,7 +435,7 @@ fn activate_item(kart_id, item_type) {
         set_field(kart_id, "item_holder", "item_boost_active", true);
         set_field(kart_id, "item_holder", "item_boost_timer", 2.0);
         if !has_component(kart_id, "ai_input") {
-            play_sound("audio/boost_whoosh.ogg", 0.5);
+            play_sound("audio/boost_whoosh.ogg", 0.55);
         }
     } else if item_type == "shield" {
         // Protective shield
@@ -506,7 +506,7 @@ fn activate_item(kart_id, item_type) {
         }
 
         if !has_component(kart_id, "ai_input") {
-            play_sound("audio/item_trap_drop.ogg", 0.5);
+            play_sound("audio/item_trap_drop.ogg", 0.45);
         }
     }
 }
@@ -521,7 +521,7 @@ fn apply_hit(kart_id) {
         set_field(kart_id, "item_holder", "shield_active", false);
         set_field(kart_id, "item_holder", "shield_timer", 0.0);
         if !has_component(kart_id, "ai_input") {
-            play_sound("audio/item_shield_break.ogg", 0.5);
+            play_sound("audio/item_shield_break.ogg", 0.55);
         }
         return;
     }
@@ -552,6 +552,6 @@ fn apply_hit(kart_id) {
     }
 
     if !has_component(kart_id, "ai_input") {
-        play_sound("audio/item_spinout.ogg", 0.7);
+        play_sound("audio/item_spinout.ogg", 0.6);
     }
 }

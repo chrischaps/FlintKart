@@ -815,6 +815,50 @@ pitch = 1.0
 min_distance = 1.5
 max_distance = 30.0
 
+# ── Player surface sounds (engine_audio.rhai drives their volume) ──
+
+[entities.player_tire_offroad]
+parent = "player_kart"
+[entities.player_tire_offroad.transform]
+position = [0, 0.1, 0]
+[entities.player_tire_offroad.audio_source]
+file = "audio/offroad_rumble.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 25.0
+
+[entities.player_tire_curb]
+parent = "player_kart"
+[entities.player_tire_curb.transform]
+position = [0, 0.1, 0]
+[entities.player_tire_curb.audio_source]
+file = "audio/curb_rumble.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 25.0
+
+[entities.player_wall_scrape]
+parent = "player_kart"
+[entities.player_wall_scrape.transform]
+position = [0, 0.4, 0]
+[entities.player_wall_scrape.audio_source]
+file = "audio/wall_scrape.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 30.0
+
 # ── Ambient sounds (non-spatial) ──
 
 [entities.snd_wind]
@@ -846,11 +890,20 @@ pitch = 1.0
 position = [0, 0, 0]
 [entities.snd_music.audio_source]
 file = "audio/race_music.ogg"
+bus = "music"
 spatial = false
 loop = true
 autoplay = true
 volume = 0.0
 pitch = 1.0
+
+# ── One-shot effects: collisions, landings, drift tiers, boosts, final lap ──
+
+[entities.sfx]
+[entities.sfx.transform]
+position = [0, 0, 0]
+[entities.sfx.script]
+source = "sfx.rhai"
 
 
 # ============================================================
