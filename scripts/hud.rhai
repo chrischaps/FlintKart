@@ -1,56 +1,101 @@
-// hud.rhai — Heads-up display rendering
+// hud.rhai — the race HUD, pause menu and results podium
 //
-// Renders via on_draw_ui() each frame:
-//   - Speed lines (radial streaks at high speed)
-//   - Boost flash overlay (screen flash on drift→boost)
-//   - Collision flash (red edge vignette on wall hits)
-//   - Lap counter (top-left)
-//   - Race timer (top-right)
-//   - Best lap time (below timer)
-//   - Speed indicator (bottom-right)
-//   - Minimap (bottom-left)
-//   - Countdown overlay (center)
-//   - Finish overlay (center)
+// Everything is drawn in on_draw_ui() with scripts/lib/kit.rhai, styled from
+// ui/theme.toml (loaded through ui/race_hud.ui.toml's style). Layout, at
+// 720p and scaled by kit::scale():
+//
+//   top-left      item bubble, lap sticker, race timer, best lap chip
+//   top-right     position medal, standings (rows slide when places swap)
+//   bottom-right  speed dial with the drift-charge ring inside it
+//   bottom-left   minimap
+//   centre        intro card, start lights and countdown, lap / final-lap
+//                 banners, drift and wrong-way callouts
+//
+// Motion is derived from component state each frame (lap, position, held
+// item, drift tier, countdown timer), so it works whether or not the glow-up
+// events (docs/glow-up.md) are fired yet.
+//
+// Rhai scoping: fn helpers cannot see the module `let`s below, so the
+// callbacks hold all state and pass what a helper needs as parameters.
 
-// Item indicator state
-let item_flash_alpha = 0.0;
-let spinout_flash_alpha = 0.0;
-let prev_held_item = "none";
+import "kit" as kit;
 
-// Boost flash state
-let boost_flash_alpha = 0.0;
-let boost_flash_r = 1.0;
-let boost_flash_g = 1.0;
-let boost_flash_b = 1.0;
-let prev_drift_state = "none";
-
-// Collision flash state
-let collision_flash_alpha = 0.0;
-
-// Position change flash state
-let prev_race_position = 0;
-let position_flash_scale = 1.0;
-let position_flash_timer = 0.0;
-
-// Pause menu state
-let pause_selection = 0;
-let pause_options = ["Resume", "Restart Race", "Track Select", "Main Menu"];
-
-// Post-race menu state
-let finish_selection = 0;
-let finish_options = ["Restart", "Track Select", "Main Menu"];
-let finish_menu_active = false;  // becomes true after a short delay post-finish
-let hud_touch_active = false;   // latches on after first touch/tap detected
-let touch_controls_out = -1;    // last set_touch_controls(): -1 unset, 0 away, 1 out
-let prev_finish_steer = 0;      // edge detection for steering in finish menu
+// Theme map from kit::theme(), built once the UI document is loaded
+let th = ();
+let hud_ui_handle = -1;
+let hud_ui_loaded = false;
+let tracks = [];            // ui/tracks.toml entries
+let track_name = "";
+let paints = [];            // ui/paints.toml entries
+let paint_done = false;
+let reduce_motion = false;
 
 // Transition fade
 let hud_fade_alpha = 0.0;
 let hud_scene_entered = true;
 
-// Data-driven UI handle
-let hud_ui_handle = -1;
-let hud_ui_loaded = false;
+// Flashes behind the HUD
+let boost_flash_alpha = 0.0;
+let boost_flash_c = [1.0, 1.0, 1.0, 1.0];
+let collision_flash_alpha = 0.0;
+let spinout_flash_alpha = 0.0;
+
+// Position medal
+let prev_race_position = 0;
+let pos_pop_t = 9.0;        // seconds since the place changed
+let pos_delta = 0;          // places gained (+) or lost (-)
+let row_y = #{};            // standings: displayed slot per kart id
+
+// Lap sticker and banners
+let prev_lap_display = 0;
+let lap_pop_t = 9.0;
+let lap_start_time = 0.0;
+let banner_t = 9.0;         // seconds since a banner started
+let banner_text = "";
+let banner_sub = "";
+let banner_final = false;
+let prev_best = 999.0;
+let best_pop_t = 9.0;
+let new_best = false;
+
+// Item bubble
+let prev_held_item = "none";
+let item_pop_t = 9.0;       // since the item landed in the bubble
+let roulette_t = 9.0;       // since the roulette began spinning
+let item_used_t = 9.0;      // since the item left the bubble
+let used_item = "none";
+
+// Drift callouts
+let prev_drift_state = "none";
+let prev_tier = 0;
+let callout_t = 9.0;
+let callout_text = "";
+let callout_c = [1.0, 1.0, 1.0, 1.0];
+
+// Wrong way
+let wrong_way_acc = 0.0;
+let wrong_way_t = 0.0;
+let ww_last_t = -1.0;       // spline_t when it last changed
+let ww_back = false;        // did that change go backwards?
+
+// Pause menu
+let pause_selection = 0;
+let pause_t = 0.0;          // since the pause menu opened
+let pause_sel_t = 9.0;      // since the selection moved
+let pause_options = ["RESUME", "RESTART RACE", "TRACK SELECT", "MAIN MENU"];
+
+// Results
+let finish_selection = 0;
+let finish_options = ["RACE AGAIN", "TRACKS", "MENU"];
+let finish_menu_active = false;
+let finish_t = 0.0;         // since the player crossed the line
+let finish_sel_t = 9.0;
+let prev_finish_steer = 0;
+let confetti = [];
+
+// Touch
+let hud_touch_active = false;   // latches on after first touch/tap detected
+let touch_controls_out = -1;    // last set_touch_controls(): -1 unset, 0 away, 1 out
 
 // Minimap persistent cache — pre-transformed screen coords
 let minimap_ready = false;
@@ -62,20 +107,17 @@ let minimap_cx = 0.0;
 let minimap_cy = 0.0;
 let minimap_world_cx = 0.0;
 let minimap_world_cz = 0.0;
-let minimap_cached_sw = 0.0;
-let minimap_cached_sh = 0.0;
+let minimap_key = "";
 
 fn on_scene_enter() {
     hud_fade_alpha = 1.0;
     hud_scene_entered = true;
-
-    // Load data-driven HUD layout (also loads on first frame if scene_enter missed)
+    paint_done = false;
     hud_ui_handle = load_ui("ui/race_hud.ui.toml");
     hud_ui_loaded = hud_ui_handle >= 0;
 }
 
 fn on_init() {
-    // Initial scene load — also try loading UI
     if !hud_ui_loaded {
         hud_ui_handle = load_ui("ui/race_hud.ui.toml");
         hud_ui_loaded = hud_ui_handle >= 0;
@@ -86,12 +128,36 @@ fn on_draw_ui() {
     let sw = screen_width();
     let sh = screen_height();
     let dt = delta_time();
+    let k = kit::scale();
+
+    // ── Theme and data, once ──
+    if th == () {
+        if !hud_ui_loaded {
+            hud_ui_handle = load_ui("ui/race_hud.ui.toml");
+            hud_ui_loaded = hud_ui_handle >= 0;
+        }
+        th = kit::theme();
+        if !th.ok { log_warn("hud: ui/theme.toml tokens missing; is ui/race_hud.ui.toml loaded?"); }
+        let td = load_data("ui/tracks.toml");
+        if td != () { tracks = td.tracks; }
+        let pd = load_data("ui/paints.toml");
+        if pd != () { paints = pd.paints; }
+        reduce_motion = persist_get("reduce_motion") == true;
+    }
+    if track_name == "" {
+        let cur = current_scene();
+        for t in tracks {
+            let parts = t.scene.split("/");
+            if cur.contains(parts[parts.len() - 1]) { track_name = t.name; }
+        }
+        if track_name == "" { track_name = " "; }
+    }
 
     // ── Transition fades ──
     let phase = transition_phase();
     if phase == "exiting" {
         hud_fade_alpha = transition_progress();
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 10);
+        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 30);
         if hud_fade_alpha >= 1.0 {
             complete_transition();
         }
@@ -111,6 +177,24 @@ fn on_draw_ui() {
         }
     }
 
+    let kart_id = get_entity("player_kart");
+    let manager_id = get_entity("race_manager");
+
+    // ── Paint the player's kart with the racer-select choice ──
+    if !paint_done && kart_id >= 0 {
+        let pi = persist_get("player_paint");
+        if type_of(pi) == "i64" && pi >= 0 && pi < paints.len() {
+            let pc = paints[pi].color;
+            set_material_override(kart_id, "paint", pc[0], pc[1], pc[2], 1.0);
+            if has_component(kart_id, "racer_info") {
+                set_field(kart_id, "racer_info", "color_r", pc[0]);
+                set_field(kart_id, "racer_info", "color_g", pc[1]);
+                set_field(kart_id, "racer_info", "color_b", pc[2]);
+            }
+        }
+        paint_done = true;
+    }
+
     // ── Pause system ──
     let cur_state = current_state();
 
@@ -122,1193 +206,1082 @@ fn on_draw_ui() {
         set_touch_controls(want_controls == 1);
         touch_controls_out = want_controls;
     }
+    let touch_ui = hud_touch_active || touch_controls_visible();
+
     if cur_state == "paused" {
-        // Dark overlay
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.05, 0.7, 0.0, 0);
+        pause_t += dt;
+        pause_sel_t += dt;
+        let action = draw_pause(th, k, sw, sh, pause_options, pause_selection, pause_t, pause_sel_t,
+                                track_name, kart_id, touch_ui);
+        let picked = -1;
 
-        // "PAUSED" title
-        let p_title = "PAUSED";
-        let p_title_m = measure_text(p_title, 56.0);
-        draw_text((sw - p_title_m["width"]) / 2.0, sh * 0.25, p_title, 56.0, 1.0, 1.0, 1.0, 1.0);
-
-        // Menu options (vertical list)
-        let menu_y = sh * 0.42;
-        let row_h = 48.0;
-        let pi = 0;
-        while pi < pause_options.len() {
-            let label = pause_options[pi];
-            let label_m = measure_text(label, 24.0);
-            let lx = (sw - label_m["width"]) / 2.0;
-            let ly = menu_y + pi * row_h;
-
-            if pi == pause_selection {
-                // Selected: gold highlight bar + bright text
-                draw_rect_ex(lx - 20.0, ly - 6.0, label_m["width"] + 40.0, 36.0,
-                             1.0, 0.85, 0.2, 0.15, 8.0, 0);
-                draw_text(lx, ly, label, 24.0, 1.0, 0.85, 0.2, 1.0);
-                // Selection arrow
-                let p_time = total_time();
-                let arr_alpha = 0.5 + sin(p_time * 4.0) * 0.3;
-                draw_text(lx - 36.0, ly, ">", 24.0, 1.0, 0.85, 0.2, arr_alpha);
-            } else {
-                draw_text(lx, ly, label, 24.0, 0.6, 0.6, 0.65, 0.8);
-            }
-            pi += 1;
-        }
-
-        // Controls hint
-        let p_hint = "W/S to navigate  |  ENTER to select  |  ESC to resume";
-        let p_hint_m = measure_text(p_hint, 13.0);
-        draw_text((sw - p_hint_m["width"]) / 2.0, sh * 0.82, p_hint, 13.0, 0.4, 0.4, 0.45, 0.6);
-
-        // Input handling
-        if is_action_just_pressed("pause") {
-            pop_state();
+        if is_action_just_pressed("pause") || is_action_just_pressed("menu_back") {
+            picked = 0;
         } else {
             if is_action_just_pressed("menu_up") && pause_selection > 0 {
                 pause_selection -= 1;
+                pause_sel_t = 0.0;
                 play_sound("audio/ui_hover.ogg", 0.45);
             }
             if is_action_just_pressed("menu_down") && pause_selection < pause_options.len() - 1 {
                 pause_selection += 1;
+                pause_sel_t = 0.0;
                 play_sound("audio/ui_hover.ogg", 0.45);
             }
             if is_action_just_pressed("menu_confirm") {
-                if pause_selection == 0 {
-                    // Resume
-                    pop_state();
-                } else if pause_selection == 1 {
-                    // Restart Race
-                    pop_state();
-                    play_sound("audio/ui_select.ogg", 0.5);
-                    reload_scene();
-                } else if pause_selection == 2 {
-                    // Track Select
-                    pop_state();
-                    persist_set("menu_screen", "select");
-                    play_sound("audio/ui_select.ogg", 0.5);
-                    load_scene("scenes/main_menu.scene.toml");
-                } else if pause_selection == 3 {
-                    // Main Menu
-                    pop_state();
-                    play_sound("audio/ui_select.ogg", 0.5);
-                    load_scene("scenes/main_menu.scene.toml");
-                }
+                picked = pause_selection;
             }
-
-            // Touch: tap menu options directly
+            // Touch: tap a row
             let p_tc = tap_count();
-            if p_tc > 0 { hud_touch_active = true; }
-            if touch_count() > 0 { hud_touch_active = true; }
+            if p_tc > 0 || touch_count() > 0 { hud_touch_active = true; }
             let p_ti = 0;
             while p_ti < p_tc {
-                let ptx = tap_x(p_ti) * sw;
-                let pty = tap_y(p_ti) * sh;
-                let p_menu_y = sh * 0.42;
-                let p_row_h = 48.0;
-                if ptx > sw * 0.25 && ptx < sw * 0.75 && pty >= p_menu_y - 10.0 && pty < p_menu_y + pause_options.len() * p_row_h {
-                    let tapped = floor((pty - p_menu_y + 10.0) / p_row_h);
-                    if tapped >= 0 && tapped < pause_options.len() {
-                        pause_selection = tapped;
-                        if tapped == 0 {
-                            pop_state();
-                        } else if tapped == 1 {
-                            pop_state();
-                            play_sound("audio/ui_select.ogg", 0.5);
-                            reload_scene();
-                        } else if tapped == 2 {
-                            pop_state();
-                            persist_set("menu_screen", "select");
-                            play_sound("audio/ui_select.ogg", 0.5);
-                            load_scene("scenes/main_menu.scene.toml");
-                        } else if tapped == 3 {
-                            pop_state();
-                            play_sound("audio/ui_select.ogg", 0.5);
-                            load_scene("scenes/main_menu.scene.toml");
-                        }
-                    }
-                }
+                let hit = hit_row(action, tap_x(p_ti) * sw, tap_y(p_ti) * sh);
+                if hit >= 0 { pause_selection = hit; picked = hit; }
                 p_ti += 1;
             }
         }
 
-        // Draw fade on top if active
+        if picked == 0 {
+            pop_state();
+            play_sound("audio/ui_back.ogg", 0.4);
+        } else if picked == 1 {
+            pop_state();
+            play_sound("audio/ui_select.ogg", 0.5);
+            reload_scene();
+        } else if picked == 2 {
+            pop_state();
+            persist_set("menu_screen", "select");
+            play_sound("audio/ui_select.ogg", 0.5);
+            load_scene("scenes/main_menu.scene.toml");
+        } else if picked == 3 {
+            pop_state();
+            play_sound("audio/ui_select.ogg", 0.5);
+            load_scene("scenes/main_menu.scene.toml");
+        }
+
         if hud_fade_alpha > 0.01 {
-            draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 10);
+            draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 30);
         }
         return;
     }
 
     // Pause toggle (only during gameplay, not during transitions)
-    if phase == "idle" {
-        let manager_id = get_entity("race_manager");
-        if manager_id >= 0 {
-            let race_state = get_field(manager_id, "race_state", "state");
-            if race_state == "racing" || race_state == "countdown" || race_state == "finished" {
-                if is_action_just_pressed("pause") {
-                    push_state("paused");
-                    pause_selection = 0;
-                    return;
-                }
-                // Touch: pause button (top-right corner)
-                let pb_tc = tap_count();
-                if pb_tc > 0 { hud_touch_active = true; }
-                if touch_count() > 0 { hud_touch_active = true; }
-                let pb_i = 0;
-                while pb_i < pb_tc {
-                    let pb_tx = tap_x(pb_i) * sw;
-                    let pb_ty = tap_y(pb_i) * sh;
-                    if pb_tx > sw - 64.0 && pb_ty < 52.0 {
-                        push_state("paused");
-                        pause_selection = 0;
-                        return;
-                    }
-                    pb_i += 1;
-                }
-                // Draw pause button for touch users
-                if hud_touch_active || touch_controls_visible() {
-                    draw_rect_ex(sw - 56.0, 8.0, 48.0, 40.0, 0.15, 0.15, 0.2, 0.4, 8.0, 3);
-                    // Two vertical bars (pause icon)
-                    draw_rect_ex(sw - 44.0, 16.0, 8.0, 24.0, 1.0, 1.0, 1.0, 0.6, 2.0, 3);
-                    draw_rect_ex(sw - 30.0, 16.0, 8.0, 24.0, 1.0, 1.0, 1.0, 0.6, 2.0, 3);
-                }
+    if phase == "idle" && manager_id >= 0 {
+        let race_state = get_field(manager_id, "race_state", "state");
+        if race_state == "racing" || race_state == "countdown" || race_state == "finished" {
+            let open = is_action_just_pressed("pause");
+            // Touch: the pause pill at top centre
+            let pb_tc = tap_count();
+            if pb_tc > 0 || touch_count() > 0 { hud_touch_active = true; }
+            let pb_i = 0;
+            while pb_i < pb_tc {
+                let tx = tap_x(pb_i) * sw;
+                let ty = tap_y(pb_i) * sh;
+                if abs(tx - sw / 2.0) < 44.0 * k && ty < 70.0 * k { open = true; }
+                pb_i += 1;
+            }
+            if open {
+                push_state("paused");
+                pause_selection = 0;
+                pause_t = 0.0;
+                pause_sel_t = 9.0;
+                play_sound("audio/ui_select.ogg", 0.4);
+                return;
+            }
+            if touch_ui && race_state != "finished" {
+                kit::pill(th, sw / 2.0 - 30.0 * k, th.sp.safe * k, 60.0 * k, 40.0 * k, th.c.panel, k, 0.9, 4);
+                kit::rect(sw / 2.0 - 10.0 * k, th.sp.safe * k + 11.0 * k, 7.0 * k, 18.0 * k, th.c.cream, 2.0 * k, 4);
+                kit::rect(sw / 2.0 + 3.0 * k, th.sp.safe * k + 11.0 * k, 7.0 * k, 18.0 * k, th.c.cream, 2.0 * k, 4);
             }
         }
     }
 
-    let kart_id = get_entity("player_kart");
-    let manager_id = get_entity("race_manager");
     if kart_id < 0 || manager_id < 0 {
-        // Draw fade overlay even without kart (loading)
         if hud_fade_alpha > 0.01 {
-            draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 10);
+            draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 30);
         }
         return;
     }
 
     let state = get_field(manager_id, "race_state", "state");
+    let safe = th.sp.safe * k;
 
-    // Reset finish menu state when not in finished state
     if state != "finished" {
         finish_menu_active = false;
         finish_selection = 0;
         prev_finish_steer = 0;
+        finish_t = 0.0;
+        confetti = [];
     }
-
-    // ── Visual juice effects (drawn behind HUD at layer -2) ──
 
     let speed = get_field(kart_id, "kart_state", "speed");
     let max_speed = get_field(kart_id, "kart_physics", "max_speed");
-    let abs_speed = speed;
-    if abs_speed < 0.0 { abs_speed = -abs_speed; }
-    let speed_ratio = clamp(abs_speed / max_speed, 0.0, 1.0);
+    let abs_speed = abs(speed);
+    let speed_ratio = kit::clamp01(abs_speed / max_speed);
 
-    // --- Speed Lines (radial streaks from edges toward center) ---
-    if speed_ratio > 0.45 && state == "racing" {
+    // ════════════════════════════════════════════════════════
+    //  Screen flashes (behind the HUD, layer -2)
+    // ════════════════════════════════════════════════════════
+
+    // Speed lines: radial cream streaks once past 45% of top speed
+    if speed_ratio > 0.45 && state == "racing" && !reduce_motion {
         let cx = sw / 2.0;
         let cy = sh / 2.0;
         let time = total_time();
-
-        // Intensity ramps from 0 at 45% speed to full at 100%
-        let line_intensity = clamp((speed_ratio - 0.45) / 0.55, 0.0, 1.0);
-        let line_alpha = line_intensity * 0.05;
-
-        // 16 lines evenly spaced around the screen edge
+        let line_intensity = kit::clamp01((speed_ratio - 0.45) / 0.55);
         let num_lines = 16;
-        let angle_step = 6.2832 / num_lines; // TAU / 16
-        let base_rotation = time * 0.15; // Slow drift rotation
-
+        let angle_step = 6.2832 / num_lines;
+        let half_w = if sw > sh { sw / 2.0 } else { sh / 2.0 };
         let li = 0;
         while li < num_lines {
-            let angle = li * angle_step + base_rotation;
-            let dx = cos(angle);
-            let dy = sin(angle);
-
-            // Line starts from outer edge, extends inward proportional to speed
-            let outer_dist = 0.55; // 55% of half-screen
-            let inner_dist = outer_dist - line_intensity * 0.25;
-
-            // Jitter length slightly per-line using angle as seed
+            let angle = li * angle_step + time * 0.15;
             let jitter = sin(angle * 7.0 + time * 3.0) * 0.03;
-            let out_d = outer_dist + jitter;
-            let in_d = inner_dist + jitter;
-
-            let half_w = if sw > sh { sw / 2.0 } else { sh / 2.0 };
-            let x1 = cx + dx * half_w * out_d;
-            let y1 = cy + dy * half_w * out_d;
-            let x2 = cx + dx * half_w * in_d;
-            let y2 = cy + dy * half_w * in_d;
-
-            // Alternate between white and light blue for depth
-            let lr = 0.9;
-            let lg = 0.95;
-            let lb = 1.0;
-            if li % 2 == 0 {
-                lr = 1.0;
-                lg = 1.0;
-                lb = 1.0;
-            }
-
-            draw_line(x1, y1, x2, y2, lr, lg, lb, line_alpha, 1.5);
+            let out_d = 0.55 + jitter;
+            let in_d = 0.55 - line_intensity * 0.25 + jitter;
+            let c = th.c.cream;
+            draw_line(cx + cos(angle) * half_w * out_d, cy + sin(angle) * half_w * out_d,
+                      cx + cos(angle) * half_w * in_d, cy + sin(angle) * half_w * in_d,
+                      c[0], c[1], c[2], line_intensity * 0.025, 2.0 * k);
             li += 1;
         }
     }
 
-    // --- Boost Flash Overlay ---
+    // Drift state, tiers and the boost flash
+    // charge and tier are the feel pass's (#6) fields; tier edges come from
+    // kart_physics.drift_tier1..3 so the ring matches the physics' tuning.
     let drift_state = "none";
+    let d_tier = 0;
     let boost_tier = 0;
+    let d_charge = 0.0;
+    let tier_b = [0.0, 0.27, 0.57, 2.8];
     if has_component(kart_id, "drift_state") {
         drift_state = get_field(kart_id, "drift_state", "state");
+        d_tier = get_field(kart_id, "drift_state", "tier");
         boost_tier = get_field(kart_id, "drift_state", "boost_tier");
+        d_charge = get_field(kart_id, "drift_state", "charge");
+        let t1 = get_field(kart_id, "kart_physics", "drift_tier1");
+        let t2 = get_field(kart_id, "kart_physics", "drift_tier2");
+        let t3 = get_field(kart_id, "kart_physics", "drift_tier3");
+        if type_of(t3) == "f64" && t3 > 0.0 { tier_b = [0.0, t1 / t3, t2 / t3, t3]; }
     }
-
-    // Detect drift→boost transition
-    if drift_state == "boost" && prev_drift_state != "boost" {
-        boost_flash_alpha = 0.35;
-        // Color by tier
-        if boost_tier >= 3 {
-            boost_flash_r = 0.4;
-            boost_flash_g = 0.6;
-            boost_flash_b = 1.0;
-        } else if boost_tier >= 2 {
-            boost_flash_r = 1.0;
-            boost_flash_g = 0.65;
-            boost_flash_b = 0.15;
-        } else {
-            boost_flash_r = 1.0;
-            boost_flash_g = 1.0;
-            boost_flash_b = 0.9;
-        }
+    if drift_state == "boost" && prev_drift_state != "boost" && boost_tier > 0 {
+        boost_flash_alpha = 0.28;
+        boost_flash_c = kit::tier_color(th, boost_tier);
+        callout_text = "BOOST!";
+        callout_c = kit::tier_color(th, boost_tier);
+        callout_t = 0.0;
     }
+    if d_tier > prev_tier && d_tier > 0 {
+        callout_text = if d_tier >= 3 { "ULTRA!" } else if d_tier == 2 { "SUPER!" } else { "MINI!" };
+        callout_c = kit::tier_color(th, d_tier);
+        callout_t = 0.0;
+    }
+    prev_tier = d_tier;
     prev_drift_state = drift_state;
 
-    // Draw and decay boost flash
-    if boost_flash_alpha > 0.01 {
-        draw_rect_ex(0.0, 0.0, sw, sh, boost_flash_r, boost_flash_g, boost_flash_b, boost_flash_alpha, 0.0, -2);
-        boost_flash_alpha = boost_flash_alpha - dt * 1.8;
-        if boost_flash_alpha < 0.0 { boost_flash_alpha = 0.0; }
+    if boost_flash_alpha > 0.01 && !reduce_motion {
+        let c = boost_flash_c;
+        draw_rect_ex(0.0, 0.0, sw, sh, c[0], c[1], c[2], boost_flash_alpha, 0.0, -2);
     }
+    boost_flash_alpha = max(boost_flash_alpha - dt * 1.6, 0.0);
 
-    // --- Collision Flash (red edge vignette) ---
+    // Wall hit: tomato edges
     let wall_impact = get_field(kart_id, "kart_state", "wall_impact");
     if wall_impact > 2.0 {
-        let new_alpha = clamp(wall_impact * 0.04, 0.0, 0.5);
-        if new_alpha > collision_flash_alpha {
-            collision_flash_alpha = new_alpha;
+        collision_flash_alpha = max(collision_flash_alpha, clamp(wall_impact * 0.04, 0.0, 0.5));
+    }
+    if collision_flash_alpha > 0.01 {
+        edge_flash(sw, sh, 80.0 * k, th.c.tomato, collision_flash_alpha);
+        collision_flash_alpha = max(collision_flash_alpha - dt * 2.5, 0.0);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  Race data
+    // ════════════════════════════════════════════════════════
+    let current_lap = get_field(kart_id, "race_progress", "current_lap");
+    let total_laps = get_field(kart_id, "race_progress", "total_laps");
+    let lap_display = min(current_lap + 1, total_laps);
+    let race_time = get_field(kart_id, "race_progress", "race_time");
+    let best_lap = get_field(kart_id, "race_progress", "best_lap");
+
+    if state == "countdown" {
+        prev_lap_display = lap_display;
+        lap_start_time = 0.0;
+        prev_best = 999.0;
+    }
+
+    // A new lap: pop the sticker and swing a banner in
+    if state == "racing" && lap_display != prev_lap_display {
+        if lap_display > prev_lap_display && prev_lap_display > 0 {
+            lap_pop_t = 0.0;
+            banner_t = 0.0;
+            banner_final = lap_display == total_laps;
+            banner_text = if banner_final { "FINAL LAP!" } else { "LAP " + lap_display };
+            let last = race_time - lap_start_time;
+            new_best = best_lap < prev_best - 0.001 && prev_best < 900.0;
+            banner_sub = kit::format_time(last);
+            if new_best { best_pop_t = 0.0; }
+        }
+        lap_start_time = race_time;
+        prev_lap_display = lap_display;
+    }
+    if best_lap < 900.0 { prev_best = best_lap; }
+
+    // ════════════════════════════════════════════════════════
+    //  Top-left: item bubble, lap sticker, timer, best
+    // ════════════════════════════════════════════════════════
+    let racing_ui = state == "racing" || state == "countdown";
+    lap_pop_t += dt;
+    best_pop_t += dt;
+
+    if racing_ui {
+        let bx = safe + 46.0 * k;
+        let by = safe + 46.0 * k;
+        draw_item_bubble(th, k, kart_id, bx, by, roulette_t, item_pop_t, item_used_t, used_item, touch_ui);
+
+        // Lap sticker
+        let lx = safe + 104.0 * k;
+        let ly = safe;
+        let lw = 156.0 * k;
+        let lh = 56.0 * k;
+        let lap_face = if lap_display == total_laps && state == "racing" { th.c.tomato } else { th.c.panel };
+        kit::sticker(th, lx, ly, lw, lh, lap_face, k, 1.0, 2);
+        kit::label(th, lx + 14.0 * k, ly + 8.0 * k, "LAP", th.t.sm * k, th.c.label, "left", 3);
+        let lsc = kit::boing(lap_pop_t, 0.45);
+        kit::shout_c(th, lx + lw * 0.62, ly + lh * 0.52, "" + lap_display + "/" + total_laps, th.t.xl * k, th.c.cream, lsc, 1.0, 3);
+
+        // Timer
+        let ty = ly + lh + 12.0 * k;
+        kit::sticker(th, lx, ty, lw, 34.0 * k, th.c.panel, k, 1.0, 2);
+        kit::number(th, lx + lw / 2.0, ty + 5.0 * k, kit::format_time(race_time), th.t.md * k * 1.1, th.c.cream, "center", 3);
+
+        // Best lap chip
+        if best_lap < 900.0 {
+            let bsc = kit::boing(best_pop_t, 0.35);
+            let cw = lw * bsc;
+            let ch = 26.0 * k * bsc;
+            let cy = ty + 34.0 * k + 12.0 * k;
+            kit::pill(th, lx + (lw - cw) / 2.0, cy, cw, ch, th.c.grape, k, 1.0, 2);
+            kit::label(th, lx + lw / 2.0 - 6.0 * k, cy + 4.0 * k * bsc, "BEST", th.t.xs * k * bsc, th.c.cream, "right", 3);
+            kit::number(th, lx + lw / 2.0, cy + 3.0 * k * bsc, kit::format_time(best_lap), th.t.sm * k * bsc, th.c.cream, "left", 3);
         }
     }
 
-    if collision_flash_alpha > 0.01 {
-        let edge = 80.0;
-        // Top edge
-        draw_rect_ex(0.0, 0.0, sw, edge, 0.8, 0.1, 0.05, collision_flash_alpha * 0.7, 0.0, -2);
-        // Bottom edge
-        draw_rect_ex(0.0, sh - edge, sw, edge, 0.8, 0.1, 0.05, collision_flash_alpha * 0.7, 0.0, -2);
-        // Left edge
-        draw_rect_ex(0.0, 0.0, edge, sh, 0.8, 0.1, 0.05, collision_flash_alpha * 0.5, 0.0, -2);
-        // Right edge
-        draw_rect_ex(sw - edge, 0.0, edge, sh, 0.8, 0.1, 0.05, collision_flash_alpha * 0.5, 0.0, -2);
-
-        collision_flash_alpha = collision_flash_alpha - dt * 2.5;
-        if collision_flash_alpha < 0.0 { collision_flash_alpha = 0.0; }
-    }
-
-    // --- Race Position (top-center) ---
+    // ════════════════════════════════════════════════════════
+    //  Top-right: position medal and standings
+    // ════════════════════════════════════════════════════════
+    pos_pop_t += dt;
     if has_component(kart_id, "race_position") && state == "racing" {
         let pos = get_field(kart_id, "race_position", "position");
-        let total = get_field(kart_id, "race_position", "total_racers");
-
-        // Detect position change for flash effect
         if pos != prev_race_position && prev_race_position > 0 {
-            position_flash_scale = 1.6;
-            position_flash_timer = 0.0;
+            pos_delta = prev_race_position - pos;
+            pos_pop_t = 0.0;
         }
         prev_race_position = pos;
 
-        // Animate flash: ease-out from 1.6 → 1.0 over 0.4s
-        if position_flash_scale > 1.01 {
-            position_flash_timer = position_flash_timer + dt;
-            let flash_t = clamp(position_flash_timer / 0.4, 0.0, 1.0);
-            // Ease-out: 1 - (1-t)^2
-            let ease = 1.0 - (1.0 - flash_t) * (1.0 - flash_t);
-            position_flash_scale = 1.6 - ease * 0.6;
-            if position_flash_scale < 1.0 { position_flash_scale = 1.0; }
+        let mr = 44.0 * k;
+        let mx = sw - safe - mr - 4.0 * k;
+        let my = safe + mr + 4.0 * k;
+        let msc = kit::boing(pos_pop_t, 0.5);
+        let face = if pos <= 3 { kit::place_color(th, pos) } else { th.c.panel };
+        kit::bubble(th, mx, my, mr * msc, face, k, 1.0, 2);
+        let num_c = if pos <= 3 { th.c.cream } else { th.c.cream };
+        kit::shout_c(th, mx - 4.0 * k, my + 2.0 * k, "" + pos, th.t.h1 * k, num_c, msc, 1.0, 3);
+        // suffix tag
+        let tag = kit::ordinal(pos);
+        kit::pill(th, mx + mr * 0.42, my + mr * 0.38, 34.0 * k, 24.0 * k, th.c.ink, k, 1.0, 3);
+        kit::label(th, mx + mr * 0.42 + 17.0 * k, my + mr * 0.38 + 2.0 * k, tag, th.t.sm * k, th.c.cream, "center", 4);
+
+        // "+2" / "-1" flies off to the left
+        if pos_pop_t < 1.1 && pos_delta != 0 {
+            let ft = pos_pop_t / 1.1;
+            let txt = if pos_delta > 0 { "+" + pos_delta } else { "" + pos_delta };
+            let fc = if pos_delta > 0 { th.c.mint } else { th.c.tomato };
+            let fx = mx - mr - 20.0 * k - kit::ease_out_cubic(ft) * 40.0 * k;
+            let fy = my - 10.0 * k - kit::ease_out_cubic(ft) * 10.0 * k;
+            kit::shout(th, fx, fy - th.t.lg * k * 0.5, txt, th.t.lg * k, fc, "right", 1.0 - kit::ease_in_cubic(ft), 4);
         }
-
-        // Ordinal suffix
-        let suffix = "th";
-        if pos == 1 { suffix = "st"; }
-        if pos == 2 { suffix = "nd"; }
-        if pos == 3 { suffix = "rd"; }
-
-        let pos_str = "" + pos + suffix;
-        let pos_size = 48.0 * position_flash_scale;
-        let pos_w = measure_text(pos_str, pos_size);
-        let pos_x = (sw - pos_w["width"]) / 2.0;
-
-        // Position number — gold for 1st, silver for 2nd, bronze for 3rd
-        if pos == 1 {
-            draw_text_stroked(pos_x, 14.0, pos_str, pos_size, 1.0, 0.85, 0.2, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-        } else if pos == 2 {
-            draw_text_stroked(pos_x, 14.0, pos_str, pos_size, 0.8, 0.8, 0.85, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-        } else {
-            draw_text_stroked(pos_x, 14.0, pos_str, pos_size, 0.8, 0.55, 0.3, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-        }
-
-        // "of N" subtitle — larger font, thinner stroke to avoid artifacts
-        let of_str = "of " + total;
-        let of_w = measure_text(of_str, 22.0);
-        draw_text_stroked((sw - of_w["width"]) / 2.0, 72.0, of_str, 22.0, 0.7, 0.7, 0.7, 1.0, 0.0, 0.0, 0.0, 0.7, 1.5);
     }
 
-    // --- Lap Counter (top-left) — data-driven ---
-    let current_lap = get_field(kart_id, "race_progress", "current_lap");
-    let total_laps = get_field(kart_id, "race_progress", "total_laps");
-    let lap_display = current_lap + 1;
-    if lap_display > total_laps { lap_display = total_laps; }
-
-    if hud_ui_loaded {
-        ui_set_text("lap_value", "" + lap_display + " / " + total_laps);
-    } else {
-        draw_text_stroked(20.0, 17.0, "LAP", 22.0, 0.7, 0.7, 0.7, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-        draw_text_stroked(80.0, 14.0, "" + lap_display + " / " + total_laps, 28.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-    }
-
-    // --- Race Timer (top-right) — data-driven ---
-    let race_time = get_field(kart_id, "race_progress", "race_time");
-    let timer_str = format_time(race_time);
-
-    if hud_ui_loaded {
-        ui_set_text("timer_value", timer_str);
-    } else {
-        draw_text_stroked(sw - 230.0, 17.0, "TIME", 22.0, 0.7, 0.7, 0.7, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-        draw_text_stroked(sw - 160.0, 14.0, timer_str, 28.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-    }
-
-    // --- Best Lap (below timer) — data-driven ---
-    let best_lap = get_field(kart_id, "race_progress", "best_lap");
-    if best_lap < 900.0 {
-        if hud_ui_loaded {
-            ui_show("best_panel");
-            ui_set_text("best_value", format_time(best_lap));
-        } else {
-            draw_text_stroked(sw - 230.0, 69.0, "BEST", 18.0, 0.5, 0.8, 0.5, 1.0, 0.0, 0.0, 0.0, 0.8, 1.5);
-            draw_text_stroked(sw - 160.0, 68.0, format_time(best_lap), 20.0, 0.5, 1.0, 0.5, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-        }
-    } else if hud_ui_loaded {
-        ui_hide("best_panel");
-    }
-
-    // --- Leaderboard (right side, during racing/countdown/finishing) ---
-    // On a short touch screen the right thumb's DRIFT and ITEM need that
-    // side: the board gives way, and the big position stays.
+    // Standings: one pill per racer; rows glide to their new slot
     let board_room = !(touch_controls_visible() && sh < 600.0);
-    if (state == "racing" || state == "countdown") && board_room {
-        let all_karts = find_entities_with("race_position");
-        let num = all_karts.len();
-        if num > 0 {
-            // Sort by position (insertion sort)
-            let sorted = [];
-            let si = 0;
-            while si < num {
-                sorted.push(all_karts[si]);
-                si += 1;
-            }
-            let sa = 1;
-            while sa < sorted.len() {
-                let key = sorted[sa];
-                let key_pos = get_field(key, "race_position", "position");
-                let sb = sa - 1;
-                let sdone = false;
-                while sb >= 0 && !sdone {
-                    let cmp_pos = get_field(sorted[sb], "race_position", "position");
-                    if cmp_pos > key_pos {
-                        sorted[sb + 1] = sorted[sb];
-                        sb -= 1;
-                    } else {
-                        sdone = true;
-                    }
-                }
-                sorted[sb + 1] = key;
-                sa += 1;
-            }
-
-            // Leaderboard panel
-            let lb_w = 170.0;
-            let row_h = 30.0;
-            let lb_h = 24.0 + num * row_h;
-            let lb_x = sw - 220.0;
-            let lb_y = 105.0;
-            if best_lap < 900.0 { lb_y = 105.0; }
-
-            draw_rect_ex(lb_x, lb_y, lb_w, lb_h, 0.0, 0.0, 0.0, 0.5, 8.0, -1);
-
-            // Header
-            draw_text(lb_x + 10.0, lb_y + 4.0, "STANDINGS", 14.0, 1.0, 1.0, 0.95, 0.95);
-
-            // Rows
-            let ri = 0;
-            while ri < sorted.len() {
-                let eid = sorted[ri];
-                let rpos = get_field(eid, "race_position", "position");
-                let ry = lb_y + 22.0 + ri * row_h;
-
-                // Highlight player row
-                let is_player = !has_component(eid, "ai_input");
-                if is_player {
-                    draw_rect_ex(lb_x + 2.0, ry - 1.0, lb_w - 4.0, row_h - 2.0, 1.0, 1.0, 1.0, 0.08, 4.0, -1);
-                }
-
-                // Position number with medal color
-                let pos_r = 0.8;
-                let pos_g = 0.8;
-                let pos_b = 0.8;
-                if rpos == 1 { pos_r = 1.0; pos_g = 0.85; pos_b = 0.2; }
-                if rpos == 2 { pos_r = 0.8; pos_g = 0.8; pos_b = 0.85; }
-                if rpos == 3 { pos_r = 0.8; pos_g = 0.55; pos_b = 0.3; }
-                draw_text(lb_x + 10.0, ry + 3.0, "" + rpos, 18.0, pos_r, pos_g, pos_b, 1.0);
-
-                // Color dot
-                let cr = 0.9;
-                let cg = 0.9;
-                let cb = 0.9;
-                if has_component(eid, "racer_info") {
-                    cr = get_field(eid, "racer_info", "color_r");
-                    cg = get_field(eid, "racer_info", "color_g");
-                    cb = get_field(eid, "racer_info", "color_b");
-                }
-                draw_circle(lb_x + 38.0, ry + 12.0, 5.0, cr, cg, cb, 1.0);
-
-                // Name
-                let rname = "Racer";
-                if has_component(eid, "racer_info") {
-                    rname = get_field(eid, "racer_info", "name");
-                }
-                let name_alpha = 0.9;
-                if is_player { name_alpha = 1.0; }
-                draw_text(lb_x + 50.0, ry + 3.0, rname, 16.0, 1.0, 1.0, 1.0, name_alpha);
-
-                // Lap indicator
-                let rlap = get_field(eid, "race_progress", "current_lap");
-                let rtotal = get_field(eid, "race_progress", "total_laps");
-                let rlap_d = rlap + 1;
-                if rlap_d > rtotal { rlap_d = rtotal; }
-                draw_text(lb_x + 130.0, ry + 5.0, "L" + rlap_d, 13.0, 1.0, 1.0, 0.9, 0.85);
-
-                ri += 1;
-            }
+    if racing_ui && board_room {
+        let sorted = sort_by_position(find_entities_with("race_position"));
+        let rw = 168.0 * k;
+        let rh = 26.0 * k;
+        let gap = 6.0 * k;
+        let rx = sw - safe - rw;
+        let top = safe + 108.0 * k;
+        let ri = 0;
+        while ri < sorted.len() {
+            let eid = sorted[ri];
+            let key = "" + eid;
+            let target = ri * 1.0;
+            let cur = if row_y.contains(key) { row_y[key] } else { target };
+            cur = kit::approach(cur, target, 0.35, dt);
+            row_y[key] = cur;
+            ri += 1;
         }
-    }
-
-    // --- Speed (bottom-right) — data-driven ---
-    let speed = get_field(kart_id, "kart_state", "speed");
-    let kmh = floor(abs(speed) * 3.6); // m/s to km/h
-
-    if hud_ui_loaded {
-        ui_set_text("speed_num", "" + kmh);
-    } else {
-        draw_text_stroked(sw - 165.0, sh - 48.0, "" + kmh, 36.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-        draw_text_stroked(sw - 50.0, sh - 41.0, "km/h", 22.0, 0.7, 0.7, 0.7, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-    }
-
-    // --- Countdown Overlay ---
-    let countdown_display = get_field(manager_id, "race_state", "countdown_display");
-    if countdown_display != "" {
-        // Semi-transparent backdrop
-        if state == "countdown" {
-            draw_rect(0.0, sh / 2.0 - 60.0, sw, 120.0, 0.0, 0.0, 0.0, 0.3);
-        }
-
-        // Large centered text
-        let text_size = 80.0;
-        if countdown_display == "GO!" {
-            text_size = 100.0;
-        }
-        let text_width = measure_text(countdown_display, text_size);
-        let tx = (sw - text_width["width"]) / 2.0;
-        let ty = sh / 2.0 - text_size / 2.0;
-
-        if countdown_display == "GO!" {
-            draw_text(tx, ty, countdown_display, text_size, 0.2, 1.0, 0.2, 1.0);
-        } else {
-            draw_text(tx, ty, countdown_display, text_size, 1.0, 1.0, 1.0, 1.0);
-        }
-    }
-
-    // --- Finish Overlay ---
-    if state == "finished" {
-        // Solid dark overlay at z=-1 so text at z=0 draws on top
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.05, 0.05, 0.08, 0.92, 0.0, -1);
-
-        // Get all racers for standings
-        let finish_karts = find_entities_with("race_position");
-        let fnum = finish_karts.len();
-
-        // Sort by position
-        let fsorted = [];
-        let fi = 0;
-        while fi < fnum {
-            fsorted.push(finish_karts[fi]);
-            fi += 1;
-        }
-        let fa = 1;
-        while fa < fsorted.len() {
-            let fkey = fsorted[fa];
-            let fkey_pos = get_field(fkey, "race_position", "position");
-            let fb = fa - 1;
-            let fdone = false;
-            while fb >= 0 && !fdone {
-                let fcmp_pos = get_field(fsorted[fb], "race_position", "position");
-                if fcmp_pos > fkey_pos {
-                    fsorted[fb + 1] = fsorted[fb];
-                    fb -= 1;
-                } else {
-                    fdone = true;
-                }
-            }
-            fsorted[fb + 1] = fkey;
-            fa += 1;
-        }
-
-        // Results panel with subtle border (z=-1 so text at z=0 draws on top)
-        let panel_w = 400.0;
-        let frow_h = 36.0;
-        let panel_h = 170.0 + fnum * frow_h;
-        let panel_x = (sw - panel_w) / 2.0;
-        let panel_y = (sh - panel_h) / 2.0;
-        draw_rect_ex(panel_x - 1.0, panel_y - 1.0, panel_w + 2.0, panel_h + 2.0, 0.3, 0.3, 0.35, 0.5, 13.0, -1);
-        draw_rect_ex(panel_x, panel_y, panel_w, panel_h, 0.10, 0.10, 0.14, 1.0, 12.0, -1);
-
-        // Title
-        let title = "RACE COMPLETE";
-        let title_w = measure_text(title, 36.0);
-        draw_text((sw - title_w["width"]) / 2.0, panel_y + 20.0, title, 36.0, 1.0, 0.85, 0.2, 1.0);
-
-        // Player stats
-        let player_finish = get_field(kart_id, "race_progress", "finish_time");
-        if player_finish == () || player_finish <= 0.0 { player_finish = race_time; }
-        let final_time_str = "Your Time: " + format_time(player_finish);
-        let ftw = measure_text(final_time_str, 22.0);
-        draw_text((sw - ftw["width"]) / 2.0, panel_y + 65.0, final_time_str, 22.0, 1.0, 1.0, 1.0, 1.0);
-
-        if best_lap < 900.0 {
-            let best_str = "Best Lap: " + format_time(best_lap);
-            let bw = measure_text(best_str, 18.0);
-            draw_text((sw - bw["width"]) / 2.0, panel_y + 92.0, best_str, 18.0, 0.4, 0.9, 0.4, 1.0);
-        }
-
-        // Standings table
-        let table_y = panel_y + 124.0;
-
-        // Get winner's finish time for gap calculation
-        let winner_ft = 0.0;
-        if fsorted.len() > 0 {
-            winner_ft = get_field(fsorted[0], "race_progress", "finish_time");
-            if winner_ft == () || winner_ft <= 0.0 {
-                winner_ft = get_field(fsorted[0], "race_progress", "race_time");
-            }
-        }
-
-        let fri = 0;
-        while fri < fsorted.len() {
-            let feid = fsorted[fri];
-            let fpos = get_field(feid, "race_position", "position");
-            let fry = table_y + fri * frow_h;
-            let f_is_player = !has_component(feid, "ai_input");
-
-            // Alternating row backgrounds for readability
-            if fri % 2 == 0 {
-                draw_rect_ex(panel_x + 8.0, fry - 2.0, panel_w - 16.0, frow_h - 2.0, 1.0, 1.0, 1.0, 0.04, 4.0, -1);
-            }
-
-            // Highlight player row
-            if f_is_player {
-                draw_rect_ex(panel_x + 8.0, fry - 2.0, panel_w - 16.0, frow_h - 2.0, 0.4, 0.6, 1.0, 0.12, 4.0, -1);
-            }
-
-            // Position with medal color
-            let fp_r = 0.85;
-            let fp_g = 0.85;
-            let fp_b = 0.85;
-            if fpos == 1 { fp_r = 1.0; fp_g = 0.85; fp_b = 0.2; }
-            if fpos == 2 { fp_r = 0.78; fp_g = 0.78; fp_b = 0.85; }
-            if fpos == 3 { fp_r = 0.85; fp_g = 0.6; fp_b = 0.3; }
-
-            let fsuffix = "th";
-            if fpos == 1 { fsuffix = "st"; }
-            if fpos == 2 { fsuffix = "nd"; }
-            if fpos == 3 { fsuffix = "rd"; }
-
-            draw_text(panel_x + 20.0, fry + 5.0, "" + fpos + fsuffix, 20.0, fp_r, fp_g, fp_b, 1.0);
-
-            // Color dot
-            let fcr = 0.9;
-            let fcg = 0.9;
-            let fcb = 0.9;
-            if has_component(feid, "racer_info") {
-                fcr = get_field(feid, "racer_info", "color_r");
-                fcg = get_field(feid, "racer_info", "color_g");
-                fcb = get_field(feid, "racer_info", "color_b");
-            }
-            draw_circle(panel_x + 78.0, fry + 15.0, 6.0, fcr, fcg, fcb, 1.0);
-
-            // Name — bright white
-            let fname = "Racer";
-            if has_component(feid, "racer_info") {
-                fname = get_field(feid, "racer_info", "name");
-            }
-            draw_text(panel_x + 94.0, fry + 5.0, fname, 18.0, 1.0, 1.0, 1.0, 1.0);
-
-            // Finish time display
-            let ftime = get_field(feid, "race_progress", "finish_time");
-            let has_finished = ftime != () && ftime > 0.0;
-
-            let ftime_str = "";
-            let ftime_r = 0.9;
-            let ftime_g = 0.9;
-            let ftime_b = 0.9;
-
-            if !has_finished {
-                // Kart hasn't crossed the line yet — show "---"
-                ftime_str = "---";
-                ftime_r = 0.45;
-                ftime_g = 0.45;
-                ftime_b = 0.45;
-            } else if fpos == 1 {
-                // Winner: full time in bright white
-                ftime_str = format_time(ftime);
+        // A row climbing past another swings out to the left so the two
+        // never overprint; the player is drawn last, riding on top.
+        let player_slot = -1.0;
+        let player_nudge = 0.0;
+        ri = 0;
+        while ri < sorted.len() {
+            let eid = sorted[ri];
+            let cur = row_y["" + eid];
+            let nudge = kit::clamp01((cur - ri) * 2.0) * 36.0 * k;
+            if has_component(eid, "ai_input") {
+                draw_standing_row(th, k, eid, rx - nudge, top + cur * (rh + gap), rw, rh, false);
             } else {
-                // Others: show gap from winner
-                let gap = ftime - winner_ft;
-                if gap < 0.01 {
-                    ftime_str = format_time(ftime);
-                } else {
-                    ftime_str = "+" + format_time(gap);
-                    ftime_r = 0.7;
-                    ftime_g = 0.8;
-                    ftime_b = 0.7;
-                }
+                player_slot = cur;
+                player_nudge = nudge;
             }
-
-            let ftime_w = measure_text(ftime_str, 16.0);
-            draw_text(panel_x + panel_w - 22.0 - ftime_w["width"], fry + 7.0, ftime_str, 16.0, ftime_r, ftime_g, ftime_b, 1.0);
-
-            fri += 1;
+            ri += 1;
         }
-
-        // ── Post-race menu options ──
-        let opt_y = panel_y + panel_h - 48.0;
-        let opt_gap = 160.0;
-        let total_opt_w = finish_options.len() * opt_gap;
-        let opt_start_x = (sw - total_opt_w) / 2.0 + opt_gap / 2.0;
-
-        // Activate menu after a brief delay so player doesn't accidentally skip
-        if !finish_menu_active {
-            finish_menu_active = true;
-            finish_selection = 0;
-        }
-
-        let oi = 0;
-        while oi < finish_options.len() {
-            let opt_x = opt_start_x + oi * opt_gap;
-            let opt_label = finish_options[oi];
-            let opt_m = measure_text(opt_label, 18.0);
-            let olx = opt_x - opt_m["width"] / 2.0;
-
-            if oi == finish_selection {
-                // Highlight background
-                draw_rect_ex(olx - 12.0, opt_y - 4.0, opt_m["width"] + 24.0, 28.0,
-                             1.0, 0.85, 0.2, 0.2, 6.0, -1);
-                draw_text(olx, opt_y, opt_label, 18.0, 1.0, 0.85, 0.2, 1.0);
-            } else {
-                draw_text(olx, opt_y, opt_label, 18.0, 0.6, 0.6, 0.6, 0.8);
-            }
-            oi += 1;
-        }
-
-        // Hint
-        let hint = "A/D to select  |  ENTER to confirm  |  R to quick restart";
-        let hint_m = measure_text(hint, 12.0);
-        draw_text((sw - hint_m["width"]) / 2.0, opt_y + 32.0, hint, 12.0, 0.4, 0.4, 0.45, 0.6);
-
-        // Navigation input — left/right via steering axis with edge detection
-        let f_steer = action_value("steering");
-        let f_dir = 0;
-        if f_steer > 0.5 { f_dir = 1; }
-        if f_steer < -0.5 { f_dir = -1; }
-
-        if f_dir != 0 && f_dir != prev_finish_steer {
-            if f_dir > 0 && finish_selection < finish_options.len() - 1 {
-                finish_selection += 1;
-                play_sound("audio/ui_hover.ogg", 0.45);
-            }
-            if f_dir < 0 && finish_selection > 0 {
-                finish_selection -= 1;
-                play_sound("audio/ui_hover.ogg", 0.45);
-            }
-        }
-        prev_finish_steer = f_dir;
-
-        // Confirm
-        if is_action_just_pressed("menu_confirm") && finish_menu_active {
-            if finish_selection == 0 {
-                // Restart
-                play_sound("audio/ui_select.ogg", 0.5);
-                reload_scene();
-            } else if finish_selection == 1 {
-                // Track Select
-                persist_set("menu_screen", "select");
-                play_sound("audio/ui_select.ogg", 0.5);
-                load_scene("scenes/main_menu.scene.toml");
-            } else if finish_selection == 2 {
-                // Main Menu
-                play_sound("audio/ui_select.ogg", 0.5);
-                load_scene("scenes/main_menu.scene.toml");
-            }
-        }
-
-        // Touch: tap finish menu options
-        if finish_menu_active {
-            let f_tc = tap_count();
-            let f_ti = 0;
-            while f_ti < f_tc {
-                let ftx = tap_x(f_ti) * sw;
-                let fty = tap_y(f_ti) * sh;
-                // Check each option — horizontal layout
-                let foi = 0;
-                while foi < finish_options.len() {
-                    let fo_cx = opt_start_x + foi * opt_gap;
-                    let fo_half_w = 80.0;
-                    if ftx > fo_cx - fo_half_w && ftx < fo_cx + fo_half_w && fty > opt_y - 12.0 && fty < opt_y + 32.0 {
-                        finish_selection = foi;
-                        play_sound("audio/ui_select.ogg", 0.5);
-                        if foi == 0 { reload_scene(); }
-                        else if foi == 1 { persist_set("menu_screen", "select"); load_scene("scenes/main_menu.scene.toml"); }
-                        else if foi == 2 { load_scene("scenes/main_menu.scene.toml"); }
-                    }
-                    foi += 1;
-                }
-                f_ti += 1;
-            }
+        if player_slot >= 0.0 {
+            draw_standing_row(th, k, kart_id, rx - 6.0 * k - player_nudge, top + player_slot * (rh + gap), rw + 6.0 * k, rh, true);
         }
     }
 
-    // --- Item Indicator (bottom-center-left, next to drift bar) ---
-    if has_component(kart_id, "item_holder") {
-        let held_item = get_field(kart_id, "item_holder", "held_item");
-        let shield_on = get_field(kart_id, "item_holder", "shield_active");
-        let iboost_on = get_field(kart_id, "item_holder", "item_boost_active");
-        let spinout_on = get_field(kart_id, "item_holder", "spinout_active");
-
-        // Flash on new item pickup
-        if held_item != "none" && prev_held_item == "none" {
-            item_flash_alpha = 0.8;
+    // ════════════════════════════════════════════════════════
+    //  Bottom-right: speed dial with drift ring
+    // ════════════════════════════════════════════════════════
+    if racing_ui {
+        let dr = 62.0 * k;
+        let dcx = sw - safe - dr - 12.0 * k;
+        let dcy = sh - safe - dr * 0.78;
+        if touch_controls_visible() {
+            // the right thumb's DRIFT and ITEM live there: the dial moves to the middle
+            dcx = sw / 2.0;
+            dcy = sh - safe - dr * 0.7;
         }
-        prev_held_item = held_item;
-
-        // Item flash decay
-        if item_flash_alpha > 0.01 {
-            item_flash_alpha = item_flash_alpha - dt * 3.0;
-            if item_flash_alpha < 0.0 { item_flash_alpha = 0.0; }
+        kit::speed_dial(th, dcx, dcy, dr, speed_ratio, k, 1.0, 2);
+        if d_charge > 0.0 || drift_state == "drifting" {
+            kit::drift_ring(th, dcx, dcy, dr - 19.0 * k, kit::clamp01(d_charge / tier_b[3]),
+                            tier_b[1], tier_b[2], k, 1.0, 2);
         }
-
-        // Spinout flash
-        if spinout_on {
-            spinout_flash_alpha = 0.3;
-        }
-        if spinout_flash_alpha > 0.01 {
-            spinout_flash_alpha = spinout_flash_alpha - dt * 2.0;
-            if spinout_flash_alpha < 0.0 { spinout_flash_alpha = 0.0; }
-        }
-
-        // Draw spinout yellow edge flash
-        if spinout_flash_alpha > 0.01 {
-            let edge = 60.0;
-            draw_rect_ex(0.0, 0.0, sw, edge, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.6, 0.0, -2);
-            draw_rect_ex(0.0, sh - edge, sw, edge, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.6, 0.0, -2);
-            draw_rect_ex(0.0, 0.0, edge, sh, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.4, 0.0, -2);
-            draw_rect_ex(sw - edge, 0.0, edge, sh, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.4, 0.0, -2);
-        }
-
-        // Show item box if holding an item OR an effect is active
-        let show_indicator = held_item != "none" || shield_on || iboost_on || spinout_on;
-        if show_indicator && state == "racing" {
-            let box_w = 56.0;
-            let box_h = 56.0;
-            let box_x = sw / 2.0 - box_w / 2.0 - 140.0;
-            let box_y = sh - 90.0;
-
-            // Background
-            let bg_alpha = 0.6;
-            if item_flash_alpha > 0.01 { bg_alpha = 0.8; }
-            draw_rect_ex(box_x, box_y, box_w, box_h, 0.08, 0.08, 0.12, bg_alpha, 8.0, 1);
-
-            // Flash highlight border
-            if item_flash_alpha > 0.01 {
-                draw_rect_ex(box_x - 2.0, box_y - 2.0, box_w + 4.0, box_h + 4.0,
-                             1.0, 0.9, 0.3, item_flash_alpha, 10.0, 1);
-            }
-
-            // Icon + color by type
-            let icon = "";
-            let icon_r = 1.0;
-            let icon_g = 1.0;
-            let icon_b = 1.0;
-            let icon_size = 20.0;
-
-            if spinout_on {
-                icon = "!!!";
-                icon_r = 0.9;
-                icon_g = 0.8;
-                icon_b = 0.1;
-                icon_size = 22.0;
-            } else if shield_on {
-                icon = "(O)";
-                icon_r = 0.2;
-                icon_g = 0.9;
-                icon_b = 0.3;
-                // Pulsing effect
-                let pulse = 0.7 + 0.3 * sin(total_time() * 6.0);
-                icon_r = icon_r * pulse + 0.3 * (1.0 - pulse);
-                icon_g = icon_g * pulse + 0.3 * (1.0 - pulse);
-            } else if iboost_on {
-                icon = ">>>";
-                icon_r = 0.2;
-                icon_g = 0.9;
-                icon_b = 1.0;
-                icon_size = 22.0;
-            } else if held_item == "boost" {
-                icon = ">>>";
-                icon_r = 0.2;
-                icon_g = 0.9;
-                icon_b = 1.0;
-            } else if held_item == "shield" {
-                icon = "(O)";
-                icon_r = 0.2;
-                icon_g = 0.9;
-                icon_b = 0.3;
-            } else if held_item == "projectile" {
-                icon = ">>O";
-                icon_r = 1.0;
-                icon_g = 0.6;
-                icon_b = 0.15;
-            } else if held_item == "trap" {
-                icon = "[X]";
-                icon_r = 0.6;
-                icon_g = 0.2;
-                icon_b = 0.85;
-            }
-
-            if icon != "" {
-                let im = measure_text(icon, icon_size);
-                let ix = box_x + (box_w - im["width"]) / 2.0;
-                let iy = box_y + (box_h - icon_size) / 2.0 - 2.0;
-                draw_text_stroked(ix, iy, icon, icon_size, icon_r, icon_g, icon_b, 1.0,
-                                  0.0, 0.0, 0.0, 0.8, 1.5);
-            }
-
-            // Key hint below (only when holding, not during active effects)
-            if held_item != "none" && !shield_on && !iboost_on && !spinout_on {
-                let hint = if touch_controls_visible() { "ITEM" } else { "[E]" };
-                let hm = measure_text(hint, 12.0);
-                let hx = box_x + (box_w - hm["width"]) / 2.0;
-                draw_text(hx, box_y + box_h + 4.0, hint, 12.0, 0.6, 0.6, 0.65, 0.7);
-            }
-
-            // Timer bar for active effects
-            let timer_val = 0.0;
-            let timer_max = 1.0;
-            if shield_on {
-                timer_val = get_field(kart_id, "item_holder", "shield_timer");
-                timer_max = 8.0;
-            } else if iboost_on {
-                timer_val = get_field(kart_id, "item_holder", "item_boost_timer");
-                timer_max = 2.0;
-            } else if spinout_on {
-                timer_val = get_field(kart_id, "item_holder", "spinout_timer");
-                timer_max = 1.5;
-            }
-
-            if timer_val > 0.0 {
-                let bar_w = box_w - 8.0;
-                let bar_h = 4.0;
-                let bar_x = box_x + 4.0;
-                let bar_y = box_y + box_h - 8.0;
-                let fill = clamp(timer_val / timer_max, 0.0, 1.0);
-                draw_rect_ex(bar_x, bar_y, bar_w, bar_h, 0.2, 0.2, 0.2, 0.5, 2.0, 1);
-                draw_rect_ex(bar_x, bar_y, bar_w * fill, bar_h, icon_r, icon_g, icon_b, 0.8, 2.0, 1);
-            }
-        }
+        let kmh = floor(abs_speed * 3.6).to_int();
+        let spd_c = if drift_state == "boost" { th.c.sun } else { th.c.cream };
+        kit::shout_c(th, dcx, dcy + 2.0 * k, "" + kmh, th.t.xl * k, spd_c, 1.0, 1.0, 3);
+        kit::label(th, dcx, dcy + 20.0 * k, "km/h", th.t.xs * k, th.c.label, "center", 3);
     }
 
-    // --- Drift Meter (bottom-center) ---
-    if has_component(kart_id, "drift_state") {
-        let d_state = get_field(kart_id, "drift_state", "state");
-        let d_timer = get_field(kart_id, "drift_state", "drift_timer");
-        let d_tier = get_field(kart_id, "drift_state", "boost_tier");
-        let d_boost_remaining = get_field(kart_id, "drift_state", "boost_time_remaining");
-        let d_boost_bonus = get_field(kart_id, "drift_state", "boost_speed_bonus");
-
-        if d_state == "drifting" || d_state == "boost" {
-            let bar_w = 200.0;
-            let bar_h = 14.0;
-            let bar_x = (sw - bar_w) / 2.0;
-            let bar_y = sh - 80.0;
-
-            if d_state == "drifting" {
-                // Three tier segments: tier1 0–0.8s, tier2 0.8–1.8s, tier3 1.8–3.5s
-                let seg1_w = bar_w * (0.8 / 3.5);
-                let seg2_w = bar_w * (1.0 / 3.5);
-                let seg3_w = bar_w * (1.7 / 3.5);
-
-                // Segment backgrounds (dark)
-                draw_rect(bar_x, bar_y, seg1_w, bar_h, 0.15, 0.15, 0.15, 0.8);
-                draw_rect(bar_x + seg1_w, bar_y, seg2_w, bar_h, 0.12, 0.12, 0.12, 0.8);
-                draw_rect(bar_x + seg1_w + seg2_w, bar_y, seg3_w, bar_h, 0.1, 0.1, 0.1, 0.8);
-
-                // Fill based on timer
-                let fill_ratio = d_timer / 3.5;
-                if fill_ratio > 1.0 { fill_ratio = 1.0; }
-                let fill_w = bar_w * fill_ratio;
-
-                // Color based on current tier
-                if d_tier >= 3 {
-                    // Ultra blue
-                    draw_rect(bar_x, bar_y, fill_w, bar_h, 0.3, 0.5, 1.0, 0.9);
-                } else if d_tier >= 2 {
-                    // Super orange
-                    draw_rect(bar_x, bar_y, fill_w, bar_h, 1.0, 0.6, 0.1, 0.9);
-                } else if d_tier >= 1 {
-                    // Mini white/yellow
-                    draw_rect(bar_x, bar_y, fill_w, bar_h, 1.0, 1.0, 0.8, 0.9);
-                } else {
-                    // Building (not yet tier 1) — dim white
-                    draw_rect(bar_x, bar_y, fill_w, bar_h, 0.6, 0.6, 0.6, 0.7);
-                }
-
-                // Tier label
-                let tier_label = "";
-                if d_tier >= 3 {
-                    tier_label = "ULTRA";
-                } else if d_tier >= 2 {
-                    tier_label = "SUPER";
-                } else if d_tier >= 1 {
-                    tier_label = "MINI";
-                }
-
-                if tier_label != "" {
-                    let lw = measure_text(tier_label, 14.0);
-                    let lx = (sw - lw["width"]) / 2.0;
-                    if d_tier >= 3 {
-                        draw_text_stroked(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 0.3, 0.5, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-                    } else if d_tier >= 2 {
-                        draw_text_stroked(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 1.0, 0.6, 0.1, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-                    } else {
-                        draw_text_stroked(lx, bar_y + bar_h + 2.0, tier_label, 14.0, 1.0, 1.0, 0.8, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-                    }
-                }
-            } else if d_state == "boost" {
-                // Boost: bar drains as boost_time_remaining decreases
-                let max_boost_time = 0.5;
-                if d_tier >= 3 {
-                    max_boost_time = 1.2;
-                } else if d_tier >= 2 {
-                    max_boost_time = 0.8;
-                }
-                let drain_ratio = d_boost_remaining / max_boost_time;
-                if drain_ratio < 0.0 { drain_ratio = 0.0; }
-                if drain_ratio > 1.0 { drain_ratio = 1.0; }
-                let drain_w = bar_w * drain_ratio;
-
-                // Color based on tier
-                if d_tier >= 3 {
-                    draw_rect(bar_x, bar_y, drain_w, bar_h, 0.3, 0.5, 1.0, 0.9);
-                } else if d_tier >= 2 {
-                    draw_rect(bar_x, bar_y, drain_w, bar_h, 1.0, 0.6, 0.1, 0.9);
-                } else {
-                    draw_rect(bar_x, bar_y, drain_w, bar_h, 1.0, 1.0, 0.8, 0.9);
-                }
-
-                let boost_label = "BOOST!";
-                let blw = measure_text(boost_label, 14.0);
-                draw_text_stroked((sw - blw["width"]) / 2.0, bar_y + bar_h + 2.0, boost_label, 14.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-            }
-        }
-    }
-
-    // --- Minimap (bottom-left) ---
-    if state == "racing" || state == "countdown" {
-        let map_w = 180.0;
-        let map_h = 190.0;
-        let map_x = 10.0;
-        let map_y = sh - map_h - 10.0;
-
-        // Lazy-init: cache track points as screen coords (once, or on resize)
-        if !minimap_ready || minimap_cached_sw != sw || minimap_cached_sh != sh {
+    // ════════════════════════════════════════════════════════
+    //  Bottom-left: minimap
+    // ════════════════════════════════════════════════════════
+    if racing_ui {
+        let map_s = 168.0 * k;
+        let map_x = safe;
+        let map_y = sh - safe - map_s;
+        if touch_controls_visible() { map_y = safe + 190.0 * k; map_s = 130.0 * k; }
+        let key = "" + map_x + "," + map_y + "," + map_s;
+        if !minimap_ready || minimap_key != key {
             let track_id = get_entity("track_path");
             if track_id >= 0 && has_component(track_id, "spline_data") {
                 let count = get_field(track_id, "spline_data", "sample_count");
                 let px = get_field(track_id, "spline_data", "positions_x");
                 let pz = get_field(track_id, "spline_data", "positions_z");
-
-                if count > 0 {
-                    // Compute world-space bounding box
-                    let min_x = px[0];
-                    let max_x = px[0];
-                    let min_z = pz[0];
-                    let max_z = pz[0];
+                if count > 1 {
+                    let min_x = px[0]; let max_x = px[0];
+                    let min_z = pz[0]; let max_z = pz[0];
                     let bi = 1;
                     while bi < count {
-                        if px[bi] < min_x { min_x = px[bi]; }
-                        if px[bi] > max_x { max_x = px[bi]; }
-                        if pz[bi] < min_z { min_z = pz[bi]; }
-                        if pz[bi] > max_z { max_z = pz[bi]; }
+                        min_x = min(min_x, px[bi]); max_x = max(max_x, px[bi]);
+                        min_z = min(min_z, pz[bi]); max_z = max(max_z, pz[bi]);
                         bi += 1;
                     }
-
                     minimap_world_cx = (min_x + max_x) / 2.0;
                     minimap_world_cz = (min_z + max_z) / 2.0;
-
-                    // Drawing area with margins
-                    let draw_w = map_w - 24.0;
-                    let draw_h = map_h - 34.0;
-                    minimap_cx = map_x + map_w / 2.0;
-                    minimap_cy = map_y + 22.0 + draw_h / 2.0;
-
-                    // Scale to fit (uniform)
-                    let range_x = max_x - min_x;
-                    let range_z = max_z - min_z;
-                    if range_x < 1.0 { range_x = 1.0; }
-                    if range_z < 1.0 { range_z = 1.0; }
-                    let sx = draw_w / range_x;
-                    let sz = draw_h / range_z;
-                    if sx < sz { minimap_scale = sx; } else { minimap_scale = sz; }
-
-                    // Pre-transform all points to screen coords
+                    let inner = map_s - 28.0 * k;
+                    minimap_cx = map_x + map_s / 2.0;
+                    minimap_cy = map_y + map_s / 2.0;
+                    minimap_scale = min(inner / max(max_x - min_x, 1.0), inner / max(max_z - min_z, 1.0));
                     minimap_pts_x = [];
                     minimap_pts_y = [];
+                    let step = max(1, count / 160);
                     let ti = 0;
                     while ti < count {
                         minimap_pts_x.push(minimap_cx + (px[ti] - minimap_world_cx) * minimap_scale);
                         minimap_pts_y.push(minimap_cy + (pz[ti] - minimap_world_cz) * minimap_scale);
-                        ti += 1;
+                        ti += step;
                     }
-                    minimap_pt_count = count;
-                    minimap_cached_sw = sw;
-                    minimap_cached_sh = sh;
+                    minimap_pt_count = minimap_pts_x.len();
+                    minimap_key = key;
                     minimap_ready = true;
                 }
             }
         }
-
         if minimap_ready {
-            draw_text_stroked(map_x + 10.0, map_y + 4.0, "MAP", 18.0, 0.6, 0.6, 0.6, 1.0, 0.0, 0.0, 0.0, 0.8, 2.0);
-
-            // Track outline — pass 1: shadow
+            kit::sticker(th, map_x, map_y, map_s, map_s, kit::fade(th.c.panel, 0.8), k, 1.0, 1);
+            let n = minimap_pt_count;
+            let ink = th.c.ink;
+            let cr = th.c.cream;
             let si = 0;
-            while si < minimap_pt_count - 1 {
-                draw_line(minimap_pts_x[si], minimap_pts_y[si],
-                          minimap_pts_x[si + 1], minimap_pts_y[si + 1],
-                          0.15, 0.15, 0.2, 0.5, 4.0);
+            while si < n {
+                let nx = (si + 1) % n;
+                draw_line_ex(minimap_pts_x[si], minimap_pts_y[si], minimap_pts_x[nx], minimap_pts_y[nx],
+                             ink[0], ink[1], ink[2], 1.0, 9.0 * k, 1);
                 si += 1;
             }
-            // Close the loop
-            draw_line(minimap_pts_x[minimap_pt_count - 1], minimap_pts_y[minimap_pt_count - 1],
-                      minimap_pts_x[0], minimap_pts_y[0],
-                      0.15, 0.15, 0.2, 0.5, 4.0);
-
-            // Track outline — pass 2: surface
-            let si2 = 0;
-            while si2 < minimap_pt_count - 1 {
-                draw_line(minimap_pts_x[si2], minimap_pts_y[si2],
-                          minimap_pts_x[si2 + 1], minimap_pts_y[si2 + 1],
-                          0.35, 0.35, 0.4, 0.9, 2.0);
-                si2 += 1;
+            si = 0;
+            while si < n {
+                let nx = (si + 1) % n;
+                draw_line_ex(minimap_pts_x[si], minimap_pts_y[si], minimap_pts_x[nx], minimap_pts_y[nx],
+                             cr[0], cr[1], cr[2], 0.85, 4.0 * k, 1);
+                si += 1;
             }
-            draw_line(minimap_pts_x[minimap_pt_count - 1], minimap_pts_y[minimap_pt_count - 1],
-                      minimap_pts_x[0], minimap_pts_y[0],
-                      0.35, 0.35, 0.4, 0.9, 2.0);
+            // start line: a little sun tick
+            kit::circle(minimap_pts_x[0], minimap_pts_y[0], 4.5 * k, th.c.ink, 1);
+            kit::circle(minimap_pts_x[0], minimap_pts_y[0], 3.0 * k, th.c.sun, 1);
 
-            // Start/finish marker — gold dot at index 0
-            draw_circle(minimap_pts_x[0], minimap_pts_y[0], 3.0, 1.0, 0.85, 0.2, 0.9);
-
-            // Item box dots — small yellow dots for active boxes
             let item_boxes = find_entities_with("item_box");
-            let ibi = 0;
-            while ibi < item_boxes.len() {
-                let ib_id = item_boxes[ibi];
-                let ib_active = get_field(ib_id, "item_box", "active");
-                if ib_active {
+            for ib_id in item_boxes {
+                if get_field(ib_id, "item_box", "active") {
                     let ibpos = get_position(ib_id);
-                    let ib_sx = minimap_cx + (ibpos["x"] - minimap_world_cx) * minimap_scale;
-                    let ib_sy = minimap_cy + (ibpos["z"] - minimap_world_cz) * minimap_scale;
-                    draw_circle(ib_sx, ib_sy, 2.0, 0.95, 0.85, 0.2, 0.7);
+                    kit::circle(minimap_cx + (ibpos["x"] - minimap_world_cx) * minimap_scale,
+                                minimap_cy + (ibpos["z"] - minimap_world_cz) * minimap_scale,
+                                2.2 * k, kit::fade(th.c.sun, 0.8), 1);
                 }
-                ibi += 1;
             }
-
-            // Racer dots
-            let all_karts = find_entities_with("kart_state");
-            let player_sx = 0.0;
-            let player_sy = 0.0;
-            let player_found = false;
-
-            let ki = 0;
-            while ki < all_karts.len() {
-                let eid = all_karts[ki];
-                let is_player = !has_component(eid, "ai_input");
-                let pos = get_position(eid);
-                let dot_x = minimap_cx + (pos["x"] - minimap_world_cx) * minimap_scale;
-                let dot_y = minimap_cy + (pos["z"] - minimap_world_cz) * minimap_scale;
-
-                if is_player {
-                    // Save player position for drawing last (on top)
-                    player_sx = dot_x;
-                    player_sy = dot_y;
-                    player_found = true;
+            let px_s = 0.0;
+            let py_s = 0.0;
+            for eid in find_entities_with("kart_state") {
+                let p = get_position(eid);
+                let dx = minimap_cx + (p["x"] - minimap_world_cx) * minimap_scale;
+                let dy = minimap_cy + (p["z"] - minimap_world_cz) * minimap_scale;
+                if has_component(eid, "ai_input") {
+                    kit::circle(dx, dy, 5.0 * k, th.c.ink, 1);
+                    kit::circle(dx, dy, 3.5 * k, racer_color(eid), 1);
                 } else {
-                    // AI kart — colored dot
-                    let cr = 0.8;
-                    let cg = 0.8;
-                    let cb = 0.8;
-                    if has_component(eid, "racer_info") {
-                        cr = get_field(eid, "racer_info", "color_r");
-                        cg = get_field(eid, "racer_info", "color_g");
-                        cb = get_field(eid, "racer_info", "color_b");
-                    }
-                    draw_circle(dot_x, dot_y, 3.5, cr, cg, cb, 1.0);
+                    px_s = dx;
+                    py_s = dy;
                 }
-                ki += 1;
             }
+            let pulse = 1.0 + 0.25 * sin(total_time() * 6.0);
+            kit::circle(px_s, py_s, 8.0 * k * pulse, kit::fade(th.c.sun, 0.35), 1);
+            kit::circle(px_s, py_s, 6.5 * k, th.c.ink, 1);
+            kit::circle(px_s, py_s, 4.8 * k, th.c.sun, 1);
+        }
+    }
 
-            // Player dot — drawn last so it's always on top
-            if player_found {
-                draw_circle_outline(player_sx, player_sy, 6.0, 1.0, 1.0, 1.0, 0.7, 1.5);
-                draw_circle(player_sx, player_sy, 4.0, 1.0, 1.0, 1.0, 1.0);
+    // ════════════════════════════════════════════════════════
+    //  Centre: intro card, start lights, countdown, GO
+    // ════════════════════════════════════════════════════════
+    let cd_timer = get_field(manager_id, "race_state", "countdown_timer");
+    if state == "countdown" {
+        let local = 4.0 - cd_timer;    // 0..4 across the countdown
+        // Intro card through the first second, gone as "3" lands
+        if local < 1.15 {
+            let tin = kit::ease_out_back(local / 0.45, th.m.overshoot);
+            let tout = kit::ease_in_cubic((local - 0.85) / 0.3);
+            let cw = 440.0 * k;
+            let ch = 104.0 * k;
+            let cx = (sw - cw) / 2.0 + (1.0 - tin) * sw * 0.6 - tout * sw * 0.7;
+            let cy = sh * 0.30;
+            kit::sticker(th, cx, cy, cw, ch, th.c.cream, k, 1.0, 5);
+            kit::shout(th, cx + cw / 2.0, cy + 10.0 * k, track_name.to_upper(), th.t.xl * k, th.c.sun, "center", 1.0, 6);
+            let racers = find_entities_with("race_position").len();
+            kit::label(th, cx + cw / 2.0, cy + 66.0 * k, "" + total_laps + " LAPS  ·  " + racers + " RACERS",
+                       th.t.md * k, th.c.ink, "center", 6);
+        }
+        if local >= 1.0 {
+            draw_start_lights(th, k, sw / 2.0, sh * 0.16, floor(local).to_int(), false);
+            let n = 4 - floor(local).to_int();   // 3, 2, 1
+            let t = local - floor(local);
+            let c = if n == 3 { th.c.tomato } else if n == 2 { th.c.sun } else { th.c.sky };
+            draw_count_number(th, k, sw / 2.0, sh * 0.44, "" + n, c, t, reduce_motion);
+        }
+    } else if state == "racing" && race_time < 1.6 {
+        draw_start_lights(th, k, sw / 2.0, sh * 0.16, 4, race_time > 1.2);
+        let t = race_time;
+        let a = 1.0 - kit::ease_in_cubic((t - 1.0) / 0.6);
+        let sc = if reduce_motion { 1.0 } else { kit::boing(t, 0.55) };
+        let ring = t / 0.7;
+        if ring < 1.0 && !reduce_motion {
+            kit::arc(sw / 2.0, sh * 0.44, (70.0 + ring * 260.0) * k, 14.0 * k * (1.0 - ring), 0.0, 360.0,
+                     kit::fade(th.c.mint, 0.7 * (1.0 - ring)), 5);
+        }
+        kit::shout_c(th, sw / 2.0, sh * 0.44, "GO!", th.t.hero * k * 1.1, th.c.mint, sc, a, 6);
+    }
+
+    // ── Lap / final-lap banner ──
+    banner_t += dt;
+    if banner_t < 2.4 && state == "racing" {
+        draw_lap_banner(th, k, sw, sh, banner_text, banner_sub, banner_final, new_best, banner_t, reduce_motion);
+    }
+
+    // ── Drift / boost callout above the kart ──
+    callout_t += dt;
+    if callout_t < 0.8 && state == "racing" {
+        let a = 1.0 - kit::ease_in_cubic((callout_t - 0.5) / 0.3);
+        let sc = kit::boing(callout_t, 0.4);
+        kit::shout_c(th, sw / 2.0, sh * 0.70 - callout_t * 30.0 * k, callout_text, th.t.lg * k * 1.3, callout_c, sc, a, 5);
+    }
+
+    // ── Wrong way ──
+    // spline_t moves in sample steps (one every ~2 m), so most frames it
+    // doesn't change: judge by the direction of its last change.
+    let st = get_field(kart_id, "race_progress", "spline_t");
+    if st != ww_last_t {
+        let dtt = st - ww_last_t;
+        if dtt > 0.5 { dtt -= 1.0; }
+        if dtt < -0.5 { dtt += 1.0; }
+        ww_back = ww_last_t >= 0.0 && dtt < 0.0 && dtt > -0.05;
+        ww_last_t = st;
+    }
+    if state == "racing" && abs_speed > 3.0 && ww_back {
+        wrong_way_acc = min(wrong_way_acc + dt, 2.0);
+    } else {
+        wrong_way_acc = max(wrong_way_acc - dt * 2.5, 0.0);
+    }
+    if wrong_way_acc > 0.6 && state == "racing" {
+        wrong_way_t += dt;
+        let a = kit::clamp01(wrong_way_t / 0.15);
+        let sc = 1.0 + 0.06 * sin(wrong_way_t * 9.0);
+        let ww = 300.0 * k * sc;
+        let wh = 64.0 * k * sc;
+        let wx = (sw - ww) / 2.0;
+        let wy = sh * 0.30;
+        kit::sticker(th, wx, wy, ww, wh, th.c.tomato, k, a, 5);
+        kit::shout_c(th, sw / 2.0, wy + wh / 2.0 + 2.0 * k, "WRONG WAY!", th.t.xl * k, th.c.cream, sc, a, 6);
+    } else {
+        wrong_way_t = 0.0;
+    }
+
+    // ── Item effects: spinout flash ──
+    if has_component(kart_id, "item_holder") {
+        if get_field(kart_id, "item_holder", "spinout_active") {
+            if spinout_flash_alpha < 0.05 {
+                callout_text = "WHOOPS!";
+                callout_c = th.c.sun;
+                callout_t = 0.0;
+            }
+            spinout_flash_alpha = 0.3;
+        }
+        if spinout_flash_alpha > 0.01 {
+            edge_flash(sw, sh, 60.0 * k, th.c.sun, spinout_flash_alpha);
+            spinout_flash_alpha = max(spinout_flash_alpha - dt * 2.0, 0.0);
+        }
+        // track pickups and uses for the bubble's motion
+        let held = get_field(kart_id, "item_holder", "held_item");
+        if held != "none" && prev_held_item == "none" {
+            roulette_t = 0.0;
+            item_pop_t = -0.6;     // lands when the roulette stops
+        }
+        if held == "none" && prev_held_item != "none" {
+            item_used_t = 0.0;
+            used_item = prev_held_item;
+        }
+        prev_held_item = held;
+    }
+    roulette_t += dt;
+    item_pop_t += dt;
+    item_used_t += dt;
+
+    // ════════════════════════════════════════════════════════
+    //  Results
+    // ════════════════════════════════════════════════════════
+    // Held back while race_manager's finish camera and slow motion play:
+    // finish_elapsed is real seconds since the line (-1 before), and the
+    // results come in 2.8 s after it. A FINISH! shout fills the wait.
+    let finish_elapsed = get_field(manager_id, "race_state", "finish_elapsed");
+    let has_elapsed = type_of(finish_elapsed) == "f64" && finish_elapsed >= 0.0;
+    if state == "finished" {
+        if has_elapsed { finish_t = finish_elapsed - 2.8; } else { finish_t += dt; }
+        if has_elapsed && finish_elapsed < 2.8 {
+            let fa = 1.0 - kit::ease_in_cubic((finish_elapsed - 2.3) / 0.5);
+            let fsc = if reduce_motion { 1.0 } else { kit::boing(finish_elapsed, 0.5) };
+            kit::shout_c(th, sw / 2.0, sh * 0.32, "FINISH!", th.t.h1 * k * 1.2, th.c.sun, fsc, fa, 6);
+        }
+    }
+    if state == "finished" && finish_t >= 0.0 {
+        finish_sel_t += dt;
+        if !finish_menu_active {
+            finish_menu_active = true;
+            finish_selection = 0;
+            finish_sel_t = 9.0;
+            let player_pos = get_field(kart_id, "race_position", "position");
+            confetti = make_confetti(th, if player_pos <= 3 { 90 } else { 30 }, sw);
+        }
+        // confetti rains behind the panels
+        let ci = 0;
+        let ct = total_time();
+        while ci < confetti.len() {
+            let p = confetti[ci];
+            p.y += p.fall * dt * k;
+            p.x += sin(ct * 1.3 + p.ph) * p.sway * dt * k;
+            if p.y > sh + 20.0 { p.y = -20.0; }
+            confetti[ci] = p;
+            let w = p.w * k * max(abs(sin(ct * p.spin + p.ph)), 0.15);
+            kit::rect(p.x - w / 2.0, p.y, w, p.h * k, p.c, 1.5 * k, 7);
+            ci += 1;
+        }
+
+        let rects = draw_results(th, k, sw, sh, kart_id, manager_id, finish_t, finish_options, finish_selection, finish_sel_t, touch_ui);
+
+        // Navigation: left/right on the steering axis with edge detection
+        if finish_t > 0.8 {
+            let f_steer = action_value("steering");
+            let f_dir = if f_steer > 0.5 { 1 } else if f_steer < -0.5 { -1 } else { 0 };
+            if f_dir != 0 && f_dir != prev_finish_steer {
+                let ns = max(min(finish_selection + f_dir, finish_options.len() - 1), 0);
+                if ns != finish_selection {
+                    finish_selection = ns;
+                    finish_sel_t = 0.0;
+                    play_sound("audio/ui_hover.ogg", 0.45);
+                }
+            }
+            prev_finish_steer = f_dir;
+
+            let picked = -1;
+            if is_action_just_pressed("menu_confirm") { picked = finish_selection; }
+            let f_tc = tap_count();
+            let f_ti = 0;
+            while f_ti < f_tc {
+                let hit = hit_row(rects, tap_x(f_ti) * sw, tap_y(f_ti) * sh);
+                if hit >= 0 { finish_selection = hit; picked = hit; }
+                f_ti += 1;
+            }
+            if picked >= 0 {
+                play_sound("audio/ui_select.ogg", 0.5);
+                if picked == 0 {
+                    reload_scene();
+                } else if picked == 1 {
+                    persist_set("menu_screen", "select");
+                    load_scene("scenes/main_menu.scene.toml");
+                } else {
+                    load_scene("scenes/main_menu.scene.toml");
+                }
             }
         }
     }
 
-    // ── Transition fade overlay (drawn on top of everything) ──
+    // ── Transition fade overlay (on top of everything) ──
     if hud_fade_alpha > 0.01 {
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 10);
+        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 30);
     }
 }
 
-fn format_time(seconds) {
-    if seconds < 0.0 { seconds = 0.0; }
-    let total_cs = floor(seconds * 100.0).to_int();
-    let mins = total_cs / 6000;
-    let secs = (total_cs % 6000) / 100;
-    let frac = total_cs % 100;
+// ════════════════════════════════════════════════════════════════════════
+//  Helpers (no module state: everything arrives as a parameter)
+// ════════════════════════════════════════════════════════════════════════
 
-    let result = "";
-    if mins > 0 {
-        result = result + mins + ":";
-        if secs < 10 { result = result + "0"; }
+fn racer_color(eid) {
+    if has_component(eid, "racer_info") {
+        return [get_field(eid, "racer_info", "color_r"), get_field(eid, "racer_info", "color_g"),
+                get_field(eid, "racer_info", "color_b"), 1.0];
     }
-    result = result + secs + ".";
-    if frac < 10 { result = result + "0"; }
-    result = result + frac;
-    result
+    [0.9, 0.9, 0.9, 1.0]
+}
+
+fn racer_name(eid) {
+    if has_component(eid, "racer_info") { return get_field(eid, "racer_info", "name"); }
+    "Racer"
+}
+
+fn sort_by_position(ids) {
+    let sorted = [];
+    for id in ids { sorted.push(id); }
+    let a = 1;
+    while a < sorted.len() {
+        let key = sorted[a];
+        let key_pos = get_field(key, "race_position", "position");
+        let b = a - 1;
+        while b >= 0 && get_field(sorted[b], "race_position", "position") > key_pos {
+            sorted[b + 1] = sorted[b];
+            b -= 1;
+        }
+        sorted[b + 1] = key;
+        a += 1;
+    }
+    sorted
+}
+
+// Coloured bands at the screen edges (wall hit, spinout).
+fn edge_flash(sw, sh, edge, c, a) {
+    draw_rect_ex(0.0, 0.0, sw, edge, c[0], c[1], c[2], a * 0.7, 0.0, -2);
+    draw_rect_ex(0.0, sh - edge, sw, edge, c[0], c[1], c[2], a * 0.7, 0.0, -2);
+    draw_rect_ex(0.0, 0.0, edge, sh, c[0], c[1], c[2], a * 0.5, 0.0, -2);
+    draw_rect_ex(sw - edge, 0.0, edge, sh, c[0], c[1], c[2], a * 0.5, 0.0, -2);
+}
+
+// Which rect (from a list of #{x, y, w, h}) contains the point, or -1.
+fn hit_row(rects, x, y) {
+    let i = 0;
+    while i < rects.len() {
+        let r = rects[i];
+        if x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h { return i; }
+        i += 1;
+    }
+    -1
+}
+
+fn draw_standing_row(th, k, eid, x, y, w, h, is_player) {
+    let pos = get_field(eid, "race_position", "position");
+    let face = if is_player { th.c.sun } else { th.c.panel };
+    let txt = if is_player { th.c.ink } else { th.c.cream };
+    kit::pill(th, x, y, w, h, face, k, 1.0, 2);
+    let pc = if is_player { th.c.ink } else if pos <= 3 { kit::place_color(th, pos) } else { th.c.label };
+    kit::number(th, x + 16.0 * k, y + 3.0 * k, "" + pos, th.t.md * k, pc, "center", 3);
+    let dot = racer_color(eid);
+    kit::circle(x + 38.0 * k, y + h / 2.0, 7.0 * k, th.c.ink, 3);
+    kit::circle(x + 38.0 * k, y + h / 2.0, 5.0 * k, dot, 3);
+    kit::label(th, x + 52.0 * k, y + 4.0 * k, racer_name(eid), th.t.sm * k, txt, "left", 3);
+}
+
+// The item bubble: empty ring when there is nothing, a spinning roulette for
+// 0.6 s after a pickup, then the item lands with a squash and a bounce.
+fn draw_item_bubble(th, k, kart_id, cx, cy, roulette_t, item_pop_t, item_used_t, used_item, touch_ui) {
+    let r = 38.0 * k;
+    let held = "none";
+    let shield_on = false;
+    let boost_on = false;
+    let shield_left = 0.0;
+    let boost_left = 0.0;
+    if has_component(kart_id, "item_holder") {
+        held = get_field(kart_id, "item_holder", "held_item");
+        shield_on = get_field(kart_id, "item_holder", "shield_active");
+        boost_on = get_field(kart_id, "item_holder", "item_boost_active");
+        shield_left = get_field(kart_id, "item_holder", "shield_timer");
+        boost_left = get_field(kart_id, "item_holder", "item_boost_timer");
+    }
+
+    // squash and stretch on landing
+    let sx = 1.0;
+    let sy = 1.0;
+    if item_pop_t >= 0.0 && item_pop_t < 0.6 {
+        let s = th.m.squash * exp(-6.0 * item_pop_t) * cos(16.0 * item_pop_t);
+        sx = 1.0 + s;
+        sy = 1.0 - s;
+    }
+    let face = if held != "none" { th.c.cream } else { th.c.panel };
+    kit::bubble(th, cx, cy, r * (sx + sy) / 2.0, face, k, 1.0, 2);
+
+    let icon = held;
+    if held != "none" && roulette_t < 0.6 {
+        let items = ["boost", "shield", "projectile", "trap"];
+        icon = items[floor(roulette_t / 0.07).to_int() % 4];
+    }
+    if icon != "none" {
+        kit::item_icon(th, icon, cx, cy, r * 0.56 * sy, 1.0, 3);
+        if held != "none" && roulette_t >= 0.6 {
+            let hint = if touch_ui { "ITEM" } else { "E" };
+            let hw = if touch_ui { 46.0 * k } else { 26.0 * k };
+            kit::pill(th, cx - hw / 2.0, cy + r - 4.0 * k, hw, 22.0 * k, th.c.sun, k, 1.0, 3);
+            kit::label(th, cx, cy + r - 2.0 * k, hint, th.t.sm * k, th.c.ink, "center", 4);
+        }
+    } else {
+        kit::label(th, cx, cy - 9.0 * k, "ITEM", th.t.xs * k, th.c.quiet, "center", 3);
+    }
+
+    // a ring puffs outward when an item is used
+    if item_used_t < 0.4 {
+        let t = item_used_t / 0.4;
+        kit::arc(cx, cy, r + t * 30.0 * k, 6.0 * k * (1.0 - t), 0.0, 360.0, kit::fade(th.c.sun, 1.0 - t), 3);
+    }
+
+    // active effect timers as a ring around the bubble
+    let ring_t = 0.0;
+    let ring_c = th.c.sky;
+    if shield_on { ring_t = kit::clamp01(shield_left / 8.0); ring_c = th.c.sky; }
+    else if boost_on { ring_t = kit::clamp01(boost_left / 2.0); ring_c = th.c.sun; }
+    if ring_t > 0.0 {
+        kit::arc(cx, cy, r + 9.0 * k, 9.0 * k, 0.0, 360.0, th.c.ink, 2);
+        kit::arc(cx, cy, r + 9.0 * k, 5.0 * k, 0.0, 360.0 * ring_t, ring_c, 3);
+    }
+}
+
+// Three lamps in a pill: n lit tomato during the count, all mint at GO.
+fn draw_start_lights(th, k, cx, cy, n_lit, fading) {
+    let w = 150.0 * k;
+    let h = 48.0 * k;
+    let a = if fading { 0.0 } else { 1.0 };
+    if fading { return; }
+    kit::pill(th, cx - w / 2.0, cy - h / 2.0, w, h, th.c.panel, k, a, 4);
+    let i = 0;
+    while i < 3 {
+        let lx = cx - 44.0 * k + i * 44.0 * k;
+        let c = if n_lit >= 4 { th.c.mint } else if i < n_lit { th.c.tomato } else { kit::fade(th.c.ink, 0.8) };
+        kit::circle(lx, cy, 15.0 * k, th.c.ink, 5);
+        kit::circle(lx, cy, 12.0 * k, c, 5);
+        if n_lit >= 4 || i < n_lit {
+            kit::circle(lx - 4.0 * k, cy - 4.0 * k, 4.0 * k, kit::fade(th.c.cream, 0.6), 5);
+        }
+        i += 1;
+    }
+}
+
+// A countdown numeral: slams in big, settles with a bounce, a ring bursts
+// behind it, and it shrinks away at the end of its second.
+fn draw_count_number(th, k, cx, cy, s, c, t, reduce_motion) {
+    let sin_t = kit::ease_out_back(t / 0.28, th.m.overshoot);
+    let sc = 2.1 - 1.1 * sin_t;
+    let out = kit::ease_in_cubic((t - 0.78) / 0.22);
+    sc = sc * (1.0 - out * 0.6);
+    if reduce_motion { sc = 1.0; }
+    let a = 1.0 - out;
+    let ring = t / 0.6;
+    if ring < 1.0 && !reduce_motion {
+        kit::arc(cx, cy, (60.0 + ring * 200.0) * k, 12.0 * k * (1.0 - ring), 0.0, 360.0, kit::fade(c, 0.6 * (1.0 - ring)), 5);
+    }
+    kit::shout_c(th, cx, cy, s, th.t.hero * k, c, sc, a, 6);
+}
+
+// LAP 2 / FINAL LAP! ribbon: swings in from the right, holds, flies out left.
+fn draw_lap_banner(th, k, sw, sh, text, sub, final_lap, new_best, t, reduce_motion) {
+    let tin = kit::ease_out_back(t / th.m.banner_in, th.m.overshoot);
+    let tout = kit::ease_in_cubic((t - th.m.banner_in - th.m.banner_hold) / 0.35);
+    let w = (if final_lap { 470.0 } else { 330.0 }) * k;
+    let h = 78.0 * k;
+    let x = (sw - w) / 2.0 + (1.0 - tin) * sw * 0.7 - tout * sw * 0.9;
+    if reduce_motion { x = (sw - w) / 2.0; }
+    let y = sh * 0.22;
+    let face = if final_lap { th.c.tomato } else { th.c.sun };
+    // ribbon: a skewed slab with an ink outline and drop
+    let sk = 18.0 * k;
+    let o = th.s.outline * k;
+    let d = th.s.drop * k;
+    kit::poly([[x + sk - o, y - o + d], [x + w + sk + o, y - o + d], [x + w - sk + o, y + h + o + d], [x - sk - o, y + h + o + d]], kit::fade(th.c.ink, 0.45), 5);
+    kit::poly([[x + sk - o, y - o], [x + w + sk + o, y - o], [x + w - sk + o, y + h + o], [x - sk - o, y + h + o]], th.c.ink, 5);
+    kit::poly([[x + sk, y], [x + w + sk, y], [x + w - sk, y + h], [x - sk, y + h]], face, 5);
+    kit::poly([[x + sk + 3.0 * k, y + 3.0 * k], [x + w + sk - 3.0 * k, y + 3.0 * k], [x + w + sk * 0.55, y + h * 0.36], [x + sk * 0.55, y + h * 0.36]], kit::shine_of(th, face), 5);
+    let wob = if final_lap && !reduce_motion { 1.0 + 0.05 * sin(t * 14.0) } else { 1.0 };
+    kit::shout_c(th, x + w / 2.0, y + h / 2.0 + 2.0 * k, text, th.t.h2 * k, th.c.cream, wob, 1.0, 6);
+    if sub != "" {
+        let cw = (if new_best { 250.0 } else { 140.0 }) * k;
+        let cx = x + (w - cw) / 2.0;
+        let cy = y + h + 12.0 * k;
+        let cf = if new_best { th.c.grape } else { th.c.panel };
+        kit::pill(th, cx, cy, cw, 30.0 * k, cf, k, 1.0, 5);
+        let txt = if new_best { "NEW BEST!  " + sub } else { sub };
+        kit::number(th, cx + cw / 2.0, cy + 4.0 * k, txt, th.t.md * k, th.c.cream, "center", 6);
+    }
+}
+
+// Pause: a wash, a cream card that drops in with a bounce, and pill rows.
+// Returns the row rects for tap testing.
+fn draw_pause(th, k, sw, sh, options, sel, t, sel_t, track_name, kart_id, touch_ui) {
+    kit::rect(0.0, 0.0, sw, sh, kit::fade(th.c.wash, kit::clamp01(t / 0.15)), 0.0, 20);
+    let cw = 380.0 * k;
+    let row_h = th.sp.row_menu * k;
+    let ch = 96.0 * k + options.len() * row_h;
+    let drop = kit::ease_out_back(t / 0.4, th.m.overshoot);
+    let cx = (sw - cw) / 2.0;
+    let cy = (sh - ch) / 2.0 + 10.0 * k - (1.0 - drop) * sh * 0.8;
+    kit::sticker(th, cx, cy, cw, ch, th.c.cream, k, 1.0, 21);
+    kit::shout(th, cx + cw / 2.0, cy - 36.0 * k, "PAUSED", th.t.h1 * k, th.c.sun, "center", 1.0, 22);
+
+    // where you are
+    let info = track_name;
+    if kart_id >= 0 && has_component(kart_id, "race_position") {
+        let lap = min(get_field(kart_id, "race_progress", "current_lap") + 1, get_field(kart_id, "race_progress", "total_laps"));
+        let pos = get_field(kart_id, "race_position", "position");
+        info = "LAP " + lap + "  ·  " + pos + kit::ordinal(pos);
+        if track_name != " " && track_name != "" { info = track_name + "  ·  " + info; }
+    }
+    kit::label(th, cx + cw / 2.0, cy + 54.0 * k, info, th.t.sm * k, th.c.quiet, "center", 22);
+
+    let rects = [];
+    let i = 0;
+    let ry0 = cy + 88.0 * k;
+    let rw = cw - 60.0 * k;
+    while i < options.len() {
+        let selected = i == sel;
+        let sc = if selected { kit::boing(sel_t, 0.12) } else { 1.0 };
+        let w = rw * sc;
+        let h = (row_h - 14.0 * k) * sc;
+        let x = cx + (cw - w) / 2.0;
+        let y = ry0 + i * row_h + (row_h - 14.0 * k - h) / 2.0;
+        let face = if selected { th.c.sun } else { th.c.panel };
+        let tc = if selected { th.c.ink } else { th.c.cream };
+        kit::pill(th, x, y, w, h, face, k, 1.0, 22);
+        kit::label(th, cx + cw / 2.0, y + h / 2.0 - th.t.lg * k * 0.62, options[i], th.t.lg * k, tc, "center", 23);
+        if selected {
+            let bob = sin(total_time() * 8.0) * 4.0 * k;
+            kit::poly([[x + 16.0 * k + bob, y + h / 2.0 - 8.0 * k], [x + 28.0 * k + bob, y + h / 2.0], [x + 16.0 * k + bob, y + h / 2.0 + 8.0 * k]], th.c.ink, 23);
+        }
+        rects.push(#{ x: cx, y: ry0 + i * row_h, w: cw, h: row_h });
+        i += 1;
+    }
+    let hint = if touch_ui { "Tap a row" } else { "W/S to move  ·  ENTER to pick  ·  ESC to resume" };
+    kit::hint(th, sw / 2.0, cy + ch + 18.0 * k, hint, k, 1.0, 22);
+    rects
+}
+
+// Confetti in the palette, one map per piece.
+fn make_confetti(th, n, sw) {
+    let cols = [th.c.sun, th.c.tomato, th.c.sky, th.c.grape, th.c.mint, th.c.cream];
+    let out = [];
+    let i = 0;
+    while i < n {
+        let s = i * 1.37 + 0.5;
+        out.push(#{
+            x: kit::hash01(s) * sw,
+            y: -20.0 - kit::hash01(s + 3.1) * 700.0,
+            fall: 70.0 + kit::hash01(s + 7.7) * 90.0,
+            sway: 20.0 + kit::hash01(s + 9.3) * 50.0,
+            ph: kit::hash01(s + 1.9) * 6.283,
+            spin: 3.0 + kit::hash01(s + 4.4) * 5.0,
+            w: 8.0 + kit::hash01(s + 5.5) * 6.0,
+            h: 10.0 + kit::hash01(s + 6.6) * 6.0,
+            c: cols[i % cols.len()]
+        });
+        i += 1;
+    }
+    out
+}
+
+// Results: a headline, a podium for the top three that rises block by block,
+// the full standings, and the menu pills. Returns the pill rects.
+fn draw_results(th, k, sw, sh, kart_id, manager_id, t, options, sel, sel_t, touch_ui) {
+    kit::rect(0.0, 0.0, sw, sh, kit::fade(th.c.wash, kit::clamp01(t / 0.3)), 0.0, 6);
+
+    let sorted = sort_by_position(find_entities_with("race_position"));
+    let player_pos = get_field(kart_id, "race_position", "position");
+    let headline = if player_pos == 1 { "WINNER!" } else if player_pos == 2 { "SO CLOSE!" }
+                   else if player_pos == 3 { "ON THE PODIUM!" } else { "RACE COMPLETE" };
+    let hc = if player_pos <= 3 { kit::place_color(th, player_pos) } else { th.c.cream };
+    let hsc = kit::ease_out_back(t / 0.45, th.m.overshoot);
+    let wob = 1.0 + 0.03 * sin(t * 5.0);
+    kit::shout_c(th, sw / 2.0, sh * 0.11, headline, th.t.h1 * k, hc, hsc * wob, kit::clamp01(t / 0.2), 9);
+
+    // Your time and best lap chips
+    let my_time = get_field(kart_id, "race_progress", "finish_time");
+    if my_time <= 0.0 { my_time = get_field(kart_id, "race_progress", "race_time"); }
+    let best = get_field(kart_id, "race_progress", "best_lap");
+    let chip_a = kit::clamp01((t - 0.3) / 0.3);
+    let cw = 200.0 * k;
+    let ch = 32.0 * k;
+    let cy = sh * 0.11 + 46.0 * k;
+    kit::pill(th, sw / 2.0 - cw - 8.0 * k, cy, cw, ch, th.c.panel, k, chip_a, 9);
+    kit::number(th, sw / 2.0 - cw / 2.0 - 8.0 * k, cy + 5.0 * k, "TIME  " + kit::format_time(my_time), th.t.md * k, kit::fade(th.c.cream, chip_a), "center", 10);
+    if best < 900.0 {
+        kit::pill(th, sw / 2.0 + 8.0 * k, cy, cw, ch, th.c.grape, k, chip_a, 9);
+        kit::number(th, sw / 2.0 + cw / 2.0 + 8.0 * k, cy + 5.0 * k, "BEST  " + kit::format_time(best), th.t.md * k, kit::fade(th.c.cream, chip_a), "center", 10);
+    }
+
+    // Track records, kept per track by race_manager: a bouncing sun pill
+    // for a new one, otherwise the standing records on a quiet hint pill
+    let new_race_rec = get_field(manager_id, "race_state", "new_race_record") == true;
+    let new_lap_rec = get_field(manager_id, "race_state", "new_lap_record") == true;
+    let rec_race = get_field(manager_id, "race_state", "record_race");
+    let rec_lap = get_field(manager_id, "race_state", "record_lap");
+    let ry = cy + ch + 14.0 * k;
+    let rec_a = kit::clamp01((t - 0.5) / 0.3);
+    if new_race_rec || new_lap_rec {
+        let rec_str = if new_race_rec && new_lap_rec { "NEW TRACK RECORDS!" }
+                      else if new_race_rec { "NEW TRACK RECORD!" } else { "NEW LAP RECORD!" };
+        let rsc = kit::boing(t - 0.5, 0.3) * (1.0 + 0.03 * sin(t * 7.0));
+        let rw = (kit::measure(rec_str, th.t.md * k, th.f.label).width + 36.0 * k) * rsc;
+        let rh = 30.0 * k * rsc;
+        kit::pill(th, (sw - rw) / 2.0, ry, rw, rh, th.c.sun, k, rec_a, 9);
+        kit::label(th, sw / 2.0, ry + rh / 2.0 - th.t.md * k * rsc * 0.62, rec_str, th.t.md * k * rsc, kit::fade(th.c.ink, rec_a), "center", 10);
+    } else if type_of(rec_race) == "f64" && rec_race > 0.0 {
+        let rec_str = "Track record " + kit::format_time(rec_race);
+        if type_of(rec_lap) == "f64" && rec_lap > 0.0 { rec_str += "  ·  Lap record " + kit::format_time(rec_lap); }
+        kit::hint(th, sw / 2.0, ry, rec_str, k, rec_a, 9);
+    }
+
+    // ── Podium (left half) ──
+    let pcx = sw * 0.30;
+    let base_y = sh * 0.80;
+    let bw = 120.0 * k;
+    let order = [1, 0, 2];               // draw 2nd, 1st, 3rd left to right
+    let heights = [150.0, 110.0, 80.0];  // by place
+    let slot = 0;
+    while slot < 3 {
+        let place_i = order[slot];       // 0 = 1st
+        let bx = pcx + (slot - 1) * (bw + 12.0 * k) - bw / 2.0;
+        let rise = kit::ease_out_back((t - 0.35 - (2 - place_i) * 0.18) / 0.45, th.m.overshoot);
+        let bh = heights[place_i] * k * rise;
+        if bh > 1.0 {
+            let pc = kit::place_color(th, place_i + 1);
+            kit::sticker(th, bx, base_y - bh, bw, bh, pc, k, 1.0, 8);
+            kit::shout_c(th, bx + bw / 2.0, base_y - bh + 36.0 * k, "" + (place_i + 1), th.t.h2 * k, th.c.cream, 1.0, 1.0, 9);
+        }
+        if place_i < sorted.len() && rise > 0.9 {
+            let eid = sorted[place_i];
+            let done = get_field(eid, "race_progress", "finish_time") > 0.0;
+            let tok_y = base_y - bh - 34.0 * k + sin(t * 3.0 + slot) * 3.0 * k;
+            let is_me = eid == kart_id;
+            if done {
+                kit::bubble(th, bx + bw / 2.0, tok_y, 24.0 * k, racer_color(eid), k, 1.0, 9);
+                let nm = racer_name(eid);
+                let nw = max(kit::measure(nm, th.t.sm * k, th.f.label).width + 22.0 * k, 64.0 * k);
+                let nface = if is_me { th.c.sun } else { th.c.panel };
+                let ntc = if is_me { th.c.ink } else { th.c.cream };
+                kit::pill(th, bx + (bw - nw) / 2.0, tok_y - 58.0 * k, nw, 24.0 * k, nface, k, 1.0, 9);
+                kit::label(th, bx + bw / 2.0, tok_y - 55.0 * k, nm, th.t.sm * k, ntc, "center", 10);
+            } else {
+                kit::bubble(th, bx + bw / 2.0, tok_y, 24.0 * k, th.c.panel, k, 0.8, 9);
+                kit::shout_c(th, bx + bw / 2.0, tok_y + 2.0 * k, "?", th.t.lg * k, th.c.label, 1.0, 0.9, 10);
+            }
+        }
+        slot += 1;
+    }
+
+    // ── Standings (right half) ──
+    let tx = sw * 0.56;
+    let tw = min(sw * 0.36, 440.0 * k);
+    let rh = 34.0 * k;
+    let ty = sh * 0.30;
+    let winner_t = 0.0;
+    if sorted.len() > 0 {
+        winner_t = get_field(sorted[0], "race_progress", "finish_time");
+    }
+    let i = 0;
+    while i < sorted.len() {
+        let eid = sorted[i];
+        let slide = kit::ease_out_back((t - 0.5 - i * 0.07) / 0.4, th.m.overshoot);
+        if slide > 0.0 {
+            let x = tx + (1.0 - slide) * sw * 0.5;
+            let y = ty + i * (rh + 8.0 * k);
+            let is_me = eid == kart_id;
+            let face = if is_me { th.c.sun } else { th.c.panel };
+            let txt = if is_me { th.c.ink } else { th.c.cream };
+            kit::pill(th, x, y, tw, rh, face, k, 1.0, 8);
+            let pos = get_field(eid, "race_position", "position");
+            let pc = if is_me { th.c.ink } else if pos <= 3 { kit::place_color(th, pos) } else { th.c.label };
+            kit::number(th, x + 22.0 * k, y + 5.0 * k, "" + pos, th.t.lg * k * 0.9, pc, "center", 9);
+            kit::circle(x + 50.0 * k, y + rh / 2.0, 9.0 * k, th.c.ink, 9);
+            kit::circle(x + 50.0 * k, y + rh / 2.0, 7.0 * k, racer_color(eid), 9);
+            kit::label(th, x + 68.0 * k, y + 6.0 * k, racer_name(eid), th.t.md * k, txt, "left", 9);
+            let ft = get_field(eid, "race_progress", "finish_time");
+            let ts = if ft <= 0.0 { "racing..." } else if i == 0 || winner_t <= 0.0 || ft - winner_t < 0.01 { kit::format_time(ft) }
+                     else { "+" + kit::format_time(ft - winner_t) };
+            let tcol = if ft <= 0.0 { if is_me { th.c.ink } else { th.c.quiet } } else { txt };
+            kit::number(th, x + tw - 18.0 * k, y + 6.0 * k, ts, th.t.md * k, tcol, "right", 9);
+        }
+        i += 1;
+    }
+
+    // ── Menu pills ──
+    let rects = [];
+    let pw = 170.0 * k;
+    let ph = 48.0 * k;
+    let gap = 22.0 * k;
+    let total = options.len() * pw + (options.len() - 1) * gap;
+    let px0 = (sw - total) / 2.0;
+    let py = sh * 0.88;
+    let pa = kit::clamp01((t - 0.8) / 0.3);
+    let j = 0;
+    while j < options.len() {
+        let selected = j == sel;
+        let sc = if selected { kit::boing(sel_t, 0.15) * (1.0 + 0.03 * sin(t * 6.0)) } else { 1.0 };
+        let w = pw * sc;
+        let h = ph * sc;
+        let x = px0 + j * (pw + gap) + (pw - w) / 2.0;
+        let y = py + (ph - h) / 2.0;
+        let face = if selected { th.c.sun } else { th.c.panel };
+        let tc = if selected { th.c.ink } else { th.c.cream };
+        kit::pill(th, x, y, w, h, face, k, pa, 9);
+        kit::label(th, x + w / 2.0, y + h / 2.0 - th.t.lg * k * 0.62, options[j], th.t.lg * k, kit::fade(tc, pa), "center", 10);
+        rects.push(#{ x: px0 + j * (pw + gap), y: py, w: pw, h: ph });
+        j += 1;
+    }
+    let hint = if touch_ui { "Tap to choose" } else { "A/D to choose  ·  ENTER to go" };
+    kit::hint(th, sw / 2.0, py + ph + 8.0 * k, hint, k, pa, 9);
+    rects
 }

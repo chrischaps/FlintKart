@@ -1,0 +1,36 @@
+# The track list: menu.rhai builds the track-select cards from it, and the
+# race HUD reads the name for its intro card. A new track is one entry here.
+#
+#   scene    the race scene to load
+#   spline   its main loop; the card draws a tilted preview of it, with height
+#   extra    optional branch splines, drawn dashed (shortcuts)
+#   accent   the card's colour, a ui/theme.toml colour name
+#   tag      one or two words on the card's corner sticker
+
+[[tracks]]
+name = "Oval Plus"
+scene = "scenes/oval_plus.scene.toml"
+spline = "splines/oval_plus.spline.toml"
+length = "660 m"
+blurb = "Wide sweepers and a banked turn. Learn your drifts here."
+tag = "EASY"
+accent = "mint"
+
+[[tracks]]
+name = "Mountain Switchback"
+scene = "scenes/mountain_switchback.scene.toml"
+spline = "splines/mountain_switchback.spline.toml"
+length = "886 m"
+blurb = "Alpine hairpins, steep climbs and a 29 m summit flyover."
+tag = "TWISTY"
+accent = "sky"
+
+[[tracks]]
+name = "The Crossroads"
+scene = "scenes/the_crossroads.scene.toml"
+spline = "splines/the_crossroads/canonical.spline.toml"
+extra = ["splines/the_crossroads/seg_branch_shortcut.spline.toml"]
+length = "450 m"
+blurb = "A flowing loop with a forked shortcut. Jump to take it."
+tag = "SHORTCUT"
+accent = "grape"

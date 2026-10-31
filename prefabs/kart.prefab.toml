@@ -1,5 +1,5 @@
 # ================================================================
-#  Kart Prefab — complete kart entity group (16 entities)
+#  Kart Prefab — complete kart entity group (27 entities)
 # ================================================================
 #
 #  Instantiated per-racer with prefix substitution.
@@ -245,3 +245,108 @@ volume = 0.0
 pitch = 1.0
 min_distance = 2.0
 max_distance = 40.0
+
+
+# ── Particle effects (children of kart; kart_fx.rhai opens them up) ──
+#
+#  Effect assets live in particles/ (tools/generate_fx.py). Each idles at
+#  emission_scale = 0; kart_fx.rhai sets the scale from kart, drift and item
+#  state every frame. Shape offsets inside each asset place the emitters at
+#  the rear tyres or the engine cover, in the kart's own axes.
+
+[entities.fx_ctrl]
+[entities.fx_ctrl.transform]
+position = [0, 0, 0]
+[entities.fx_ctrl.kart_visuals_config]
+kart = "${PREFIX}_kart"
+prefix = "${PREFIX}"
+[entities.fx_ctrl.script]
+source = "kart_fx.rhai"
+
+[entities.fx_smoke]
+parent = "kart"
+[entities.fx_smoke.transform]
+position = [0, 0, 0]
+[entities.fx_smoke.particle_effect]
+effect = "tire_smoke"
+emission_scale = 0.0
+
+[entities.fx_skids]
+parent = "kart"
+[entities.fx_skids.transform]
+position = [0, 0, 0]
+[entities.fx_skids.particle_effect]
+effect = "skid_marks"
+emission_scale = 0.0
+
+[entities.fx_dust]
+parent = "kart"
+[entities.fx_dust.transform]
+position = [0, 0, 0]
+[entities.fx_dust.particle_effect]
+effect = "road_dust"
+emission_scale = 0.0
+
+[entities.fx_exhaust]
+parent = "kart"
+[entities.fx_exhaust.transform]
+position = [0, 0, 0]
+[entities.fx_exhaust.particle_effect]
+effect = "exhaust"
+emission_scale = 0.0
+
+[entities.fx_sparks_1]
+parent = "kart"
+[entities.fx_sparks_1.transform]
+position = [0, 0, 0]
+[entities.fx_sparks_1.particle_effect]
+effect = "drift_sparks_1"
+emission_scale = 0.0
+
+[entities.fx_sparks_2]
+parent = "kart"
+[entities.fx_sparks_2.transform]
+position = [0, 0, 0]
+[entities.fx_sparks_2.particle_effect]
+effect = "drift_sparks_2"
+emission_scale = 0.0
+
+[entities.fx_sparks_3]
+parent = "kart"
+[entities.fx_sparks_3.transform]
+position = [0, 0, 0]
+[entities.fx_sparks_3.particle_effect]
+effect = "drift_sparks_3"
+emission_scale = 0.0
+
+[entities.fx_boost_1]
+parent = "kart"
+[entities.fx_boost_1.transform]
+position = [0, 0, 0]
+[entities.fx_boost_1.particle_effect]
+effect = "boost_flame_1"
+emission_scale = 0.0
+
+[entities.fx_boost_2]
+parent = "kart"
+[entities.fx_boost_2.transform]
+position = [0, 0, 0]
+[entities.fx_boost_2.particle_effect]
+effect = "boost_flame_2"
+emission_scale = 0.0
+
+[entities.fx_boost_3]
+parent = "kart"
+[entities.fx_boost_3.transform]
+position = [0, 0, 0]
+[entities.fx_boost_3.particle_effect]
+effect = "boost_flame_3"
+emission_scale = 0.0
+
+[entities.fx_boost_item]
+parent = "kart"
+[entities.fx_boost_item.transform]
+position = [0, 0, 0]
+[entities.fx_boost_item.particle_effect]
+effect = "boost_flame_item"
+emission_scale = 0.0

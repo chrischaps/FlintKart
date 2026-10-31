@@ -181,3 +181,8 @@ description = "Suspension stiffness; with damper sets how bouncy the body is"
 [component.kart_physics.fields.damper]
 type = "float"
 default = 13.0
+
+[component.kart_physics.fields.draft_speed]
+type = "float"
+default = 3.0
+description = "Top speed added at full slipstream (3-15 m behind another kart), m/s; 0 turns drafting off"

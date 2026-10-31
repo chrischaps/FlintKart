@@ -1,0 +1,85 @@
+# FlintKart UI theme — the one source of colour, type, shape and motion for
+# every screen: race HUD, pause, results, title, track and racer select.
+#
+# Read two ways:
+#   - .style.toml files name it with `tokens = "ui/theme.toml"` and use
+#     "$token" values (ui/main_menu.style.toml, ui/race_hud.style.toml)
+#   - scripts read it through scripts/lib/kit.rhai: kit::theme() calls
+#     ui_token() once for every key below and hands back a map
+#
+# The voice (docs/glow-up.md): a toy box in sunlight. Chunky, saturated,
+# bouncy, a little cheeky, and readable before it is pretty. Every panel
+# is a "sticker": a cream or colour face, a thick ink outline and a hard
+# ink drop shadow, so it reads on bright sky and dark asphalt alike.
+#
+# Colours are [r, g, b, a] floats as the draw API takes them. Sizes are px
+# at the 1280x720 reference; scripts multiply by kit::scale() (height / 720).
+
+[meta]
+name = "FlintKart"
+reference_height = 720
+
+[color]
+# The glow-up palette
+sun      = [1.00, 0.78, 0.18, 1.00]   # primary accent, boosts, 1st place, focus
+tomato   = [0.98, 0.33, 0.25, 1.00]   # danger, wrong way, positions lost
+sky      = [0.25, 0.70, 0.98, 1.00]   # info, drift tier 1
+grape    = [0.62, 0.38, 0.95, 1.00]   # drift tier 3, personal best
+mint     = [0.30, 0.90, 0.62, 1.00]   # positive, positions gained, GO
+ink      = [0.10, 0.09, 0.16, 1.00]   # outlines, strokes, shadows
+cream    = [1.00, 0.97, 0.90, 1.00]   # text, sticker faces
+# Working shades
+panel    = [0.16, 0.14, 0.26, 0.92]   # dark sticker face (HUD stickers over the world)
+panel_hi = [0.24, 0.21, 0.38, 0.96]   # selected row on a dark sticker
+wash     = [0.10, 0.09, 0.16, 0.72]   # full-screen dim under pause / results
+label    = [0.78, 0.74, 0.92, 1.00]   # small labels on panel ("LAP", "BEST")
+quiet    = [0.55, 0.51, 0.68, 1.00]   # hints, disabled rows
+shine    = [1.00, 1.00, 1.00, 0.16]   # gloss: alpha is how far a face lifts toward white
+# Podium — results and position badge
+gold     = [1.00, 0.78, 0.18, 1.00]
+silver   = [0.80, 0.84, 0.94, 1.00]
+bronze   = [0.93, 0.56, 0.30, 1.00]
+# Drift tiers read sky -> sun -> grape (blue, orange, purple sparks)
+tier1    = [0.25, 0.70, 0.98, 1.00]
+tier2    = [1.00, 0.62, 0.15, 1.00]
+tier3    = [0.62, 0.38, 0.95, 1.00]
+
+[font]
+# Family names are file stems under fonts/ (tools/make_fonts.py; tabular digits)
+display = "LilitaOne"          # position, countdown, banners, titles, speed
+label   = "Fredoka-SemiBold"   # labels, names, buttons, hints
+number  = "Fredoka-Bold"       # times and small numbers in panels
+
+[type]
+xs   = 12
+sm   = 15
+md   = 19
+lg   = 24
+xl   = 34
+h2   = 48
+h1   = 72
+hero = 150
+
+[shape]
+radius    = 14     # sticker corner
+radius_sm = 9      # chips and rows
+outline   = 3      # ink outline around a sticker
+drop      = 5      # hard ink shadow, straight down
+stroke    = 4      # ink stroke on display text
+text_drop = 4      # hard shadow under display text
+
+[space]
+safe       = 20    # screen-edge margin
+safe_touch = 36
+gap        = 10
+pad        = 12
+row        = 34    # standings row
+row_menu   = 58    # pause / results menu row
+
+[motion]
+pop        = 0.45  # a number that changes (position, lap) bounces this long
+overshoot  = 2.4   # ease-out-back constant: bouncier than a tidy UI
+banner_in  = 0.35  # lap / final lap banner swings in
+banner_hold = 1.4
+squash     = 0.18  # item pickup squash-and-stretch, as a fraction of size
+wobble_hz  = 2.2   # idle wobble of selected things

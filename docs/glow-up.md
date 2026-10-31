@@ -86,6 +86,7 @@ event reaches listeners on the next frame.
 |---|---|---|
 | `kart_state.surface` (string) | physics | `"road"`, `"curb"`, `"offroad"` or `"air"` |
 | `kart_state.wall_contact` (bool) | physics | true while scraping a wall |
+| `kart_state.draft` (f64 0-1) | physics (added by #10) | slipstream strength, 3-15 m behind another kart; adds up to `kart_physics.draft_speed` m/s |
 | `drift_state.tier` (int 0-3) | physics | current drift charge tier |
 | `kart_visual_state.roll`, `.pitch`, `.squash` (f64) | physics | body attitude for visuals, degrees, and squash 0-1 |
 

@@ -199,6 +199,11 @@ color_r = 0.95
 color_g = 0.3
 color_b = 0.1
 name = "Blaze"
+aggression = 0.8
+route_risk = 0.7
+item_patience = 0.3
+rubber_band = 0.4
+wobble = 0.0
 [entities.ai1_brain.script]
 source = "ai_driver.rhai"
 
@@ -216,6 +221,11 @@ color_r = 0.2
 color_g = 0.75
 color_b = 0.25
 name = "Steady"
+aggression = 0.3
+route_risk = 0.25
+item_patience = 0.8
+rubber_band = 0.6
+wobble = 0.0
 [entities.ai2_brain.script]
 source = "ai_driver.rhai"
 
@@ -233,6 +243,11 @@ color_r = 0.95
 color_g = 0.85
 color_b = 0.15
 name = "Tank"
+aggression = 0.95
+route_risk = 0.4
+item_patience = 0.5
+rubber_band = 0.5
+wobble = 0.0
 [entities.ai3_brain.script]
 source = "ai_driver.rhai"
 
@@ -250,6 +265,11 @@ color_r = 0.6
 color_g = 0.2
 color_b = 0.85
 name = "Ghost"
+aggression = 0.5
+route_risk = 0.95
+item_patience = 0.9
+rubber_band = 0.5
+wobble = 0.0
 [entities.ai4_brain.script]
 source = "ai_driver.rhai"
 
@@ -267,241 +287,13 @@ color_r = 0.15
 color_g = 0.85
 color_b = 0.85
 name = "Wild"
+aggression = 0.7
+route_risk = 0.6
+item_patience = 0.1
+rubber_band = 0.3
+wobble = 0.7
 [entities.ai5_brain.script]
 source = "ai_driver.rhai"
-
-
-# ============================================================
-#  PARTICLE EFFECTS — standalone emitters driven by kart_visuals
-# ============================================================
-
-[entities.fx_exhaust]
-[entities.fx_exhaust.transform]
-position = [0.0, 0.3, 1.5]
-[entities.fx_exhaust.particle_emitter]
-emission_rate = 0.0
-max_particles = 120
-lifetime_min = 0.6
-lifetime_max = 1.4
-speed_min = 0.3
-speed_max = 0.8
-direction = [0.0, 1.0, 0.0]
-spread = 25.0
-gravity = [0.0, 0.3, 0.0]
-damping = 1.2
-size_start = 0.06
-size_end = 0.25
-color_start = [0.55, 0.52, 0.5, 0.25]
-color_end = [0.65, 0.63, 0.6, 0.0]
-blend_mode = "alpha"
-shape = "point"
-world_space = true
-autoplay = false
-playing = false
-looping = true
-
-[entities.fx_dust_rl]
-[entities.fx_dust_rl.transform]
-position = [-0.7, 0.05, 0.85]
-[entities.fx_dust_rl.particle_emitter]
-emission_rate = 0.0
-max_particles = 80
-lifetime_min = 0.4
-lifetime_max = 1.0
-speed_min = 0.5
-speed_max = 1.5
-direction = [0.0, 1.0, 0.0]
-spread = 40.0
-gravity = [0.0, -2.0, 0.0]
-damping = 1.5
-size_start = 0.08
-size_end = 0.2
-color_start = [0.65, 0.55, 0.4, 0.35]
-color_end = [0.7, 0.65, 0.55, 0.0]
-blend_mode = "alpha"
-shape = "box"
-shape_extents = [0.15, 0.02, 0.05]
-world_space = true
-autoplay = false
-playing = false
-looping = true
-
-[entities.fx_dust_rr]
-[entities.fx_dust_rr.transform]
-position = [0.7, 0.05, 0.85]
-[entities.fx_dust_rr.particle_emitter]
-emission_rate = 0.0
-max_particles = 80
-lifetime_min = 0.4
-lifetime_max = 1.0
-speed_min = 0.5
-speed_max = 1.5
-direction = [0.0, 1.0, 0.0]
-spread = 40.0
-gravity = [0.0, -2.0, 0.0]
-damping = 1.5
-size_start = 0.08
-size_end = 0.2
-color_start = [0.65, 0.55, 0.4, 0.35]
-color_end = [0.7, 0.65, 0.55, 0.0]
-blend_mode = "alpha"
-shape = "box"
-shape_extents = [0.15, 0.02, 0.05]
-world_space = true
-autoplay = false
-playing = false
-looping = true
-
-[entities.fx_sparks]
-[entities.fx_sparks.transform]
-position = [0.0, 0.1, 1.3]
-[entities.fx_sparks.particle_emitter]
-emission_rate = 0.0
-max_particles = 100
-lifetime_min = 0.15
-lifetime_max = 0.45
-speed_min = 3.0
-speed_max = 7.0
-direction = [0.0, 0.3, 0.0]
-spread = 60.0
-gravity = [0.0, -12.0, 0.0]
-damping = 0.2
-size_start = 0.025
-size_end = 0.008
-color_start = [1.0, 0.9, 0.4, 1.0]
-color_end = [1.0, 0.3, 0.0, 0.0]
-blend_mode = "additive"
-shape = "point"
-world_space = true
-autoplay = false
-playing = false
-looping = true
-
-[entities.fx_boost]
-[entities.fx_boost.transform]
-position = [0.0, 0.45, 1.1]
-[entities.fx_boost.particle_emitter]
-emission_rate = 0.0
-max_particles = 200
-lifetime_min = 0.2
-lifetime_max = 0.6
-speed_min = 0.2
-speed_max = 1.0
-direction = [0.0, 0.0, 0.0]
-spread = 180.0
-gravity = [0.0, 0.0, 0.0]
-damping = 2.0
-size_start = 0.15
-size_end = 0.02
-color_start = [0.3, 0.6, 1.0, 0.8]
-color_end = [0.1, 0.2, 1.0, 0.0]
-blend_mode = "additive"
-shape = "sphere"
-shape_radius = 0.2
-world_space = true
-autoplay = false
-playing = false
-looping = true
-
-[entities.fx_drift_sparks_l]
-[entities.fx_drift_sparks_l.transform]
-position = [-0.7, 0.05, 0.85]
-[entities.fx_drift_sparks_l.particle_emitter]
-emission_rate = 0.0
-max_particles = 120
-lifetime_min = 0.1
-lifetime_max = 0.35
-speed_min = 2.0
-speed_max = 5.0
-direction = [0.0, 0.5, 0.0]
-spread = 50.0
-gravity = [0.0, -10.0, 0.0]
-damping = 0.3
-size_start = 0.02
-size_end = 0.005
-color_start = [1.0, 1.0, 1.0, 1.0]
-color_end = [1.0, 0.8, 0.3, 0.0]
-blend_mode = "additive"
-shape = "point"
-world_space = true
-autoplay = false
-playing = false
-looping = true
-
-[entities.fx_drift_sparks_r]
-[entities.fx_drift_sparks_r.transform]
-position = [0.7, 0.05, 0.85]
-[entities.fx_drift_sparks_r.particle_emitter]
-emission_rate = 0.0
-max_particles = 120
-lifetime_min = 0.1
-lifetime_max = 0.35
-speed_min = 2.0
-speed_max = 5.0
-direction = [0.0, 0.5, 0.0]
-spread = 50.0
-gravity = [0.0, -10.0, 0.0]
-damping = 0.3
-size_start = 0.02
-size_end = 0.005
-color_start = [1.0, 1.0, 1.0, 1.0]
-color_end = [1.0, 0.8, 0.3, 0.0]
-blend_mode = "additive"
-shape = "point"
-world_space = true
-autoplay = false
-playing = false
-looping = true
-
-[entities.fx_skid_rl]
-[entities.fx_skid_rl.transform]
-position = [-0.7, 0.02, 0.85]
-[entities.fx_skid_rl.particle_emitter]
-emission_rate = 0.0
-max_particles = 300
-lifetime_min = 3.0
-lifetime_max = 5.0
-speed_min = 0.0
-speed_max = 0.1
-direction = [0.0, 1.0, 0.0]
-spread = 10.0
-gravity = [0.0, 0.0, 0.0]
-damping = 10.0
-size_start = 0.12
-size_end = 0.12
-color_start = [0.08, 0.06, 0.05, 0.6]
-color_end = [0.08, 0.06, 0.05, 0.0]
-blend_mode = "alpha"
-shape = "point"
-world_space = true
-autoplay = false
-playing = false
-looping = true
-
-[entities.fx_skid_rr]
-[entities.fx_skid_rr.transform]
-position = [0.7, 0.02, 0.85]
-[entities.fx_skid_rr.particle_emitter]
-emission_rate = 0.0
-max_particles = 300
-lifetime_min = 3.0
-lifetime_max = 5.0
-speed_min = 0.0
-speed_max = 0.1
-direction = [0.0, 1.0, 0.0]
-spread = 10.0
-gravity = [0.0, 0.0, 0.0]
-damping = 10.0
-size_start = 0.12
-size_end = 0.12
-color_start = [0.08, 0.06, 0.05, 0.6]
-color_end = [0.08, 0.06, 0.05, 0.0]
-blend_mode = "alpha"
-shape = "point"
-world_space = true
-autoplay = false
-playing = false
-looping = true
 
 
 # ============================================================
@@ -1001,34 +793,6 @@ chunk_size = 30
 friction = 0.8
 restitution = 0.1
 
-[entities.track_wall_l]
-[entities.track_wall_l.spline_mesh]
-spline = "track_path"
-width = 0.5
-height = 1.5
-offset = [-6.25, 0.75]
-color = [1.0, 1.0, 1.0, 1.0]
-texture = "textures/road_barrier_tomato.png"
-texture_length = 4.0
-roughness = 0.7
-friction = 0.3
-restitution = 0.5
-
-[entities.track_wall_r]
-[entities.track_wall_r.spline_mesh]
-spline = "track_path"
-width = 0.5
-height = 1.5
-offset = [6.25, 0.75]
-color = [1.0, 1.0, 1.0, 1.0]
-texture = "textures/road_barrier_sky.png"
-texture_length = 4.0
-roughness = 0.7
-friction = 0.3
-restitution = 0.5
-skip_starts = [0.2, 0.6]
-skip_ends = [0.4, 0.8]
-
 [entities.track_verge_l]
 [entities.track_verge_l.spline_mesh]
 spline = "track_path"
@@ -1128,35 +892,85 @@ restitution = 0.1
 skip_starts = [0.0, 0.6667]
 skip_ends = [0.3333, 1.0]
 
-[entities.seg_branch_shortcut_wall_l]
-[entities.seg_branch_shortcut_wall_l.spline_mesh]
-spline = "seg_branch_shortcut"
+
+# ── Walls (tools/generate_crossroads_walls.py) ──
+# Each stretch of wall is its own spline whose points are the wall line,
+# cut wherever it would stand on another road. Regenerate, don't hand-edit.
+
+[entities.track_wall_l]
+[entities.track_wall_l.spline_mesh]
+spline = "track_path"
+offset = [-6.25, 0.75]
 width = 0.5
 height = 1.5
-offset = [-6.25, 0.75]
 color = [1.0, 1.0, 1.0, 1.0]
 texture = "textures/road_barrier_tomato.png"
 texture_length = 4.0
 roughness = 0.7
 friction = 0.3
 restitution = 0.5
-skip_starts = [0.0, 0.6667]
-skip_ends = [0.3333, 1.0]
 
-[entities.seg_branch_shortcut_wall_r]
-[entities.seg_branch_shortcut_wall_r.spline_mesh]
-spline = "seg_branch_shortcut"
+[entities.track_wall_r_0]
+[entities.track_wall_r_0.spline]
+file = "splines/the_crossroads/walls/track_wall_r_0.spline.toml"
+[entities.track_wall_r_0.spline_mesh]
+spline = "track_wall_r_0"
+offset = [0.0, 0.75]
 width = 0.5
 height = 1.5
-offset = [6.25, 0.75]
 color = [1.0, 1.0, 1.0, 1.0]
 texture = "textures/road_barrier_sky.png"
 texture_length = 4.0
 roughness = 0.7
 friction = 0.3
 restitution = 0.5
-skip_starts = [0.0, 0.6667]
-skip_ends = [0.3333, 1.0]
+
+[entities.track_wall_r_1]
+[entities.track_wall_r_1.spline]
+file = "splines/the_crossroads/walls/track_wall_r_1.spline.toml"
+[entities.track_wall_r_1.spline_mesh]
+spline = "track_wall_r_1"
+offset = [0.0, 0.75]
+width = 0.5
+height = 1.5
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_sky.png"
+texture_length = 4.0
+roughness = 0.7
+friction = 0.3
+restitution = 0.5
+
+[entities.seg_branch_shortcut_wall_l_0]
+[entities.seg_branch_shortcut_wall_l_0.spline]
+file = "splines/the_crossroads/walls/seg_branch_shortcut_wall_l_0.spline.toml"
+[entities.seg_branch_shortcut_wall_l_0.spline_mesh]
+spline = "seg_branch_shortcut_wall_l_0"
+offset = [0.0, 0.75]
+width = 0.5
+height = 1.5
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_tomato.png"
+texture_length = 4.0
+roughness = 0.7
+friction = 0.3
+restitution = 0.5
+
+[entities.seg_branch_shortcut_wall_r_0]
+[entities.seg_branch_shortcut_wall_r_0.spline]
+file = "splines/the_crossroads/walls/seg_branch_shortcut_wall_r_0.spline.toml"
+[entities.seg_branch_shortcut_wall_r_0.spline_mesh]
+spline = "seg_branch_shortcut_wall_r_0"
+offset = [0.0, 0.75]
+width = 0.5
+height = 1.5
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_sky.png"
+texture_length = 4.0
+roughness = 0.7
+friction = 0.3
+restitution = 0.5
+
+# ── End walls ──
 
 # ── Junction fill geometry ──
 

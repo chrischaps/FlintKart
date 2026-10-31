@@ -457,6 +457,36 @@ fn on_update() {
         }
     }
 
+    // ── Slipstream ──
+    // Tucked in 3-15 m behind another kart, the air ahead is already
+    // moving: a little more top speed, the closer the more. It builds over
+    // about half a second and fades faster, so threading through a pack
+    // doesn't flicker it.
+    let draft = get_field(me, "kart_state", "draft");
+    if draft == () { draft = 0.0; }
+    let draft_now = 0.0;
+    let draft_speed = tune(me, "draft_speed", 3.0);
+    if grounded && speed > 12.0 && !spinout_on && draft_speed > 0.0 {
+        let df = forward_from_yaw(yaw);
+        let others = find_entities_with("kart_state");
+        for other in others {
+            if other != me {
+                let op = get_position(other);
+                let ox = op["x"] - px;
+                let oz = op["z"] - pz;
+                let along = ox * df["x"] + oz * df["z"];
+                let side = abs(ox * df["z"] - oz * df["x"]);
+                if along > 3.0 && along < 15.0 && side < 1.6 && abs(op["y"] - py) < 2.0 {
+                    let d = 1.0 - (along - 3.0) / 12.0;
+                    if d > draft_now { draft_now = d; }
+                }
+            }
+        }
+    }
+    let draft_rate = if draft_now > draft { 2.0 } else { 4.0 };
+    draft = draft + (draft_now - draft) * clamp(draft_rate * dt, 0.0, 1.0);
+    effective_max = effective_max + draft_speed * draft;
+
     // Grass: lower top speed and less grip (boosts still help you out)
     let grip = grip_road;
     if drift_state == "drifting" || drift_state == "hop" { grip = grip_drift; }
@@ -493,8 +523,8 @@ fn on_update() {
             speed = speed + 12.0 * dt;
         }
 
-        // Apply drag
-        speed = speed - speed * drag * dt;
+        // Apply drag (a slipstream takes some of it away)
+        speed = speed - speed * drag * (1.0 - 0.4 * draft) * dt;
 
         // Over the cap (a boost just ended, or onto grass): ease back
         // rather than hitting a wall of air
@@ -580,12 +610,29 @@ fn on_update() {
     //      corner of walls). Put back on the track a little way ahead, so
     //      nothing can stop a race from finishing.
     let needs_respawn = py < -10.0;
-    if !needs_respawn && track_eid >= 0 {
-        let closest = spline_closest_point(track_eid, px, py, pz);
-        if closest != () {
-            if grounded && closest["dist_sq"] > 100.0 {
-                needs_respawn = true;
+    // The nearest road: the canonical loop, or on a branching track a
+    // branch (The Crossroads shortcut) when the kart is out on one
+    let road_eid = track_eid;
+    let road_closest = ();
+    if track_eid >= 0 {
+        road_closest = spline_closest_point(track_eid, px, py, pz);
+        if road_closest != () && road_closest["dist_sq"] > 100.0 && has_component(track_eid, "track_graph") {
+            let seg_names = get_field(track_eid, "track_graph", "segment_names").split(",");
+            for seg_name in seg_names {
+                let seg = get_entity(seg_name);
+                if seg >= 0 && !get_field(seg, "segment_info", "is_canonical") {
+                    let c = spline_closest_point(seg, px, py, pz);
+                    if c != () && c["dist_sq"] < road_closest["dist_sq"] {
+                        road_closest = c;
+                        road_eid = seg;
+                    }
+                }
             }
+        }
+    }
+    if !needs_respawn && road_closest != () {
+        if grounded && road_closest["dist_sq"] > 100.0 {
+            needs_respawn = true;
         }
     }
     if grounded && throttle > 0.5 && abs(speed) < 1.5 && !spinout_on {
@@ -603,19 +650,27 @@ fn on_update() {
     let respawned = false;
     if needs_respawn {
         let placed = false;
-        if track_eid >= 0 {
-            let closest = spline_closest_point(track_eid, px, py, pz);
+        if road_eid >= 0 {
+            let closest = road_closest;
             if closest != () {
                 let respawn_t = closest["t"] + respawn_ahead;
+                if road_eid != track_eid {
+                    // A branch is an open spline, shorter than a lap: scale
+                    // the step, and stay short of its end (t wraps to its start)
+                    let span = get_field(road_eid, "segment_info", "progress_end")
+                        - get_field(road_eid, "segment_info", "progress_start");
+                    if span > 0.01 { respawn_t = closest["t"] + respawn_ahead / span; }
+                    if respawn_t > 0.98 { respawn_t = 0.98; }
+                }
                 if respawn_t >= 1.0 { respawn_t = respawn_t - 1.0; }
                 // If the nearest point is inside a gap, respawn at the landing zone
-                if spline_is_gap(track_eid, respawn_t) {
-                    let gap_info = spline_gap_at(track_eid, respawn_t);
+                if spline_is_gap(road_eid, respawn_t) {
+                    let gap_info = spline_gap_at(road_eid, respawn_t);
                     if gap_info != () {
                         respawn_t = gap_info["end_t"];
                     }
                 }
-                let sample = spline_sample_at(track_eid, respawn_t);
+                let sample = spline_sample_at(road_eid, respawn_t);
                 if sample != () {
                     px = sample["x"];
                     py = sample["y"] + 1.0;
@@ -1019,6 +1074,7 @@ fn on_update() {
     set_field(me, "kart_state", "yaw", yaw);
     set_field(me, "kart_state", "wall_impact", wall_impact);
     set_field(me, "kart_state", "wall_contact", wall_contact);
+    set_field(me, "kart_state", "draft", draft);
     set_field(me, "kart_state", "surface", surface);
 
     // Write visual state for kart_visuals.rhai
