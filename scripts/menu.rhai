@@ -1,6 +1,6 @@
 // menu.rhai — title, track select and paint select
 //
-//   title   the logo bobs over a drifting kart, speed lines and confetti
+//   title   the logo bobs over a drifting kart, a sunburst and confetti
 //   select  one sticker card per track in ui/tracks.toml, each with a tilted
 //           preview drawn from the track's own spline (height and all) and
 //           a little kart dot lapping it
@@ -66,7 +66,9 @@ let emitters_started = false;
 
 // ── Background: confetti + speed lines ──
 let particles = [];
+let burst_rays = [];             // make_rays: the sunburst's fixed shape
 let line_rot_angle = 0.0;
+let reduce_motion = false;      // the settings toggle: a still burst, calmer confetti
 
 // ── Launch sequence ──
 let launch_state = "none";
@@ -93,6 +95,7 @@ fn on_scene_enter() {
     launch_timer = 0.0;
     line_burst = 1.0;
     line_rot_angle = 0.0;
+    reduce_motion = persist_get("reduce_motion") == true;
     entities_found = false;
     emitters_started = false;
     donut_dir = 1.0;
@@ -399,6 +402,9 @@ fn on_draw_ui() {
     if particles.len() == 0 {
         particles = make_particles(th, sw, sh);
     }
+    if burst_rays.len() == 0 {
+        burst_rays = make_rays(14);
+    }
 
     // ── Transition phases ──
     let phase = transition_phase();
@@ -421,42 +427,106 @@ fn on_draw_ui() {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Background: speed lines (layer 0) and confetti (layer 2)
+    //  Background: the sunburst (layer 0) and confetti (layer 2)
     // ════════════════════════════════════════════════════════
-    let rot_speed = 0.2;
+    // The burst's hub sits behind the logo: wedges of light fan out from
+    // under it, fade toward the edges and breathe; the launch spins them
+    // up and flares them through line_burst.
+    let rot_speed = if reduce_motion { 0.0 } else { 0.06 };
     if launch_state == "rev" {
-        rot_speed = 0.2 * (1.0 + kit::clamp01(launch_timer / 0.8));
+        rot_speed = 0.06 + 0.5 * kit::clamp01(launch_timer / 0.8);
     } else if launch_state == "burst" || launch_state == "fade" {
-        rot_speed = 0.4;
+        rot_speed = 0.9;
     }
     line_rot_angle = line_rot_angle + dt * rot_speed;
-    let bg_cx = sw / 2.0;
-    let bg_cy = sh * 0.45;
-    let num_lines = 24;
-    let half = if sw > sh { sw / 2.0 } else { sh / 2.0 };
-    let li = 0;
-    while li < num_lines {
-        let angle = li * (6.2832 / num_lines) + line_rot_angle;
-        let c = if li % 2 == 0 { th.c.sun } else { th.c.sky };
-        let alpha = 0.05 + sin(time * 0.5 + li * 0.7) * 0.02;
-        draw_line(bg_cx + cos(angle) * half * 0.3, bg_cy + sin(angle) * half * 0.3,
-                  bg_cx + cos(angle) * half * 0.95 * line_burst, bg_cy + sin(angle) * half * 0.95 * line_burst,
-                  c[0], c[1], c[2], alpha, if li % 2 == 0 { 2.0 * k } else { 1.2 * k });
-        li += 1;
+    let hub_x = sw / 2.0;
+    let hub_y = sh * 0.23;
+    let reach = sqrt(sw * sw + sh * sh) * 0.62;
+    let flare = 1.0 + (line_burst - 1.0) * 0.6;
+    let breathe = if reduce_motion { 0.0 } else { 1.0 };
+
+    // A soft glow pooled behind the logo. Translucent fills read strong
+    // over the scene, so every alpha here stays small.
+    let sun = th.c.sun;
+    let gr = sh * 0.17 * (0.75 + 0.25 * line_burst) * (1.0 + 0.04 * sin(time * 1.3) * breathe);
+    draw_circle_ex(hub_x, hub_y, gr * 1.3, sun[0], sun[1], sun[2], 0.010 * flare, 0);
+    draw_circle_ex(hub_x, hub_y, gr, sun[0], sun[1], sun[2], 0.014 * flare, 0);
+
+    // Rays (make_rays): broad sun wedges and slim cream ones, each a little
+    // off the even spacing and its own length. Two bands: a wedge from the
+    // hub, then a fainter one tapering to a point. Rays pointing down start
+    // below the kart, so it drives in clear air under the logo.
+    let cream = th.c.cream;
+    for ray in burst_rays {
+        let ang = ray.ang + line_rot_angle;
+        let down = max(sin(ang), 0.0);
+        let r0 = sh * (0.10 + 0.26 * down * down);
+        let len = reach * ray.len * (1.0 + 0.07 * sin(time * 0.8 + ray.ph) * breathe) * line_burst;
+        let rm = r0 + (len - r0) * 0.5;
+        let a = ray.a * flare;
+        let c = if ray.major { sun } else { cream };
+        let hw = ray.hw;
+        let cl = cos(ang - hw);
+        let sl = sin(ang - hw);
+        let cr = cos(ang + hw);
+        let sr = sin(ang + hw);
+        draw_polygon([hub_x + cl * r0, hub_y + sl * r0, hub_x + cr * r0, hub_y + sr * r0,
+                      hub_x + cr * rm, hub_y + sr * rm, hub_x + cl * rm, hub_y + sl * rm],
+                     c[0], c[1], c[2], a, 0);
+        draw_polygon([hub_x + cl * rm, hub_y + sl * rm, hub_x + cr * rm, hub_y + sr * rm,
+                      hub_x + cos(ang) * len, hub_y + sin(ang) * len],
+                     c[0], c[1], c[2], a * 0.6, 0);
     }
 
+    // Confetti tumbles at three depths: strips and chips flip edge-on as
+    // they fall (catching the light face-on), dots flutter. Near pieces are
+    // bigger, brighter and faster; on the title they melt away over the logo.
+    let logo_rx = sh * 0.36;
+    let logo_ry = sh * 0.22;
+    let spin_on = if reduce_motion { 0.0 } else { 1.0 };
+    let fall_k = if reduce_motion { 0.5 } else { 1.0 };
     let pi = 0;
     while pi < particles.len() {
         let p = particles[pi];
-        p.y += p.fall * dt * k;
-        p.x += sin(time * 1.2 + p.ph) * p.sway * dt * k;
+        let depth = 0.55 + p.z * 0.75;
+        p.y += p.fall * depth * fall_k * dt * k;
+        p.x += sin(time * 1.1 + p.ph) * p.sway * depth * spin_on * dt * k;
         if p.y > sh + 30.0 {
             p.x = kit::hash01(time * 7.13 + pi * 3.71) * sw;
             p.y = -20.0;
         }
         particles[pi] = p;
-        let vis_w = max(p.w * k * abs(sin(time * p.spin + p.ph)), 1.0);
-        kit::rect(p.x - vis_w / 2.0, p.y, vis_w, p.h * k, p.c, 1.0, 2);
+        let a = 0.32 + p.z * 0.55;
+        if screen == "title" {
+            let dx = (p.x - hub_x) / logo_rx;
+            let dy = (p.y - hub_y) / logo_ry;
+            let away = (dx * dx + dy * dy - 0.55) / 0.6;
+            if away < 1.0 { a *= 0.1 + 0.9 * max(away, 0.0); }
+        }
+        if a > 0.02 {
+            let flip = if spin_on > 0.0 { cos(time * p.spin + p.ph) } else { 0.8 };
+            let f2 = flip * flip;
+            let shine = f2 * f2 * 0.45;    // face-on, it catches the light
+            let c = p.c;
+            let cr = c[0] + (cream[0] - c[0]) * shine;
+            let cg = c[1] + (cream[1] - c[1]) * shine;
+            let cb = c[2] + (cream[2] - c[2]) * shine;
+            let sz = p.size * depth * k;
+            if p.shape == 2 {
+                draw_circle_ex(p.x, p.y, sz * 0.42 * (0.85 + 0.15 * flip), cr, cg, cb, a, 2);
+            } else {
+                let rot = p.rot + time * p.twirl * spin_on;
+                let hl = if p.shape == 0 { sz * 0.9 } else { sz * 0.5 };
+                let hw = max(abs(flip) * (if p.shape == 0 { sz * 0.26 } else { sz * 0.42 }), 0.6);
+                let ux = cos(rot) * hl;
+                let uy = sin(rot) * hl;
+                let vx = -sin(rot) * hw;
+                let vy = cos(rot) * hw;
+                draw_polygon([p.x + ux + vx, p.y + uy + vy, p.x + ux - vx, p.y + uy - vy,
+                              p.x - ux - vx, p.y - uy - vy, p.x - ux + vx, p.y - uy + vy],
+                             cr, cg, cb, a, 2);
+            }
+        }
         pi += 1;
     }
 
@@ -722,23 +792,50 @@ fn draw_back_pill(th, k) {
     r
 }
 
-// Confetti in the palette, one map per piece.
+// The sunburst's rays: angle, half-width (radians), length (a fraction of
+// the screen's reach), breathing phase and alpha. Even rays are broad sun
+// wedges, odd ones slim cream ones; all a little off the even spacing.
+fn make_rays(n) {
+    let out = [];
+    let i = 0;
+    while i < n {
+        let s = i * 1.0 + 0.5;
+        let major = i % 2 == 0;
+        out.push(#{
+            ang: i * (6.2832 / n) + (kit::hash01(s + 1.3) - 0.5) * 0.14,
+            hw: if major { 0.05 + kit::hash01(s + 2.9) * 0.04 } else { 0.018 + kit::hash01(s + 3.7) * 0.014 },
+            len: (if major { 0.78 } else { 0.5 }) + kit::hash01(s + 4.4) * 0.3,
+            ph: s * 1.9,
+            a: if major { 0.014 } else { 0.012 },
+            major: major
+        });
+        i += 1;
+    }
+    out
+}
+
+// Confetti in the palette, one map per piece. shape 0 = strip, 1 = chip,
+// 2 = dot; z is depth (0 far, 1 near), in three layers.
 fn make_particles(th, sw, sh) {
     let cols = [th.c.sun, th.c.tomato, th.c.sky, th.c.grape, th.c.mint, th.c.cream];
     let out = [];
     let i = 0;
-    while i < 55 {
+    while i < 42 {
         let s = i * 1.0 + 0.5;
+        let r = kit::hash01(s + 3.3);
         out.push(#{
             x: kit::hash01(s) * sw,
-            y: kit::hash01(s + 2.3) * sh - 200.0,
-            fall: 30.0 + kit::hash01(s + 4.1) * 50.0,
-            sway: 20.0 + kit::hash01(s + 5.7) * 40.0,
+            y: kit::hash01(s + 2.3) * (sh + 60.0) - 40.0,
+            z: (i % 3) / 2.0 * 0.85 + kit::hash01(s + 1.7) * 0.15,
+            shape: if r < 0.5 { 0 } else if r < 0.8 { 1 } else { 2 },
+            fall: 34.0 + kit::hash01(s + 4.1) * 40.0,
+            sway: 18.0 + kit::hash01(s + 5.7) * 30.0,
             ph: kit::hash01(s + 6.9) * 6.2832,
-            spin: 2.5 + kit::hash01(s + 8.3) * 3.0,
-            w: 5.0 + kit::hash01(s + 9.1) * 5.0,
-            h: 6.0 + kit::hash01(s + 9.7) * 4.0,
-            c: kit::fade(cols[i % cols.len()], 0.55)
+            spin: 2.0 + kit::hash01(s + 8.3) * 3.5,
+            rot: kit::hash01(s + 9.1) * 6.2832,
+            twirl: (kit::hash01(s + 9.7) - 0.5) * 3.0,
+            size: 10.0 + kit::hash01(s + 10.3) * 7.0,
+            c: cols[i % cols.len()]
         });
         i += 1;
     }
