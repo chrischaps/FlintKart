@@ -187,8 +187,14 @@ fn sticker_r(th, x, y, w, h, face, radius, k, a, layer) {
     rect(x, y, w, h, fade(face, a), radius, layer);
     let inset = 3.0 * k;
     if h > 14.0 * k {
-        rect(x + inset, y + inset, w - inset * 2.0, (h - inset * 2.0) * 0.38,
-             fade(shine_of(th, face), a), radius * 0.75, layer);
+        // The shine's own corner radius, clamped to its height as the renderer
+        // clamps it. Pull its sides in until each corner sits under the face's
+        // corner centre: its round end then nests inside the face's curve
+        // `inset` from the edge, however round the face is (a pill's ends).
+        let sh = (h - inset * 2.0) * 0.38;
+        let sr = min(radius * 0.75, sh / 2.0);
+        let sx = max(inset, radius - sr);
+        rect(x + sx, y + inset, w - sx * 2.0, sh, fade(shine_of(th, face), a), sr, layer);
     }
 }
 
