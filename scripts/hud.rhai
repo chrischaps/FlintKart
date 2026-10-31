@@ -40,6 +40,14 @@ let boost_flash_c = [1.0, 1.0, 1.0, 1.0];
 let collision_flash_alpha = 0.0;
 let spinout_flash_alpha = 0.0;
 
+// Speed lines (see draw_speed_lines): eased amounts, so a boost swells in
+// and out rather than popping, and a clock that runs faster with speed
+let sl_amt = 0.0;           // 0..1 from speed
+let sl_boost = 0.0;         // 0..1 while a drift or item boost holds
+let sl_pulse = 0.0;         // 1 on a boost's first frame, decays with the FOV kick
+let sl_clock = 0.0;
+let sl_c = [1.0, 0.97, 0.90, 1.0];
+
 // Position medal
 let prev_race_position = 0;
 let pos_pop_t = 9.0;        // seconds since the place changed
@@ -324,29 +332,6 @@ fn on_draw_ui() {
     //  Screen flashes (behind the HUD, layer -2)
     // ════════════════════════════════════════════════════════
 
-    // Speed lines: radial cream streaks once past 45% of top speed
-    if speed_ratio > 0.45 && state == "racing" && !reduce_motion {
-        let cx = sw / 2.0;
-        let cy = sh / 2.0;
-        let time = total_time();
-        let line_intensity = kit::clamp01((speed_ratio - 0.45) / 0.55);
-        let num_lines = 16;
-        let angle_step = 6.2832 / num_lines;
-        let half_w = if sw > sh { sw / 2.0 } else { sh / 2.0 };
-        let li = 0;
-        while li < num_lines {
-            let angle = li * angle_step + time * 0.15;
-            let jitter = sin(angle * 7.0 + time * 3.0) * 0.03;
-            let out_d = 0.55 + jitter;
-            let in_d = 0.55 - line_intensity * 0.25 + jitter;
-            let c = th.c.cream;
-            draw_line(cx + cos(angle) * half_w * out_d, cy + sin(angle) * half_w * out_d,
-                      cx + cos(angle) * half_w * in_d, cy + sin(angle) * half_w * in_d,
-                      c[0], c[1], c[2], line_intensity * 0.025, 2.0 * k);
-            li += 1;
-        }
-    }
-
     // Drift state, tiers and the boost flash
     // charge and tier are the feel pass's (#6) fields; tier edges come from
     // kart_physics.drift_tier1..3 so the ring matches the physics' tuning.
@@ -371,6 +356,7 @@ fn on_draw_ui() {
         callout_text = "BOOST!";
         callout_c = kit::tier_color(th, boost_tier);
         callout_t = 0.0;
+        sl_pulse = 1.0;
     }
     if d_tier > prev_tier && d_tier > 0 {
         callout_text = if d_tier >= 3 { "ULTRA!" } else if d_tier == 2 { "SUPER!" } else { "MINI!" };
@@ -379,6 +365,30 @@ fn on_draw_ui() {
     }
     prev_tier = d_tier;
     prev_drift_state = drift_state;
+
+    // Speed lines: tapered streaks rushing out of a clear middle, from 45%
+    // of top speed; a boost thickens them and tints them its tier colour.
+    // The camera's radial blur smears the centre, so the lines own the rim.
+    let item_boost_on = false;
+    if has_component(kart_id, "item_holder") {
+        item_boost_on = get_field(kart_id, "item_holder", "item_boost_active") == true;
+    }
+    let sl_on = state == "racing" && !reduce_motion;
+    let sl_target = if sl_on { kit::clamp01((speed_ratio - 0.45) / 0.55) } else { 0.0 };
+    let boosting = sl_on && (drift_state == "boost" || item_boost_on);
+    sl_amt = kit::approach(sl_amt, sl_target, 0.35, dt);
+    sl_boost = kit::approach(sl_boost, if boosting { 1.0 } else { 0.0 }, 0.25, dt);
+    if boosting {
+        let bc = if drift_state == "boost" && boost_tier > 0 { kit::tier_color(th, boost_tier) } else { th.c.sun };
+        sl_c = kit::mix(th.c.cream, bc, 0.7);
+    }
+    if !sl_on { sl_pulse = 0.0; }
+    sl_clock += dt * (0.55 + 0.75 * sl_amt + 0.9 * sl_boost + 1.6 * sl_pulse);
+    if sl_amt > 0.01 || sl_boost > 0.01 {
+        let c = kit::mix(th.c.cream, sl_c, sl_boost);
+        draw_speed_lines(sw, sh, k, sl_amt, sl_boost, sl_pulse, sl_clock, c);
+    }
+    sl_pulse = max(sl_pulse - dt * 2.2, 0.0);
 
     if boost_flash_alpha > 0.01 && !reduce_motion {
         let c = boost_flash_c;
@@ -1015,6 +1025,69 @@ fn draw_start_lights(th, k, cx, cy, n_lit, fading) {
 
 // A countdown numeral: slams in big, settles with a bounce, a ring bursts
 // behind it, and it shrinks away at the end of its second.
+// Speed lines: `amt` (speed) and `boost` in 0..1, `pulse` the boost's
+// first kick, `clock` the travel phase. Each streak is born on an ellipse
+// round a clear middle (screen-shaped, lifted to the horizon), races out
+// past the edge, and is re-seeded with a new angle, length and width each
+// pass. Thin toward the centre, wide at the rim and fainter on its inner
+// half, so the eye reads a streak rushing past rather than a dash.
+fn draw_speed_lines(sw, sh, k, amt, boost, pulse, clock, c) {
+    let cx = sw / 2.0;
+    let cy = sh * 0.46;
+    let ax = sw * 0.5;
+    let ay = sh * 0.54;
+    let n = 44;
+    let r0 = 0.66 - 0.10 * amt - 0.06 * boost;     // edge of the clear middle
+    let r1 = 1.5;                                  // past every corner
+    let peak = 0.10 + 0.24 * amt + 0.20 * boost;
+    let shown = 0.30 + 0.55 * amt + 0.15 * boost;  // share of streaks alive
+    let i = 0;
+    while i < n {
+        let rate = 0.8 + 0.9 * kit::hash01(i * 3.17 + 0.5);
+        let life = clock * rate + kit::hash01(i * 7.31 + 1.9);
+        let pass = floor(life);
+        let t = life - pass;
+        let seed = i * 11.7 + pass * 5.3;
+        if kit::hash01(seed + 0.11) < shown {
+            let a = (i + kit::hash01(seed + 0.23)) / n * 6.2832;
+            let ca = cos(a);
+            let sa = sin(a);
+            // Fewer and fainter straight down, where the kart sits
+            let low = kit::clamp01((sa - 0.65) / 0.3);
+            let alpha = peak * kit::clamp01(t / 0.2) * (1.0 - 0.75 * low)
+                        * (0.6 + 0.4 * kit::hash01(seed + 0.37));
+            let len = (0.12 + 0.30 * kit::hash01(seed + 0.41)) * (0.55 + 0.45 * amt + 0.4 * boost);
+            let head = r0 + (r1 - r0) * t * t;
+            let tail = max(head - len, r0);
+            if head > tail + 0.01 && alpha > 0.004 {
+                let mid = tail + (head - tail) * 0.55;
+                let w = (2.0 + 3.5 * kit::hash01(seed + 0.53)) * k * (0.7 + 0.3 * amt + 0.35 * boost + 0.3 * pulse);
+                // Direction on screen and its normal, for the taper
+                let dx = ca * ax;
+                let dy = sa * ay;
+                let dl = sqrt(dx * dx + dy * dy);
+                let nx = -dy / dl;
+                let ny = dx / dl;
+                let tx = cx + dx * tail;
+                let ty = cy + dy * tail;
+                let mx = cx + dx * mid;
+                let my = cy + dy * mid;
+                let hx = cx + dx * head;
+                let hy = cy + dy * head;
+                let wt = 0.3 * k;
+                let wm = w * 0.45;
+                draw_polygon([[tx + nx * wt, ty + ny * wt], [mx + nx * wm, my + ny * wm],
+                              [mx - nx * wm, my - ny * wm], [tx - nx * wt, ty - ny * wt]],
+                             c[0], c[1], c[2], alpha * 0.4, -2);
+                draw_polygon([[mx + nx * wm, my + ny * wm], [hx + nx * w, hy + ny * w],
+                              [hx - nx * w, hy - ny * w], [mx - nx * wm, my - ny * wm]],
+                             c[0], c[1], c[2], alpha, -2);
+            }
+        }
+        i += 1;
+    }
+}
+
 fn draw_count_number(th, k, cx, cy, s, c, t, reduce_motion) {
     let sin_t = kit::ease_out_back(t / 0.28, th.m.overshoot);
     let sc = 2.1 - 1.1 * sin_t;
