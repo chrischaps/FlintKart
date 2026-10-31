@@ -6,26 +6,6 @@ closed = false
 spacing = 1.5
 
 [[control_points]]
-position = [71.546, 0.000, -98.002]
-twist = 0.0
-
-[[control_points]]
-position = [73.729, 0.000, -98.939]
-twist = 0.0
-
-[[control_points]]
-position = [75.879, 0.000, -99.845]
-twist = 0.0
-
-[[control_points]]
-position = [77.994, 0.000, -100.707]
-twist = 0.0
-
-[[control_points]]
-position = [80.072, 0.000, -101.510]
-twist = 0.0
-
-[[control_points]]
 position = [82.111, 0.000, -102.242]
 twist = 0.0
 
@@ -254,13 +234,5 @@ position = [136.075, 0.000, -20.011]
 twist = 0.0
 
 [[control_points]]
-position = [134.842, 0.000, -17.847]
-twist = 0.0
-
-[[control_points]]
-position = [133.566, 0.000, -15.723]
-twist = 0.0
-
-[[control_points]]
-position = [131.992, 0.000, -13.246]
+position = [135.588, 0.000, -19.141]
 twist = 0.0

@@ -312,7 +312,10 @@ fn on_update() {
         closed = false;
         // The closest segment, with a little stickiness for the one it is
         // on and the one it has chosen next, so it doesn't flick between
-        // the overlapping mouths of a fork
+        // the overlapping mouths of a fork. The way it didn't choose counts
+        // 6 m farther: the two roads overlap for ~18 m past the fork, and a
+        // kart that latched onto the wrong one there would spend its choice
+        // and steer for the gore between them
         let planned = "";
         if cur_seg >= 0 {
             let tn = get_field(cur_seg, "segment_info", "to_node");
@@ -330,6 +333,8 @@ fn on_update() {
                     let d = sqrt(cl["dist_sq"]);
                     if sid == cur_seg { d -= 2.5; }
                     if name == planned { d -= 2.5; }
+                    let from = get_field(sid, "segment_info", "from_node");
+                    if route_choice.contains(from) && route_choice[from] != name { d += 6.0; }
                     if d < best {
                         best = d;
                         best_seg = sid;

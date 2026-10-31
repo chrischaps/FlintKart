@@ -829,32 +829,6 @@ chunk_size = 30
 friction = 0.8
 restitution = 0.1
 
-[entities.track_verge_l]
-[entities.track_verge_l.spline_mesh]
-spline = "track_path"
-width = 4.0
-height = 0.3
-offset = [-8.0, -0.18]
-color = [1.0, 1.0, 1.0, 1.0]
-texture = "textures/road_grass.png"
-normal_texture = "textures/road_grass_normal.png"
-texture_length = 4.0
-roughness = 0.95
-collider = false
-
-[entities.track_verge_r]
-[entities.track_verge_r.spline_mesh]
-spline = "track_path"
-width = 4.0
-height = 0.3
-offset = [8.0, -0.18]
-color = [1.0, 1.0, 1.0, 1.0]
-texture = "textures/road_grass.png"
-normal_texture = "textures/road_grass_normal.png"
-texture_length = 4.0
-roughness = 0.95
-collider = false
-
 # ── Segment: seg_main_0 (130.4m) ──
 
 [entities.seg_main_0]
@@ -897,7 +871,7 @@ entry_type = "default"
 progress_start = 0.6879
 progress_end = 1.0
 
-# ── Segment: seg_branch_shortcut (125.2m) ──
+# ── Segment: seg_branch_shortcut (132.0m) ──
 
 [entities.seg_branch_shortcut]
 [entities.seg_branch_shortcut.spline]
@@ -925,8 +899,6 @@ roughness = 0.85
 chunk_size = 30
 friction = 0.8
 restitution = 0.1
-skip_starts = [0.0, 0.6667]
-skip_ends = [0.3333, 1.0]
 
 
 # ── Walls (tools/generate_crossroads_walls.py) ──
@@ -1006,21 +978,78 @@ roughness = 0.7
 friction = 0.3
 restitution = 0.5
 
+[entities.track_verge_l]
+[entities.track_verge_l.spline_mesh]
+spline = "track_path"
+offset = [-8.0, -0.18]
+width = 4.0
+height = 0.3
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
+
+[entities.track_verge_r_0]
+[entities.track_verge_r_0.spline]
+file = "splines/the_crossroads/walls/track_verge_r_0.spline.toml"
+[entities.track_verge_r_0.spline_mesh]
+spline = "track_verge_r_0"
+offset = [0.0, -0.18]
+width = 4.0
+height = 0.3
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
+
+[entities.track_verge_r_1]
+[entities.track_verge_r_1.spline]
+file = "splines/the_crossroads/walls/track_verge_r_1.spline.toml"
+[entities.track_verge_r_1.spline_mesh]
+spline = "track_verge_r_1"
+offset = [0.0, -0.18]
+width = 4.0
+height = 0.3
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
+
+[entities.seg_branch_shortcut_verge_l_0]
+[entities.seg_branch_shortcut_verge_l_0.spline]
+file = "splines/the_crossroads/walls/seg_branch_shortcut_verge_l_0.spline.toml"
+[entities.seg_branch_shortcut_verge_l_0.spline_mesh]
+spline = "seg_branch_shortcut_verge_l_0"
+offset = [0.0, -0.18]
+width = 4.0
+height = 0.3
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
+
+[entities.seg_branch_shortcut_verge_r]
+[entities.seg_branch_shortcut_verge_r.spline_mesh]
+spline = "seg_branch_shortcut"
+offset = [8.0, -0.18]
+width = 4.0
+height = 0.3
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
+
 # ── End walls ──
-
-# ── Junction fill geometry ──
-
-[entities.jfill_seg_branch_shortcut_fork]
-[entities.jfill_seg_branch_shortcut_fork.transform]
-position = [0, 0, 0]
-[entities.jfill_seg_branch_shortcut_fork.model]
-asset = "jfill_seg_branch_shortcut_fork"
-
-[entities.jfill_seg_branch_shortcut_merge]
-[entities.jfill_seg_branch_shortcut_merge.transform]
-position = [0, 0, 0]
-[entities.jfill_seg_branch_shortcut_merge.model]
-asset = "jfill_seg_branch_shortcut_merge"
 
 
 # ============================================================
@@ -1124,21 +1153,21 @@ asset = "prop_gantry"
 
 [entities.dress_billboard_gas_1]
 [entities.dress_billboard_gas_1.transform]
-position = [-11.853, -0.558, -52.987]
+position = [-11.853, -0.559, -52.987]
 rotation = [0, 71.875, 0]
 [entities.dress_billboard_gas_1.model]
 asset = "prop_billboard_gas"
 
 [entities.dress_billboard_cola_2]
 [entities.dress_billboard_cola_2.transform]
-position = [158.739, -0.528, -79.729]
+position = [158.739, -0.537, -79.729]
 rotation = [0, -63.694, 0]
 [entities.dress_billboard_cola_2.model]
 asset = "prop_billboard_cola"
 
 [entities.dress_billboard_flint_3]
 [entities.dress_billboard_flint_3.transform]
-position = [80.894, -0.545, 8.408]
+position = [80.894, -0.551, 8.408]
 rotation = [0, 2.228, 0]
 [entities.dress_billboard_flint_3.model]
 asset = "prop_billboard_flint"
@@ -1209,7 +1238,7 @@ range = 16
 
 [entities.dress_light_06]
 [entities.dress_light_06.transform]
-position = [55.031, 3.5, -107.115]
+position = [99.024, 3.5, -118.77]
 [entities.dress_light_06.light]
 type = "point"
 color = [1, 0.72, 0.42]
@@ -1218,7 +1247,7 @@ range = 16
 
 [entities.dress_light_07]
 [entities.dress_light_07.transform]
-position = [82.319, 3.5, -100.043]
+position = [115.646, 3.5, -92.313]
 [entities.dress_light_07.light]
 type = "point"
 color = [1, 0.72, 0.42]
@@ -1227,7 +1256,7 @@ range = 16
 
 [entities.dress_light_08]
 [entities.dress_light_08.transform]
-position = [99.024, 3.5, -118.77]
+position = [144.759, 3.5, -87.636]
 [entities.dress_light_08.light]
 type = "point"
 color = [1, 0.72, 0.42]
@@ -1236,7 +1265,7 @@ range = 16
 
 [entities.dress_light_09]
 [entities.dress_light_09.transform]
-position = [115.646, 3.5, -92.313]
+position = [140.321, 3.5, -59.723]
 [entities.dress_light_09.light]
 type = "point"
 color = [1, 0.72, 0.42]
@@ -1245,7 +1274,7 @@ range = 16
 
 [entities.dress_light_10]
 [entities.dress_light_10.transform]
-position = [144.759, 3.5, -87.636]
+position = [158.691, 3.5, -42.65]
 [entities.dress_light_10.light]
 type = "point"
 color = [1, 0.72, 0.42]
@@ -1254,7 +1283,7 @@ range = 16
 
 [entities.dress_light_11]
 [entities.dress_light_11.transform]
-position = [140.321, 3.5, -59.723]
+position = [113.133, 3.5, 4.857]
 [entities.dress_light_11.light]
 type = "point"
 color = [1, 0.72, 0.42]
@@ -1263,7 +1292,7 @@ range = 16
 
 [entities.dress_light_12]
 [entities.dress_light_12.transform]
-position = [158.691, 3.5, -42.65]
+position = [106.434, 3.5, 26.901]
 [entities.dress_light_12.light]
 type = "point"
 color = [1, 0.72, 0.42]
@@ -1272,7 +1301,7 @@ range = 16
 
 [entities.dress_light_13]
 [entities.dress_light_13.transform]
-position = [135.978, 3.5, -24.42]
+position = [79.495, 3.5, 14.062]
 [entities.dress_light_13.light]
 type = "point"
 color = [1, 0.72, 0.42]
@@ -1281,7 +1310,7 @@ range = 16
 
 [entities.dress_light_14]
 [entities.dress_light_14.transform]
-position = [138.94, 3.5, 2.275]
+position = [54.142, 3.5, 29.256]
 [entities.dress_light_14.light]
 type = "point"
 color = [1, 0.72, 0.42]
@@ -1290,7 +1319,7 @@ range = 16
 
 [entities.dress_light_15]
 [entities.dress_light_15.transform]
-position = [113.133, 3.5, 4.857]
+position = [28.957, 3.5, 6.023]
 [entities.dress_light_15.light]
 type = "point"
 color = [1, 0.72, 0.42]

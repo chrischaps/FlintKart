@@ -126,6 +126,10 @@ class Roads:
         s = np.clip(s, -reach, reach)
         return self.P[idx, 1] + self.R[idx, 1] / self.flat_len[idx] * s
 
+    def road_of(self, idx):
+        """Which road (index into the recipe's roads) sample `idx` is on."""
+        return int(np.searchsorted(np.cumsum([len(s) for s in self.samples]), idx, side="right"))
+
     def nearest(self, x, z):
         d, i = self.tree.query(np.c_[np.ravel(x), np.ravel(z)])
         return d.reshape(np.shape(x)), i.reshape(np.shape(x))
@@ -407,6 +411,14 @@ class Dresser:
                     prop = gp.PROPS[spec["prop"]](spec.get("seed", k))
                     pos, fwd, right, _ = self.along(t, side, spec.get("offset", 0.0), side == 0 or spec.get("on_road", False),
                                                     spec.get("spline", 0))
+                    # A roadside prop within `clear` metres of another road's
+                    # centre (on a branch, or in the gore between two roads'
+                    # verges) is left out; its own road's hairpins don't count
+                    if side != 0:
+                        clear = spec.get("clear", spec.get("offset", 0.0) + 2.0)
+                        near = self.roads.tree.query_ball_point([pos[0], pos[2]], clear)
+                        if any(self.roads.road_of(i) != spec.get("spline", 0) for i in near):
+                            continue
                     if side == 0 or spec.get("parallel", False):
                         yaw = yaw_facing(fwd[0], fwd[2]) + spec.get("yaw", 0.0)
                     else:
