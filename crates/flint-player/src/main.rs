@@ -63,6 +63,18 @@ struct Args {
     #[arg(long, default_value_t = 1)]
     msaa: u32,
 
+    /// Draw the 3D scene at this fraction of the window's pixels on each
+    /// side (0.25-1), upscaled under a full-resolution HUD; `auto` steps
+    /// down to hold 60 fps and back up when it can (#122)
+    #[arg(long, value_name = "SCALE|auto")]
+    render_scale: Option<String>,
+
+    /// On-screen touch controls from the input config's `[touch_controls]`
+    /// block (#133): `auto` shows them once a finger touches, `always`
+    /// shows them and lets the mouse's left button drive them, `never`
+    #[arg(long, value_name = "auto|always|never", default_value = "auto")]
+    touch_controls: String,
+
     /// GPU adapter to use (case-insensitive substring of the adapter name,
     /// e.g. "NVIDIA"). Overrides WGPU_ADAPTER_NAME; default prefers the
     /// high-performance adapter. Use --list-gpus to see names.
@@ -116,6 +128,11 @@ struct Args {
     /// capture shows it
     #[arg(long)]
     stats: bool,
+
+    /// Print a perf line every 10 s: frame p50/p99, each phase's CPU time
+    /// and each pass's GPU time, as the web page's `?perf=1` copies it
+    #[arg(long)]
+    perf: bool,
 }
 
 fn main() -> Result<()> {
@@ -199,6 +216,14 @@ fn main() -> Result<()> {
     );
 
     app.msaa_sample_count = args.msaa;
+    if let Some(value) = &args.render_scale {
+        app.render_scale = flint_player::RenderScaleSetting::default()
+            .parse(value)
+            .ok_or_else(|| anyhow::anyhow!("--render-scale {value}: a number or auto"))?;
+    }
+    let touch_mode = flint_runtime::TouchControlsMode::parse(&args.touch_controls)
+        .ok_or_else(|| anyhow::anyhow!("--touch-controls: auto, always or never"))?;
+    app.input.touch_controls_mut().set_mode(touch_mode);
     // Skybox, ambient, shading levers, camera and post from the scene file
     app.apply_scene_settings(&scene_file);
     app.window_size = (args.width, args.height);
@@ -212,6 +237,9 @@ fn main() -> Result<()> {
         app.capture.input_script = Some(flint_player::InputScript::load(path)?);
     }
     app.capture.show_stats = args.stats;
+    if args.perf {
+        app.enable_perf(true);
+    }
     app.clock.frame_step = args.frame_step.filter(|s| *s > 0.0);
 
     // Apply initial mixer bus volumes from CLI (e.g. --music-volume 0)

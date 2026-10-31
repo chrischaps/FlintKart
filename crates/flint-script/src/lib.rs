@@ -67,6 +67,17 @@ pub struct ScriptSystem {
 }
 
 impl ScriptSystem {
+    /// Time each script's `on_update` from now on, for a perf readout.
+    pub fn set_update_timing(&mut self, on: bool) {
+        self.engine.set_update_timing(on);
+    }
+
+    /// Each script file's time in the last frame's `on_update`, ms; empty
+    /// unless [`set_update_timing`](Self::set_update_timing) is on.
+    pub fn update_times(&self) -> &[(String, f32)] {
+        self.engine.update_times()
+    }
+
     pub fn new() -> Self {
         Self {
             engine: ScriptEngine::new(),
@@ -123,6 +134,7 @@ impl ScriptSystem {
             any_just_pressed: input.any_just_pressed(),
             last_device: input.last_device().as_str().to_string(),
             gamepad_connected: input.gamepad_connected(),
+            touch_controls_visible: input.touch_controls_visible(),
             mouse_delta: input.raw_mouse_delta(),
             mouse_wheel: {
                 let (x, y) = input.mouse_wheel_delta();
@@ -384,6 +396,14 @@ impl ScriptSystem {
         c.audio_lowpass_cutoff_override.take()
     }
 
+    /// Take the `set_touch_controls` request set by scripts this frame
+    /// (clears it)
+    pub fn take_touch_controls_override(&mut self) -> Option<bool> {
+        crate::lock_or_recover(&self.engine.ctx)
+            .touch_controls_override
+            .take()
+    }
+
     /// Take the cursor capture request set by scripts this frame (clears it)
     pub fn take_cursor_capture_override(&mut self) -> Option<bool> {
         let mut c = self.engine.ctx.lock().unwrap();
@@ -468,23 +488,40 @@ impl RuntimeSystem for ScriptSystem {
     }
 
     fn update(&mut self, world: &mut FlintWorld, _dt: f64) -> Result<()> {
+        // A perf readout times each step below, and each script's on_update.
+        self.engine.clear_update_times();
+        let timing = self.engine.timing();
+        let now = || timing.then(web_time::Instant::now);
+
         // Check for hot-reloaded scripts
+        let began = now();
         self.sync.check_hot_reload(&mut self.engine);
 
         // Check for edited .ui.toml / .style.toml / token files
         crate::lock_or_recover(&self.engine.ctx)
             .ui_system
             .poll_reload();
+        if let Some(began) = began {
+            self.engine.add_update_time("[hot reload]", began);
+        }
 
         // Discover any new script entities
+        let began = now();
         self.sync.discover_and_load(world, &mut self.engine);
 
         // Call on_init for newly added scripts
         self.engine.call_inits(world);
+        if let Some(began) = began {
+            self.engine.add_update_time("[load, on_init]", began);
+        }
 
         // Process events (collision, trigger, action callbacks)
+        let began = now();
         let events = std::mem::take(&mut self.pending_events);
         self.engine.process_events(&events, world);
+        if let Some(began) = began {
+            self.engine.add_update_time("[events]", began);
+        }
 
         // Call on_update() for all scripts
         self.engine.call_updates(world);
