@@ -1,20 +1,15 @@
-# Main Menu styles
+# Main Menu styles — tokens from ui/theme.toml, shared with the race HUD.
+# menu.rhai sets the logo rect and the version line's y each frame; the
+# procedural screens read the same tokens through kit::theme().
 #
-# All UI elements use layer >= 1 so they render above the procedural
-# background lines (draw_line hardcodes layer 0).
-# Positions default to 0; the script sets actual positions via ui_set_style
-# each frame for screen-size responsiveness.
-
-# ── Screen containers (invisible, just for grouping) ──
+# All elements use layer >= 1 so they draw above the background speed
+# lines (layer 0).
+tokens = "ui/theme.toml"
 
 [styles.screen-container]
 width_pct = 100
 height_pct = 100
 bg_color = [0.0, 0.0, 0.0, 0.0]
-
-# ════════════════════════════════════════════════════════
-#  TITLE SCREEN
-# ════════════════════════════════════════════════════════
 
 [styles.title-logo]
 width = 300
@@ -22,74 +17,10 @@ height = 200
 color = [1.0, 1.0, 1.0, 1.0]
 layer = 3
 
-[styles.prompt]
-font_size = 28
-color = [1.0, 1.0, 1.0, 0.8]
-text_align = "center"
-width_pct = 100
-layer = 3
-
 [styles.version]
-font_size = 13
-color = [0.4, 0.4, 0.45, 0.6]
-text_align = "center"
-width_pct = 100
-layer = 3
-
-# ════════════════════════════════════════════════════════
-#  TRACK SELECT SCREEN
-# ════════════════════════════════════════════════════════
-
-[styles.select-header]
-font_size = 42
-color = [1.0, 0.85, 0.2, 1.0]
-text_align = "center"
-width_pct = 100
-layer = 3
-
-[styles.card-border]
-rounding = 12
-color = [0.3, 0.3, 0.35, 0.4]
-thickness = 0
-layer = 1
-
-[styles.card-bg]
-rounding = 10
-color = [0.08, 0.08, 0.12, 0.4]
-thickness = 0
-layer = 2
-
-[styles.card-number]
-font_size = 48
-color = [1.0, 1.0, 1.0, 0.1]
-layer = 3
-
-[styles.card-name]
-font_size = 28
-color = [1.0, 1.0, 1.0, 0.6]
-text_align = "center"
-layer = 3
-
-[styles.card-length]
-font_size = 16
-color = [0.7, 0.7, 0.8, 0.4]
-text_align = "center"
-layer = 3
-
-[styles.card-desc]
-font_size = 14
-color = [0.75, 0.75, 0.8, 0.3]
-text_align = "center"
-layer = 3
-
-[styles.arrow]
-font_size = 24
-color = [1.0, 0.85, 0.2, 0.5]
-layer = 3
-
-[styles.select-hint]
-font_size = 15
-color = [0.5, 0.5, 0.55, 0.7]
+font = "$font.label"
+font_size = "$type.sm"
+color = "$color.cream"
 text_align = "center"
 width_pct = 100
 layer = 3

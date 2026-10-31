@@ -75,6 +75,8 @@ let callout_c = [1.0, 1.0, 1.0, 1.0];
 // Wrong way
 let wrong_way_acc = 0.0;
 let wrong_way_t = 0.0;
+let ww_last_t = -1.0;       // spline_t when it last changed
+let ww_back = false;        // did that change go backwards?
 
 // Pause menu
 let pause_selection = 0;
@@ -529,7 +531,7 @@ fn on_draw_ui() {
         while ri < sorted.len() {
             let eid = sorted[ri];
             let cur = row_y["" + eid];
-            let nudge = kit::clamp01(cur - ri) * 30.0 * k;
+            let nudge = kit::clamp01((cur - ri) * 2.0) * 36.0 * k;
             if has_component(eid, "ai_input") {
                 draw_standing_row(th, k, eid, rx - nudge, top + cur * (rh + gap), rw, rh, false);
             } else {
@@ -719,14 +721,19 @@ fn on_draw_ui() {
     }
 
     // ── Wrong way ──
+    // spline_t moves in sample steps (one every ~2 m), so most frames it
+    // doesn't change: judge by the direction of its last change.
     let st = get_field(kart_id, "race_progress", "spline_t");
-    let pt = get_field(kart_id, "race_progress", "prev_spline_t");
-    let dtt = st - pt;
-    if dtt > 0.5 { dtt -= 1.0; }
-    if dtt < -0.5 { dtt += 1.0; }
-    if state == "racing" && abs_speed > 3.0 && dtt < -0.00002 {
+    if st != ww_last_t {
+        let dtt = st - ww_last_t;
+        if dtt > 0.5 { dtt -= 1.0; }
+        if dtt < -0.5 { dtt += 1.0; }
+        ww_back = ww_last_t >= 0.0 && dtt < 0.0 && dtt > -0.05;
+        ww_last_t = st;
+    }
+    if state == "racing" && abs_speed > 3.0 && ww_back {
         wrong_way_acc = min(wrong_way_acc + dt, 2.0);
-    } else if dtt > 0.00002 || abs_speed < 1.0 {
+    } else {
         wrong_way_acc = max(wrong_way_acc - dt * 2.5, 0.0);
     }
     if wrong_way_acc > 0.6 && state == "racing" {
@@ -807,7 +814,7 @@ fn on_draw_ui() {
             let f_steer = action_value("steering");
             let f_dir = if f_steer > 0.5 { 1 } else if f_steer < -0.5 { -1 } else { 0 };
             if f_dir != 0 && f_dir != prev_finish_steer {
-                let ns = clamp(finish_selection + f_dir, 0, finish_options.len() - 1);
+                let ns = max(min(finish_selection + f_dir, finish_options.len() - 1), 0);
                 if ns != finish_selection {
                     finish_selection = ns;
                     finish_sel_t = 0.0;
@@ -1087,7 +1094,7 @@ fn draw_pause(th, k, sw, sh, options, sel, t, sel_t, track_name, kart_id, touch_
         i += 1;
     }
     let hint = if touch_ui { "Tap a row" } else { "W/S to move  ·  ENTER to pick  ·  ESC to resume" };
-    kit::label(th, sw / 2.0, cy + ch + 22.0 * k, hint, th.t.sm * k, th.c.cream, "center", 22);
+    kit::hint(th, sw / 2.0, cy + ch + 18.0 * k, hint, k, 1.0, 22);
     rects
 }
 
@@ -1241,6 +1248,6 @@ fn draw_results(th, k, sw, sh, kart_id, t, options, sel, sel_t, touch_ui) {
         j += 1;
     }
     let hint = if touch_ui { "Tap to choose" } else { "A/D to choose  ·  ENTER to go" };
-    kit::label(th, sw / 2.0, py + ph + 10.0 * k, hint, th.t.sm * k, kit::fade(th.c.cream, pa * 0.8), "center", 9);
+    kit::hint(th, sw / 2.0, py + ph + 8.0 * k, hint, k, pa, 9);
     rects
 }

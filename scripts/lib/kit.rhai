@@ -258,6 +258,16 @@ fn label(th, x, y, s, size, c, align, layer) {
     draw_text_opts(x, y, s, size, #{ font: th.f.label, color: c, align: align, layer: layer, spacing: size * 0.04 });
 }
 
+// A controls hint: small cream label on a dark pill, centred on cx, so it
+// reads over bright sky as well as asphalt.
+fn hint(th, cx, y, s, k, a, layer) {
+    let size = th.t.sm * k;
+    let w = measure_text_ex(s, size, th.f.label, size * 0.04).width + 28.0 * k;
+    let h = size + 12.0 * k;
+    rect(cx - w / 2.0, y, w, h, fade(th.c.panel, a), h / 2.0, layer);
+    draw_text_opts(cx, y + 5.0 * k, s, size, #{ font: th.f.label, color: fade(th.c.cream, a), align: "center", layer: layer, spacing: size * 0.04 });
+}
+
 // Number in the panel face (tabular digits).
 fn number(th, x, y, s, size, c, align, layer) {
     draw_text_opts(x, y, s, size, #{ font: th.f.number, color: c, align: align, layer: layer });
