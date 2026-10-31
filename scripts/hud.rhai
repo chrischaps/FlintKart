@@ -636,9 +636,16 @@ fn on_draw_ui() {
     }
 
     // --- Finish Overlay ---
-    if state == "finished" {
-        // Solid dark overlay at z=-1 so text at z=0 draws on top
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.05, 0.05, 0.08, 0.92, 0.0, -1);
+    // Held back while the finish camera and slow motion play (race_manager's
+    // finish_elapsed, real seconds), then dims the scene and slides in
+    let finish_elapsed = get_field(manager_id, "race_state", "finish_elapsed");
+    if finish_elapsed == () || finish_elapsed < 0.0 { finish_elapsed = 99.0; }
+    let reveal = clamp((finish_elapsed - 2.8) / 0.45, 0.0, 1.0);
+    let reveal_e = 1.0 - (1.0 - reveal) * (1.0 - reveal) * (1.0 - reveal);
+    if state == "finished" && reveal > 0.0 {
+        // Dark overlay at z=-1 so text at z=0 draws on top; the orbiting
+        // finish camera still shows through
+        draw_rect_ex(0.0, 0.0, sw, sh, 0.05, 0.05, 0.08, 0.62 * reveal_e, 0.0, -1);
 
         // Get all racers for standings
         let finish_karts = find_entities_with("race_position");
@@ -673,9 +680,9 @@ fn on_draw_ui() {
         // Results panel with subtle border (z=-1 so text at z=0 draws on top)
         let panel_w = 400.0;
         let frow_h = 36.0;
-        let panel_h = 170.0 + fnum * frow_h;
+        let panel_h = 198.0 + fnum * frow_h;
         let panel_x = (sw - panel_w) / 2.0;
-        let panel_y = (sh - panel_h) / 2.0;
+        let panel_y = (sh - panel_h) / 2.0 + (1.0 - reveal_e) * 60.0;
         draw_rect_ex(panel_x - 1.0, panel_y - 1.0, panel_w + 2.0, panel_h + 2.0, 0.3, 0.3, 0.35, 0.5, 13.0, -1);
         draw_rect_ex(panel_x, panel_y, panel_w, panel_h, 0.10, 0.10, 0.14, 1.0, 12.0, -1);
 
@@ -697,8 +704,26 @@ fn on_draw_ui() {
             draw_text((sw - bw["width"]) / 2.0, panel_y + 92.0, best_str, 18.0, 0.4, 0.9, 0.4, 1.0);
         }
 
+        // Track records, kept per track by race_manager
+        let new_race_rec = get_field(manager_id, "race_state", "new_race_record") == true;
+        let new_lap_rec = get_field(manager_id, "race_state", "new_lap_record") == true;
+        let rec_race = get_field(manager_id, "race_state", "record_race");
+        let rec_lap = get_field(manager_id, "race_state", "record_lap");
+        if new_race_rec || new_lap_rec {
+            let rec_str = if new_race_rec && new_lap_rec { "NEW TRACK RECORDS!" }
+                          else if new_race_rec { "NEW TRACK RECORD!" } else { "NEW LAP RECORD!" };
+            let pulse = 0.8 + 0.2 * sin(total_time() * 7.0);
+            let rw = measure_text(rec_str, 20.0);
+            draw_text_stroked((sw - rw["width"]) / 2.0, panel_y + 118.0, rec_str, 20.0, 1.0, 0.78, 0.18, pulse, 0.10, 0.09, 0.16, 0.9, 2.0);
+        } else if rec_race != () && rec_race > 0.0 {
+            let rec_str = "Track record " + format_time(rec_race);
+            if rec_lap != () && rec_lap > 0.0 { rec_str = rec_str + "   Lap record " + format_time(rec_lap); }
+            let rw = measure_text(rec_str, 16.0);
+            draw_text((sw - rw["width"]) / 2.0, panel_y + 120.0, rec_str, 16.0, 1.0, 0.97, 0.90, 0.6);
+        }
+
         // Standings table
-        let table_y = panel_y + 124.0;
+        let table_y = panel_y + 152.0;
 
         // Get winner's finish time for gap calculation
         let winner_ft = 0.0;
