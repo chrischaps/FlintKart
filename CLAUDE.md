@@ -32,7 +32,7 @@ engine/target/release/flint render scenes/oval_plus.scene.toml --output test.png
 - `splines/` - Track spline data (`oval_plus.spline.toml`)
 - `models/` - GLB models (kart_body, kart_wheel, kart_driver, kart_light)
 - `schemas/components/` - Game-specific ECS components (kart_physics, kart_state, race_progress, etc.)
-- `textures/` - Skybox panoramas
+- `textures/` - Skybox panoramas, and `road_*` surfaces from `tools/generate_road_textures.py` (asphalt with curbs and markings, barrier panels, verge grass), applied through `spline_mesh` `texture` / `normal_texture` / `texture_length`
 - `tools/` - Asset generators (Python)
 - `engine/` - Flint engine (git subtree)
 

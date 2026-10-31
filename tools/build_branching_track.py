@@ -268,21 +268,41 @@ def generate_junction_fill_glb(canonical_cps, fork_cp_idx, branch_cps,
     faces = np.array(faces, dtype=np.int64)
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
 
-    # Apply road color as PBR material
+    # Apply road color as PBR material. With a fill texture (plain asphalt,
+    # no markings) the fill is mapped from above in world metres, so its grain
+    # matches the road it joins whatever way the junction turns.
     color_rgba = [int(c * 255) for c in road_color[:3]] + [255]
-    mesh.visual = trimesh.visual.TextureVisuals(
-        material=PBRMaterial(
-            baseColorFactor=color_rgba,
-            metallicFactor=0.0,
-            roughnessFactor=0.7,
+    fill_texture = road_cfg.get("fill_texture")
+    if fill_texture:
+        from PIL import Image
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        image = Image.open(os.path.join(project_root, fill_texture)).convert("RGB")
+        tile = road_cfg.get("fill_texture_length", 6.0)
+        uv = np.stack([vertices[:, 0] / tile, vertices[:, 2] / tile], axis=1)
+        mesh.visual = trimesh.visual.TextureVisuals(
+            uv=uv,
+            material=PBRMaterial(
+                baseColorTexture=image,
+                baseColorFactor=color_rgba,
+                metallicFactor=0.0,
+                roughnessFactor=road_cfg.get("roughness", 0.85),
+            ),
         )
-    )
+    else:
+        mesh.visual = trimesh.visual.TextureVisuals(
+            material=PBRMaterial(
+                baseColorFactor=color_rgba,
+                metallicFactor=0.0,
+                roughnessFactor=0.7,
+            )
+        )
 
     scene = trimesh.Scene()
     scene.add_geometry(mesh, node_name="junction_fill")
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    scene.export(output_path, file_type="glb")
+    # Normals, or the importer leaves them zero and the fill renders unlit
+    scene.export(output_path, file_type="glb", include_normals=True)
     print(f"  wrote {output_path}")
 
 
@@ -574,6 +594,41 @@ def fmt_array(arr, precision=3):
     return "[" + ", ".join(fmt_float(v, precision) for v in arr) + "]"
 
 
+def surface_lines(surface, stripe_color, stripe_width):
+    """Scene lines for a spline_mesh's surface: its texture keys when the
+    track config gives it a texture, otherwise the vertex-colour stripes."""
+    if surface.get("texture"):
+        out = [f'texture = "{surface["texture"]}"']
+        if surface.get("normal_texture"):
+            out.append(f'normal_texture = "{surface["normal_texture"]}"')
+        if "texture_length" in surface:
+            out.append(f'texture_length = {fmt_float(surface["texture_length"], 1)}')
+        if "roughness" in surface:
+            out.append(f'roughness = {fmt_float(surface["roughness"], 2)}')
+        return out
+    return [f'stripe_color = {fmt_color(stripe_color)}',
+            f'stripe_width = {fmt_float(stripe_width, 1)}']
+
+
+def verge_lines(name, spline, verges, road_width, side):
+    """A grass verge strip beyond one barrier: it starts under the wall and
+    sits a hair below the road, so asphalt wins wherever they overlap."""
+    width = verges.get("width", 4.0)
+    x = (road_width / 2 + width / 2) * (-1 if side == "left" else 1)
+    out = [f'[entities.{name}]',
+           f'[entities.{name}.spline_mesh]',
+           f'spline = "{spline}"',
+           f'width = {fmt_float(width, 1)}',
+           f'height = 0.3',
+           f'offset = {fmt_array([x, -0.18], 2)}',
+           f'color = {fmt_color(verges.get("color", [1.0, 1.0, 1.0, 1.0]))}']
+    out += surface_lines(verges, None, 0.0)
+    # Scenery only: no collider, so a kart that leaves the track falls and
+    # respawns as it always has instead of being caught behind a barrier
+    out += ['collider = false', '']
+    return out
+
+
 def fmt_color(arr, precision=2):
     """Format an RGBA color array."""
     return "[" + ", ".join(fmt_float(v, precision) for v in arr) + "]"
@@ -683,6 +738,19 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     wall_left_offset_x = -(road_width / 2 + wall_width / 2)
     wall_right_offset_x = road_width / 2 + wall_width / 2
     wall_offset_y = wall_height / 2
+
+    # Textured surfaces (tools/generate_road_textures.py); absent = stripes
+    def surface(cfg, prefix=""):
+        keys = ("texture", "normal_texture", "texture_length", "roughness")
+        return {k: cfg[prefix + k] for k in keys if prefix + k in cfg}
+    road_surface = surface(road)
+    wall_left_surface = surface(walls, "left_")
+    wall_right_surface = surface(walls, "right_")
+    for k in ("texture_length", "roughness"):
+        for surf in (wall_left_surface, wall_right_surface):
+            if k in walls and surf:
+                surf.setdefault(k, walls[k])
+    verges = track_data.get("verges", {})
 
     # Environment
     skybox = env.get("skybox", "textures/skybox_kart.png")
@@ -1158,8 +1226,7 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.append(f'height = {fmt_float(road_height, 1)}')
     lines.append(f'offset = {fmt_array(road_offset, 2)}')
     lines.append(f'color = {fmt_color(road_color)}')
-    lines.append(f'stripe_color = {fmt_color(road_stripe_color)}')
-    lines.append(f'stripe_width = {fmt_float(road_stripe_width, 1)}')
+    lines.extend(surface_lines(road_surface, road_stripe_color, road_stripe_width))
     lines.append(f'chunk_size = {road_chunk_size}')
     lines.append(f'friction = {fmt_float(road_friction, 1)}')
     lines.append(f'restitution = {fmt_float(road_restitution, 1)}')
@@ -1172,8 +1239,7 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.append(f'height = {fmt_float(wall_height, 1)}')
     lines.append(f'offset = {fmt_array([wall_left_offset_x, wall_offset_y], 2)}')
     lines.append(f'color = {fmt_color(wall_left_color)}')
-    lines.append(f'stripe_color = {fmt_color(wall_left_stripe)}')
-    lines.append(f'stripe_width = {fmt_float(wall_stripe_width, 1)}')
+    lines.extend(surface_lines(wall_left_surface, wall_left_stripe, wall_stripe_width))
     lines.append(f'friction = {fmt_float(wall_friction, 1)}')
     lines.append(f'restitution = {fmt_float(wall_restitution, 1)}')
     if canonical_wall_l_skips:
@@ -1190,8 +1256,7 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.append(f'height = {fmt_float(wall_height, 1)}')
     lines.append(f'offset = {fmt_array([wall_right_offset_x, wall_offset_y], 2)}')
     lines.append(f'color = {fmt_color(wall_right_color)}')
-    lines.append(f'stripe_color = {fmt_color(wall_right_stripe)}')
-    lines.append(f'stripe_width = {fmt_float(wall_stripe_width, 1)}')
+    lines.extend(surface_lines(wall_right_surface, wall_right_stripe, wall_stripe_width))
     lines.append(f'friction = {fmt_float(wall_friction, 1)}')
     lines.append(f'restitution = {fmt_float(wall_restitution, 1)}')
     if canonical_wall_r_skips:
@@ -1200,6 +1265,10 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
         lines.append(f'skip_starts = {fmt_array(starts, 4)}')
         lines.append(f'skip_ends = {fmt_array(ends, 4)}')
     lines.append(f'')
+
+    if verges:
+        lines.extend(verge_lines("track_verge_l", "track_path", verges, road_width, "left"))
+        lines.extend(verge_lines("track_verge_r", "track_path", verges, road_width, "right"))
 
     # Per-segment entities (spline + segment_info for race logic;
     # road/wall mesh only for branch segments)
@@ -1235,8 +1304,7 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
             lines.append(f'height = {fmt_float(road_height, 1)}')
             lines.append(f'offset = {fmt_array(road_offset, 2)}')
             lines.append(f'color = {fmt_color(road_color)}')
-            lines.append(f'stripe_color = {fmt_color(road_stripe_color)}')
-            lines.append(f'stripe_width = {fmt_float(road_stripe_width, 1)}')
+            lines.extend(surface_lines(road_surface, road_stripe_color, road_stripe_width))
             lines.append(f'chunk_size = {road_chunk_size}')
             lines.append(f'friction = {fmt_float(road_friction, 1)}')
             lines.append(f'restitution = {fmt_float(road_restitution, 1)}')
@@ -1257,8 +1325,7 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
             lines.append(f'height = {fmt_float(wall_height, 1)}')
             lines.append(f'offset = {fmt_array([wall_left_offset_x, wall_offset_y], 2)}')
             lines.append(f'color = {fmt_color(wall_left_color)}')
-            lines.append(f'stripe_color = {fmt_color(wall_left_stripe)}')
-            lines.append(f'stripe_width = {fmt_float(wall_stripe_width, 1)}')
+            lines.extend(surface_lines(wall_left_surface, wall_left_stripe, wall_stripe_width))
             lines.append(f'friction = {fmt_float(wall_friction, 1)}')
             lines.append(f'restitution = {fmt_float(wall_restitution, 1)}')
             if branch_wall_skips and sid in branch_wall_skips and branch_wall_skips[sid]["left"]:
@@ -1277,8 +1344,7 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
             lines.append(f'height = {fmt_float(wall_height, 1)}')
             lines.append(f'offset = {fmt_array([wall_right_offset_x, wall_offset_y], 2)}')
             lines.append(f'color = {fmt_color(wall_right_color)}')
-            lines.append(f'stripe_color = {fmt_color(wall_right_stripe)}')
-            lines.append(f'stripe_width = {fmt_float(wall_stripe_width, 1)}')
+            lines.extend(surface_lines(wall_right_surface, wall_right_stripe, wall_stripe_width))
             lines.append(f'friction = {fmt_float(wall_friction, 1)}')
             lines.append(f'restitution = {fmt_float(wall_restitution, 1)}')
             if branch_wall_skips and sid in branch_wall_skips and branch_wall_skips[sid]["right"]:
@@ -1288,6 +1354,10 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
                 lines.append(f'skip_starts = {fmt_array(starts, 4)}')
                 lines.append(f'skip_ends = {fmt_array(ends, 4)}')
             lines.append(f'')
+
+            # No verges on branches: the engine doesn't honour skip_starts /
+            # skip_ends yet, so a branch verge would lie across the main road
+            # at the fork and merge.
 
     # ── Junction fill meshes ──────────────────────────────
     if junction_fills:
@@ -1560,6 +1630,9 @@ def main():
         "offset": track_data.get("road", {}).get("offset", [0.0, -0.15]),
         "color": track_data.get("road", {}).get("color", [0.25, 0.25, 0.28, 1.0]),
     }
+    for key in ("fill_texture", "fill_texture_length", "roughness"):
+        if key in track_data.get("road", {}):
+            road_cfg[key] = track_data["road"][key]
 
     for seg in segments:
         if seg["is_canonical"]:

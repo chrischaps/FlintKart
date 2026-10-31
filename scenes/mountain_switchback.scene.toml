@@ -870,6 +870,7 @@ source = "hud.rhai"
 [entities.finish_line]
 [entities.finish_line.transform]
 position = [0, 0.02, 0]
+scale = [0.8333, 1.0, 1.0]  # the model spans 12 m; this road is 10 m
 [entities.finish_line.model]
 asset = "finish_line"
 
@@ -887,7 +888,8 @@ length = 886.0
 name = "Mountain Switchback"
 fog_density = 0.003
 
-# Road surface — narrower than Oval Plus (10m vs 12m), darker asphalt
+# Road surface — narrower than Oval Plus (10m vs 12m), darker asphalt.
+# texture_length matches the width so curbs and dashes keep their shape
 [entities.track_road]
 [entities.track_road.spline_mesh]
 spline = "track_path"
@@ -895,11 +897,15 @@ chunk_size = 30
 width = 10.0
 height = 0.3
 offset = [0.0, -0.15]
-color = [0.20, 0.20, 0.22, 1.0]
+color = [0.88, 0.88, 0.9, 1.0]
+texture = "textures/road_asphalt.png"
+normal_texture = "textures/road_asphalt_normal.png"
+texture_length = 10.0
+roughness = 0.85
 friction = 0.8
 restitution = 0.1
 
-# Left wall — red & white racing barrier stripes
+# Left wall — padded tomato & cream barrier panels
 [entities.track_wall_left]
 [entities.track_wall_left.spline_mesh]
 spline = "track_path"
@@ -907,13 +913,14 @@ chunk_size = 30
 width = 0.5
 height = 1.5
 offset = [-5.25, 0.75]
-color = [0.8, 0.12, 0.12, 1.0]
-stripe_color = [0.95, 0.95, 0.95, 1.0]
-stripe_width = 2.0
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_tomato.png"
+texture_length = 4.0
+roughness = 0.7
 friction = 0.3
 restitution = 0.5
 
-# Right wall — blue & white racing barrier stripes
+# Right wall — padded sky & cream barrier panels
 [entities.track_wall_right]
 [entities.track_wall_right.spline_mesh]
 spline = "track_path"
@@ -921,11 +928,43 @@ chunk_size = 30
 width = 0.5
 height = 1.5
 offset = [5.25, 0.75]
-color = [0.15, 0.15, 0.8, 1.0]
-stripe_color = [0.95, 0.95, 0.95, 1.0]
-stripe_width = 2.0
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_sky.png"
+texture_length = 4.0
+roughness = 0.7
 friction = 0.3
 restitution = 0.5
+
+# Grass verges — a shoulder of meadow beyond each barrier, a hair below the
+# road so the asphalt always wins where they meet. Scenery only (no
+# collider): a kart over the wall falls and respawns as it always has
+[entities.track_verge_left]
+[entities.track_verge_left.spline_mesh]
+spline = "track_path"
+chunk_size = 30
+width = 4.0
+height = 0.3
+offset = [-7.0, -0.18]
+color = [0.78, 0.86, 0.80, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
+
+[entities.track_verge_right]
+[entities.track_verge_right.spline_mesh]
+spline = "track_path"
+chunk_size = 30
+width = 4.0
+height = 0.3
+offset = [7.0, -0.18]
+color = [0.78, 0.86, 0.80, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
 
 
 # ============================================================
