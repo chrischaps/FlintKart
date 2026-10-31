@@ -296,8 +296,87 @@ def crossroads_shuffle():
     levelled_write("race_music_crossroads.ogg", s.mixdown(607))
 
 
+# ─── Tide Line (Lighthouse Bay) ──────────────────────────────────────
+
+def tide_line():
+    s = Song(bpm=126, bars=32)
+
+    a_chords = ["F", "Dm", "A#", "C", "F", "Am", "A#", "C"]
+    b_chords = ["Dm", "A#", "F", "C", "Dm", "A#", "Gm", "C7"]
+    a_mel = [
+        [(0, 2, "C5"), (2, 2, "F5"), (4, 3, "A5"), (7, 1, "G5"), (8, 2, "F5"), (10, 2, "A5"), (12, 4, "C6")],
+        [(0, 3, "A5"), (3, 3, "F5"), (6, 2, "D5"), (8, 4, "F5"), (12, 4, "A5")],
+        [(0, 2, "A#5"), (2, 2, "A5"), (4, 2, "G5"), (6, 2, "F5"), (8, 3, "D5"), (11, 1, "F5"), (12, 4, "G5")],
+        [(0, 6, "E5"), (6, 2, "G5"), (8, 8, "C5")],
+        [(0, 2, "C5"), (2, 2, "F5"), (4, 3, "A5"), (7, 1, "G5"), (8, 2, "F5"), (10, 2, "A5"), (12, 4, "C6")],
+        [(0, 3, "E6"), (3, 3, "C6"), (6, 2, "A5"), (8, 4, "E5"), (12, 4, "A5")],
+        [(0, 2, "D6"), (2, 2, "C6"), (4, 2, "A#5"), (6, 2, "A5"), (8, 3, "G5"), (11, 1, "A5"), (12, 4, "A#5")],
+        [(0, 3, "C6"), (3, 3, "G5"), (6, 2, "E5"), (8, 8, "F5")],
+    ]
+    b_mel = [
+        [(0, 6, "D5"), (6, 2, "F5"), (8, 6, "A5"), (14, 2, "G5")],
+        [(0, 8, "F5"), (8, 4, "D5"), (12, 4, "A#4")],
+        [(0, 6, "C5"), (6, 2, "F5"), (8, 6, "A5"), (14, 2, "C6")],
+        [(0, 8, "G5"), (8, 4, "E5"), (12, 4, "C5")],
+        [(0, 6, "D5"), (6, 2, "F5"), (8, 6, "A5"), (14, 2, "D6")],
+        [(0, 8, "D6"), (8, 4, "A#5"), (12, 4, "F5")],
+        [(0, 6, "G5"), (6, 2, "A#5"), (8, 6, "D6"), (14, 2, "C6")],
+        [(0, 4, "A#5"), (4, 4, "G5"), (8, 8, "E5")],
+    ]
+
+    def pan_drum(dur, f):
+        # steel pan: a bright FM strike over a hollow second partial
+        tt = t_axis(max(dur, 0.3) + 0.6)
+        return (fm_bell(tt, f, ratio=2.0, index=1.1, decay=4.5)
+                + 0.35 * fm_bell(tt, f * 2.0, ratio=1.5, index=0.6, decay=7.0))
+
+    def mar(dur, f):
+        return marimba(t_axis(max(dur, 0.35) + 0.4), f, decay=7.0)
+
+    def bass(dur, f):
+        tt = t_axis(dur + 0.05)
+        return lowpass(additive(tt, f, "saw", base=5.0, bright=0.5, top=1800), 900) * np.exp(-np.maximum(tt - dur, 0) * 60)
+
+    sections = [("A", a_chords, a_mel), ("B", b_chords, b_mel), ("A2", a_chords, a_mel), ("B2", b_chords, b_mel)]
+    for si, (name, chords, mel) in enumerate(sections):
+        for bi in range(8):
+            bar = si * 8 + bi
+            root, tones = chord_tones(chords[bi])
+            # Drums: soca kick on 1 and the "and" of 2, rim on 3s, shaker 16ths
+            for st in (0, 6, 8, 14):
+                s.kick(bar, st, gain=0.8 if st in (0, 8) else 0.55)
+            for st in (3, 7, 11, 15):
+                s.add(hat(t_axis(0.08), 900 + bar * 16 + st), bar, st, pan=-0.25, gain=0.45)
+            for st in range(16):
+                s.add(hat(t_axis(0.1), 1300 + bar * 16 + st), bar, st, pan=0.4, gain=0.3 if st % 2 else 0.14)
+            s.add(snare(t_axis(0.3), 1700 + bar), bar, 12, pan=0.05, gain=0.45, verb=0.15)
+            if bi == 7:
+                for st in (12, 13, 14, 15):
+                    s.add(snare(t_axis(0.2), 1800 + bar + st), bar, st, pan=0.1, gain=0.25 + 0.06 * (st - 12))
+            # Bass: root-fifth-octave bounce
+            for st, ln, off in [(0, 3, 0), (3, 1, 7), (6, 2, 0), (8, 3, 12), (11, 1, 7), (14, 2, 5)]:
+                s.add(bass(ln * s.step, hz(root - 12 + off)), bar, st, gain=0.6, ducked=True)
+            # Chords: marimba strums on the offbeats
+            for st in (2, 6, 10, 14):
+                for j, m in enumerate(tones[:3]):
+                    s.add(marimba(t_axis(0.4), hz(m), decay=9.0), bar, st, pan=-0.3 + 0.15 * j,
+                          gain=0.14, verb=0.15, ducked=True)
+            # Lead: steel pan in A, marimba an octave down in B
+            if name.startswith("A"):
+                play_melody(s, bar, mel[bi], pan_drum, pan=0.15, gain=0.28, verb=0.3)
+            else:
+                play_melody(s, bar, mel[bi], mar, pan=0.1, gain=0.45, verb=0.35)
+            if name == "A2":   # a second pan answering an octave below
+                play_melody(s, bar, mel[bi][::2], pan_drum, pan=-0.4, gain=0.14, verb=0.3, transpose=-12)
+            if name == "B2":   # gull-call sparkle on the downbeats
+                s.add(fm_bell(t_axis(0.5), hz(tones[-1] + 24), ratio=3.5, index=0.7, decay=9), bar, 0,
+                      pan=0.5, gain=0.12, verb=0.4)
+    levelled_write("race_music_bay.ogg", s.mixdown(911))
+
+
 if __name__ == "__main__":
     print("Composing FlintKart race music...")
     switchback_sunrise()
     crossroads_shuffle()
+    tide_line()
     print("Done.")

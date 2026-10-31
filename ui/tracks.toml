@@ -34,3 +34,12 @@ length = "450 m"
 blurb = "A flowing loop with a forked shortcut. Jump to take it."
 tag = "SHORTCUT"
 accent = "grape"
+
+[[tracks]]
+name = "Lighthouse Bay"
+scene = "scenes/lighthouse_bay.scene.toml"
+spline = "splines/lighthouse_bay.spline.toml"
+length = "614 m"
+blurb = "Promenade, headland tunnel, cliff run and a causeway over the lagoon."
+tag = "SEASIDE"
+accent = "sun"

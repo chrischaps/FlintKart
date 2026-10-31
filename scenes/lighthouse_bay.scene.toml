@@ -1,0 +1,1018 @@
+# ================================================================
+#  FLINT KART — Lighthouse Bay
+# ================================================================
+#
+#  A coastal loop at the end of a summer afternoon: the promenade
+#  straight, a climb past the lighthouse and through the headland,
+#  a fast run down the cliffs and a causeway over the lagoon.
+#
+#  Launch: play_bay.bat
+#  Dressing: tracks/lighthouse_bay.dress.toml (tools/dress_track.py)
+# ================================================================
+
+[scene]
+name = "Flint Kart — Lighthouse Bay"
+version = "1.0"
+description = "Coastal circuit: promenade, headland tunnel, cliff descent and lagoon causeway"
+input_config = "config/input.toml"
+
+[environment]
+skybox = "textures/skybox_kart.png"
+
+[post_process]
+bloom_enabled = true
+bloom_intensity = 0.06
+bloom_threshold = 0.9
+vignette_enabled = true
+vignette_intensity = 0.35
+vignette_smoothness = 0.9
+exposure = 1.1
+ssao_enabled = true
+ssao_radius = 0.8
+ssao_intensity = 0.7
+# Sea air: a bright, faintly warm haze over the water
+fog_enabled = true
+fog_color = [0.70, 0.80, 0.90]
+fog_density = 0.0014
+fog_start = 60.0
+fog_height_enabled = true
+fog_height_falloff = 0.03
+fog_height_origin = 0.0
+
+# Sky — a high, clean blue going gold toward the sun over the sea
+[entities.sky]
+[entities.sky.sky]
+zenith_color = [0.05, 0.24, 0.70, 1.0]
+horizon_color = [0.62, 0.74, 0.92, 1.0]
+haze_color = [1.0, 0.88, 0.70, 0.45]
+cloud_tint = [1.0, 0.95, 0.88, 0.85]
+cloud_coverage = 0.28
+cloud_density = 0.3
+cloud_scale = 0.7
+sun_disc_size = 0.035
+sun_glow = 1.3
+
+# The sea: cel-banded swell around the whole island, foam where it meets
+# the beaches, the causeway columns and the sea stacks
+[entities.sea]
+[entities.sea.transform]
+position = [0, 0, 0]
+[entities.sea.ocean]
+seed = 11
+amplitude = 0.45
+wavelength_min = 2.0
+wavelength_max = 26.0
+choppiness = 0.55
+direction_deg = 250.0
+wind_speed = 6.0
+fetch_km = 20.0
+deep_color = [0.02, 0.22, 0.42, 1.0]
+shallow_color = [0.08, 0.58, 0.72, 1.0]
+sss_color = [0.10, 0.85, 0.75, 1.0]
+ramp_steps = 3.0
+specular_strength = 1.2
+turbidity = 0.5
+shore_foam_width = 0.8
+shore_foam_strength = 0.9
+shore_foam_reach = 2.0
+sky_reflection_strength = 0.6
+
+
+# ============================================================
+#  KART PREFAB INSTANCES — 6 racers from a single template
+# ============================================================
+
+[prefabs.player]
+template = "kart"
+prefix = "player"
+[prefabs.player.overrides.kart.transform]
+position = [-1.60, 3.50, 5.18]
+rotation = [0, -2.17, 0]
+[prefabs.player.overrides.kart.kart_state]
+yaw = -2.17
+[prefabs.player.overrides.kart.racer_info]
+name = "YOU"
+color_r = 0.9
+color_g = 0.9
+color_b = 0.9
+
+[prefabs.ai1]
+template = "kart"
+prefix = "ai1"
+[prefabs.ai1.overrides.kart.transform]
+position = [1.40, 3.50, 5.29]
+rotation = [0, -2.17, 0]
+[prefabs.ai1.overrides.kart.kart_state]
+yaw = -2.17
+[prefabs.ai1.overrides.kart.kart_physics]
+max_speed = 33.0
+acceleration = 16.5
+[prefabs.ai1.overrides.kart.race_position]
+position = 2
+[prefabs.ai1.overrides.kart.ai_input]
+throttle = 0.0
+steering = 0.0
+brake = 0.0
+drift = false
+[prefabs.ai1.overrides.kart.racer_info]
+name = "Blaze"
+color_r = 0.95
+color_g = 0.3
+color_b = 0.1
+
+[prefabs.ai2]
+template = "kart"
+prefix = "ai2"
+[prefabs.ai2.overrides.kart.transform]
+position = [-1.91, 3.50, 10.59]
+rotation = [0, -4.36, 0]
+[prefabs.ai2.overrides.kart.kart_state]
+yaw = -4.36
+[prefabs.ai2.overrides.kart.kart_physics]
+max_speed = 31.5
+acceleration = 15.5
+[prefabs.ai2.overrides.kart.race_position]
+position = 3
+[prefabs.ai2.overrides.kart.ai_input]
+throttle = 0.0
+steering = 0.0
+brake = 0.0
+drift = false
+[prefabs.ai2.overrides.kart.racer_info]
+name = "Steady"
+color_r = 0.2
+color_g = 0.75
+color_b = 0.25
+
+[prefabs.ai3]
+template = "kart"
+prefix = "ai3"
+[prefabs.ai3.overrides.kart.transform]
+position = [1.08, 3.50, 10.82]
+rotation = [0, -4.36, 0]
+[prefabs.ai3.overrides.kart.kart_state]
+yaw = -4.36
+[prefabs.ai3.overrides.kart.kart_physics]
+max_speed = 31.0
+[prefabs.ai3.overrides.kart.race_position]
+position = 4
+[prefabs.ai3.overrides.kart.ai_input]
+throttle = 0.0
+steering = 0.0
+brake = 0.0
+drift = false
+[prefabs.ai3.overrides.kart.racer_info]
+name = "Tank"
+color_r = 0.95
+color_g = 0.85
+color_b = 0.15
+
+[prefabs.ai4]
+template = "kart"
+prefix = "ai4"
+[prefabs.ai4.overrides.kart.transform]
+position = [-2.31, 3.50, 15.83]
+rotation = [0, -3.33, 0]
+[prefabs.ai4.overrides.kart.kart_state]
+yaw = -3.33
+[prefabs.ai4.overrides.kart.kart_physics]
+max_speed = 32.5
+acceleration = 16.0
+[prefabs.ai4.overrides.kart.race_position]
+position = 5
+[prefabs.ai4.overrides.kart.ai_input]
+throttle = 0.0
+steering = 0.0
+brake = 0.0
+drift = false
+[prefabs.ai4.overrides.kart.racer_info]
+name = "Ghost"
+color_r = 0.6
+color_g = 0.2
+color_b = 0.85
+
+[prefabs.ai5]
+template = "kart"
+prefix = "ai5"
+[prefabs.ai5.overrides.kart.transform]
+position = [0.68, 3.50, 16.00]
+rotation = [0, -3.33, 0]
+[prefabs.ai5.overrides.kart.kart_state]
+yaw = -3.33
+[prefabs.ai5.overrides.kart.kart_physics]
+max_speed = 34.0
+acceleration = 17.0
+[prefabs.ai5.overrides.kart.race_position]
+position = 6
+[prefabs.ai5.overrides.kart.ai_input]
+throttle = 0.0
+steering = 0.0
+brake = 0.0
+drift = false
+[prefabs.ai5.overrides.kart.racer_info]
+name = "Wild"
+color_r = 0.15
+color_g = 0.85
+color_b = 0.85
+
+
+# ============================================================
+#  AI BRAINS — unique personalities (not in prefab)
+# ============================================================
+
+[entities.ai1_brain]
+[entities.ai1_brain.transform]
+position = [0, 0, 0]
+[entities.ai1_brain.ai_driver]
+kart = "ai1_kart"
+skill = 0.95
+line_offset = 0.2
+lookahead = 12.0
+speed_factor = 1.02
+cornering_caution = 0.08
+color_r = 0.95
+color_g = 0.3
+color_b = 0.1
+name = "Blaze"
+aggression = 0.8
+route_risk = 0.7
+item_patience = 0.3
+rubber_band = 0.4
+wobble = 0.0
+[entities.ai1_brain.script]
+source = "ai_driver.rhai"
+
+[entities.ai2_brain]
+[entities.ai2_brain.transform]
+position = [0, 0, 0]
+[entities.ai2_brain.ai_driver]
+kart = "ai2_kart"
+skill = 0.85
+line_offset = 0.0
+lookahead = 13.0
+speed_factor = 0.98
+cornering_caution = 0.18
+color_r = 0.2
+color_g = 0.75
+color_b = 0.25
+name = "Steady"
+aggression = 0.3
+route_risk = 0.25
+item_patience = 0.8
+rubber_band = 0.6
+wobble = 0.0
+[entities.ai2_brain.script]
+source = "ai_driver.rhai"
+
+[entities.ai3_brain]
+[entities.ai3_brain.transform]
+position = [0, 0, 0]
+[entities.ai3_brain.ai_driver]
+kart = "ai3_kart"
+skill = 0.8
+line_offset = 0.5
+lookahead = 14.0
+speed_factor = 0.96
+cornering_caution = 0.22
+color_r = 0.95
+color_g = 0.85
+color_b = 0.15
+name = "Tank"
+aggression = 0.95
+route_risk = 0.4
+item_patience = 0.5
+rubber_band = 0.5
+wobble = 0.0
+[entities.ai3_brain.script]
+source = "ai_driver.rhai"
+
+[entities.ai4_brain]
+[entities.ai4_brain.transform]
+position = [0, 0, 0]
+[entities.ai4_brain.ai_driver]
+kart = "ai4_kart"
+skill = 0.9
+line_offset = -1.0
+lookahead = 11.0
+speed_factor = 1.01
+cornering_caution = 0.10
+color_r = 0.6
+color_g = 0.2
+color_b = 0.85
+name = "Ghost"
+aggression = 0.5
+route_risk = 0.95
+item_patience = 0.9
+rubber_band = 0.5
+wobble = 0.0
+[entities.ai4_brain.script]
+source = "ai_driver.rhai"
+
+[entities.ai5_brain]
+[entities.ai5_brain.transform]
+position = [0, 0, 0]
+[entities.ai5_brain.ai_driver]
+kart = "ai5_kart"
+skill = 0.95
+line_offset = -0.3
+lookahead = 10.0
+speed_factor = 1.03
+cornering_caution = 0.06
+color_r = 0.15
+color_g = 0.85
+color_b = 0.85
+name = "Wild"
+aggression = 0.7
+route_risk = 0.6
+item_patience = 0.1
+rubber_band = 0.3
+wobble = 0.7
+[entities.ai5_brain.script]
+source = "ai_driver.rhai"
+
+
+# ============================================================
+#  ITEM SYSTEM — manager, boxes, projectile/trap pools
+# ============================================================
+
+[entities.item_manager]
+[entities.item_manager.transform]
+position = [0, 0, 0]
+[entities.item_manager.item_config]
+collection_radius = 2.5
+projectile_hit_radius = 2.0
+trap_trigger_radius = 2.0
+enabled = true
+[entities.item_manager.script]
+source = "item_manager.rhai"
+
+# ── Item Boxes: 4 rows × 4 lanes (spline_t: 0.15, 0.40, 0.65, 0.90) ──
+
+[entities.ibox_r1_l1]
+[entities.ibox_r1_l1.transform]
+position = [0, -100, 0]
+[entities.ibox_r1_l1.model]
+asset = "item_box"
+[entities.ibox_r1_l1.item_box]
+spline_t = 0.15
+lane = -3.0
+
+[entities.ibox_r1_l2]
+[entities.ibox_r1_l2.transform]
+position = [0, -100, 0]
+[entities.ibox_r1_l2.model]
+asset = "item_box"
+[entities.ibox_r1_l2.item_box]
+spline_t = 0.15
+lane = -1.0
+
+[entities.ibox_r1_l3]
+[entities.ibox_r1_l3.transform]
+position = [0, -100, 0]
+[entities.ibox_r1_l3.model]
+asset = "item_box"
+[entities.ibox_r1_l3.item_box]
+spline_t = 0.15
+lane = 1.0
+
+[entities.ibox_r1_l4]
+[entities.ibox_r1_l4.transform]
+position = [0, -100, 0]
+[entities.ibox_r1_l4.model]
+asset = "item_box"
+[entities.ibox_r1_l4.item_box]
+spline_t = 0.15
+lane = 3.0
+
+[entities.ibox_r2_l1]
+[entities.ibox_r2_l1.transform]
+position = [0, -100, 0]
+[entities.ibox_r2_l1.model]
+asset = "item_box"
+[entities.ibox_r2_l1.item_box]
+spline_t = 0.40
+lane = -3.0
+
+[entities.ibox_r2_l2]
+[entities.ibox_r2_l2.transform]
+position = [0, -100, 0]
+[entities.ibox_r2_l2.model]
+asset = "item_box"
+[entities.ibox_r2_l2.item_box]
+spline_t = 0.40
+lane = -1.0
+
+[entities.ibox_r2_l3]
+[entities.ibox_r2_l3.transform]
+position = [0, -100, 0]
+[entities.ibox_r2_l3.model]
+asset = "item_box"
+[entities.ibox_r2_l3.item_box]
+spline_t = 0.40
+lane = 1.0
+
+[entities.ibox_r2_l4]
+[entities.ibox_r2_l4.transform]
+position = [0, -100, 0]
+[entities.ibox_r2_l4.model]
+asset = "item_box"
+[entities.ibox_r2_l4.item_box]
+spline_t = 0.40
+lane = 3.0
+
+[entities.ibox_r3_l1]
+[entities.ibox_r3_l1.transform]
+position = [0, -100, 0]
+[entities.ibox_r3_l1.model]
+asset = "item_box"
+[entities.ibox_r3_l1.item_box]
+spline_t = 0.65
+lane = -3.0
+
+[entities.ibox_r3_l2]
+[entities.ibox_r3_l2.transform]
+position = [0, -100, 0]
+[entities.ibox_r3_l2.model]
+asset = "item_box"
+[entities.ibox_r3_l2.item_box]
+spline_t = 0.65
+lane = -1.0
+
+[entities.ibox_r3_l3]
+[entities.ibox_r3_l3.transform]
+position = [0, -100, 0]
+[entities.ibox_r3_l3.model]
+asset = "item_box"
+[entities.ibox_r3_l3.item_box]
+spline_t = 0.65
+lane = 1.0
+
+[entities.ibox_r3_l4]
+[entities.ibox_r3_l4.transform]
+position = [0, -100, 0]
+[entities.ibox_r3_l4.model]
+asset = "item_box"
+[entities.ibox_r3_l4.item_box]
+spline_t = 0.65
+lane = 3.0
+
+[entities.ibox_r4_l1]
+[entities.ibox_r4_l1.transform]
+position = [0, -100, 0]
+[entities.ibox_r4_l1.model]
+asset = "item_box"
+[entities.ibox_r4_l1.item_box]
+spline_t = 0.90
+lane = -3.0
+
+[entities.ibox_r4_l2]
+[entities.ibox_r4_l2.transform]
+position = [0, -100, 0]
+[entities.ibox_r4_l2.model]
+asset = "item_box"
+[entities.ibox_r4_l2.item_box]
+spline_t = 0.90
+lane = -1.0
+
+[entities.ibox_r4_l3]
+[entities.ibox_r4_l3.transform]
+position = [0, -100, 0]
+[entities.ibox_r4_l3.model]
+asset = "item_box"
+[entities.ibox_r4_l3.item_box]
+spline_t = 0.90
+lane = 1.0
+
+[entities.ibox_r4_l4]
+[entities.ibox_r4_l4.transform]
+position = [0, -100, 0]
+[entities.ibox_r4_l4.model]
+asset = "item_box"
+[entities.ibox_r4_l4.item_box]
+spline_t = 0.90
+lane = 3.0
+
+# ── Projectile Pool (6 entities, start inactive at y=-100) ──
+
+[entities.proj_1]
+[entities.proj_1.transform]
+position = [0, -100, 0]
+[entities.proj_1.model]
+asset = "item_projectile"
+[entities.proj_1.item_projectile]
+active = false
+
+[entities.proj_2]
+[entities.proj_2.transform]
+position = [0, -100, 0]
+[entities.proj_2.model]
+asset = "item_projectile"
+[entities.proj_2.item_projectile]
+active = false
+
+[entities.proj_3]
+[entities.proj_3.transform]
+position = [0, -100, 0]
+[entities.proj_3.model]
+asset = "item_projectile"
+[entities.proj_3.item_projectile]
+active = false
+
+[entities.proj_4]
+[entities.proj_4.transform]
+position = [0, -100, 0]
+[entities.proj_4.model]
+asset = "item_projectile"
+[entities.proj_4.item_projectile]
+active = false
+
+[entities.proj_5]
+[entities.proj_5.transform]
+position = [0, -100, 0]
+[entities.proj_5.model]
+asset = "item_projectile"
+[entities.proj_5.item_projectile]
+active = false
+
+[entities.proj_6]
+[entities.proj_6.transform]
+position = [0, -100, 0]
+[entities.proj_6.model]
+asset = "item_projectile"
+[entities.proj_6.item_projectile]
+active = false
+
+# ── Trap Pool (8 entities, start inactive at y=-100) ──
+
+[entities.trap_1]
+[entities.trap_1.transform]
+position = [0, -100, 0]
+[entities.trap_1.model]
+asset = "item_trap"
+[entities.trap_1.item_trap]
+active = false
+
+[entities.trap_2]
+[entities.trap_2.transform]
+position = [0, -100, 0]
+[entities.trap_2.model]
+asset = "item_trap"
+[entities.trap_2.item_trap]
+active = false
+
+[entities.trap_3]
+[entities.trap_3.transform]
+position = [0, -100, 0]
+[entities.trap_3.model]
+asset = "item_trap"
+[entities.trap_3.item_trap]
+active = false
+
+[entities.trap_4]
+[entities.trap_4.transform]
+position = [0, -100, 0]
+[entities.trap_4.model]
+asset = "item_trap"
+[entities.trap_4.item_trap]
+active = false
+
+[entities.trap_5]
+[entities.trap_5.transform]
+position = [0, -100, 0]
+[entities.trap_5.model]
+asset = "item_trap"
+[entities.trap_5.item_trap]
+active = false
+
+[entities.trap_6]
+[entities.trap_6.transform]
+position = [0, -100, 0]
+[entities.trap_6.model]
+asset = "item_trap"
+[entities.trap_6.item_trap]
+active = false
+
+[entities.trap_7]
+[entities.trap_7.transform]
+position = [0, -100, 0]
+[entities.trap_7.model]
+asset = "item_trap"
+[entities.trap_7.item_trap]
+active = false
+
+[entities.trap_8]
+[entities.trap_8.transform]
+position = [0, -100, 0]
+[entities.trap_8.model]
+asset = "item_trap"
+[entities.trap_8.item_trap]
+active = false
+
+
+# ============================================================
+#  AUDIO — player-only tire sounds, ambience, events
+# ============================================================
+
+# ── Player tire sounds (parented to player kart) ──
+
+[entities.player_tire_roll]
+parent = "player_kart"
+[entities.player_tire_roll.transform]
+position = [0, 0.1, 0]
+[entities.player_tire_roll.audio_source]
+file = "audio/tire_roll.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 25.0
+
+[entities.player_tire_skid]
+parent = "player_kart"
+[entities.player_tire_skid.transform]
+position = [0, 0.1, 0]
+[entities.player_tire_skid.audio_source]
+file = "audio/tire_skid.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 30.0
+
+# ── Player surface sounds (engine_audio.rhai drives their volume) ──
+
+[entities.player_tire_offroad]
+parent = "player_kart"
+[entities.player_tire_offroad.transform]
+position = [0, 0.1, 0]
+[entities.player_tire_offroad.audio_source]
+file = "audio/offroad_rumble.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 25.0
+
+[entities.player_tire_curb]
+parent = "player_kart"
+[entities.player_tire_curb.transform]
+position = [0, 0.1, 0]
+[entities.player_tire_curb.audio_source]
+file = "audio/curb_rumble.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 25.0
+
+[entities.player_wall_scrape]
+parent = "player_kart"
+[entities.player_wall_scrape.transform]
+position = [0, 0.4, 0]
+[entities.player_wall_scrape.audio_source]
+file = "audio/wall_scrape.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 30.0
+
+# ── Ambient sounds (non-spatial) ──
+
+[entities.snd_wind]
+[entities.snd_wind.transform]
+position = [0, 0, 0]
+[entities.snd_wind.audio_source]
+file = "audio/wind_rush.ogg"
+spatial = false
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+
+[entities.snd_crowd]
+[entities.snd_crowd.transform]
+position = [0, 0, 0]
+[entities.snd_crowd.audio_source]
+file = "audio/crowd_ambient.ogg"
+spatial = false
+loop = true
+autoplay = true
+volume = 0.15
+pitch = 1.0
+
+# ── Background music (non-spatial, looping) ──
+
+[entities.snd_music]
+[entities.snd_music.transform]
+position = [0, 0, 0]
+[entities.snd_music.audio_source]
+file = "audio/race_music_bay.ogg"
+bus = "music"
+spatial = false
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+
+# ── One-shot effects: collisions, landings, drift tiers, boosts, final lap ──
+
+[entities.sfx]
+[entities.sfx.transform]
+position = [0, 0, 0]
+[entities.sfx.script]
+source = "sfx.rhai"
+
+
+# ============================================================
+#  CHASE CAMERA — follows the kart from behind
+# ============================================================
+
+[entities.chase_camera]
+
+[entities.chase_camera.transform]
+position = [0, 5, 10]
+
+[entities.chase_camera.audio_listener]
+active = true
+
+[entities.chase_camera.script]
+source = "chase_camera.rhai"
+
+
+# ============================================================
+#  RACE MANAGER — state machine + lap tracking + HUD
+# ============================================================
+
+[entities.race_manager]
+
+[entities.race_manager.transform]
+position = [0, 0, 0]
+
+[entities.race_manager.race_state]
+state = "countdown"
+countdown_timer = 4.0
+countdown_display = ""
+finishing_timer = 0.0
+
+[entities.race_manager.script]
+source = "race_manager.rhai"
+
+
+# ============================================================
+#  HUD — renders all 2D overlay elements
+# ============================================================
+
+[entities.hud]
+
+[entities.hud.transform]
+position = [0, 0, 0]
+
+[entities.hud.script]
+source = "hud.rhai"
+
+
+# ============================================================
+#  START/FINISH LINE — checkered marker at spline origin
+# ============================================================
+
+[entities.finish_line]
+[entities.finish_line.transform]
+position = [0, 2.52, 0]
+[entities.finish_line.model]
+asset = "finish_line"
+
+
+# ============================================================
+#  TRACK — spline path + swept cross-section meshes
+# ============================================================
+
+# Pure path data — no geometry
+[entities.track_path]
+[entities.track_path.spline]
+file = "splines/lighthouse_bay.spline.toml"
+[entities.track_path.track_info]
+length = 614.0
+name = "Lighthouse Bay"
+fog_density = 0.0014   # chase_camera drives the live fog from this
+
+# Road surface — the promenade asphalt, curbs and lines (tools/generate_road_textures.py)
+[entities.track_road]
+[entities.track_road.spline_mesh]
+spline = "track_path"
+chunk_size = 30
+width = 12.0
+height = 0.3
+offset = [0.0, -0.15]
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_asphalt.png"
+normal_texture = "textures/road_asphalt_normal.png"
+texture_length = 12.0
+roughness = 0.85
+friction = 0.8
+restitution = 0.1
+
+# Left wall — padded sky & cream (the sea side on the causeway)
+[entities.track_wall_left]
+[entities.track_wall_left.spline_mesh]
+spline = "track_path"
+chunk_size = 30
+width = 0.5
+height = 1.5
+offset = [-6.25, 0.75]
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_sky.png"
+texture_length = 4.0
+roughness = 0.7
+friction = 0.3
+restitution = 0.5
+
+# Right wall — padded tomato & cream
+[entities.track_wall_right]
+[entities.track_wall_right.spline_mesh]
+spline = "track_path"
+chunk_size = 30
+width = 0.5
+height = 1.5
+offset = [6.25, 0.75]
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_tomato.png"
+texture_length = 4.0
+roughness = 0.7
+friction = 0.3
+restitution = 0.5
+
+# Verges — a sandy-grass shoulder beyond each barrier. Scenery only: a kart
+# over the wall falls (into the sea, on the causeway) and respawns
+[entities.track_verge_left]
+[entities.track_verge_left.spline_mesh]
+spline = "track_path"
+chunk_size = 30
+width = 4.0
+height = 0.3
+offset = [-8.0, -0.18]
+color = [1.0, 0.97, 0.86, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
+
+[entities.track_verge_right]
+[entities.track_verge_right.spline_mesh]
+spline = "track_path"
+chunk_size = 30
+width = 4.0
+height = 0.3
+offset = [8.0, -0.18]
+color = [1.0, 0.97, 0.86, 1.0]
+texture = "textures/road_grass.png"
+normal_texture = "textures/road_grass_normal.png"
+texture_length = 4.0
+roughness = 0.95
+collider = false
+
+
+# ============================================================
+#  SUN — late afternoon, low over the sea to the west of the headland
+# ============================================================
+
+[entities.sun]
+
+[entities.sun.transform]
+position = [0, 50, 0]
+rotation = [-30, 60, 0]
+
+[entities.sun.light]
+type = "directional"
+direction = [0.62, 0.40, -0.67]
+color = [1.0, 0.88, 0.70]
+intensity = 1.3
+
+
+# ============================================================
+#  SET DRESSING — terrain, scenery, landmarks, lamps
+# ============================================================
+
+# >>> set dressing: generated by tools/dress_track.py from tracks/lighthouse_bay.dress.toml.
+# Edit the recipe and rerun; hand edits here are replaced. Nothing
+# here collides: the road and walls are the only physics.
+
+[entities.dress_terrain]
+[entities.dress_terrain.transform]
+position = [0, 0, 0]
+[entities.dress_terrain.model]
+asset = "dress_lighthouse_bay_terrain"
+
+[entities.dress_chunk_0]
+[entities.dress_chunk_0.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_0.model]
+asset = "dress_lighthouse_bay_0"
+
+[entities.dress_chunk_1]
+[entities.dress_chunk_1.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_1.model]
+asset = "dress_lighthouse_bay_1"
+
+[entities.dress_chunk_2]
+[entities.dress_chunk_2.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_2.model]
+asset = "dress_lighthouse_bay_2"
+
+[entities.dress_chunk_3]
+[entities.dress_chunk_3.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_3.model]
+asset = "dress_lighthouse_bay_3"
+
+[entities.dress_chunk_4]
+[entities.dress_chunk_4.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_4.model]
+asset = "dress_lighthouse_bay_4"
+
+[entities.dress_chunk_5]
+[entities.dress_chunk_5.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_5.model]
+asset = "dress_lighthouse_bay_5"
+
+[entities.dress_chunk_6]
+[entities.dress_chunk_6.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_6.model]
+asset = "dress_lighthouse_bay_6"
+
+[entities.dress_chunk_7]
+[entities.dress_chunk_7.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_7.model]
+asset = "dress_lighthouse_bay_7"
+
+[entities.dress_chunk_8]
+[entities.dress_chunk_8.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_8.model]
+asset = "dress_lighthouse_bay_8"
+
+[entities.dress_chunk_9]
+[entities.dress_chunk_9.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_9.model]
+asset = "dress_lighthouse_bay_9"
+
+[entities.dress_chunk_10]
+[entities.dress_chunk_10.transform]
+position = [0, 0, 0]
+[entities.dress_chunk_10.model]
+asset = "dress_lighthouse_bay_10"
+
+[entities.dress_gantry]
+[entities.dress_gantry.transform]
+position = [0, 2.5, 0]
+rotation = [0, -179.992, 0]
+[entities.dress_gantry.model]
+asset = "prop_gantry"
+
+[entities.dress_billboard_surf_1]
+[entities.dress_billboard_surf_1.transform]
+position = [13.121, 1.889, -41.17]
+rotation = [0, -90.381, 0]
+[entities.dress_billboard_surf_1.model]
+asset = "prop_billboard_surf"
+
+[entities.dress_billboard_cola_2]
+[entities.dress_billboard_cola_2.transform]
+position = [24.597, 2.659, -106.655]
+rotation = [0, -115.596, 0]
+[entities.dress_billboard_cola_2.model]
+asset = "prop_billboard_cola"
+
+[entities.dress_billboard_flint_3]
+[entities.dress_billboard_flint_3.transform]
+position = [156.959, 3.888, -81.268]
+rotation = [0, 85.365, 0]
+[entities.dress_billboard_flint_3.model]
+asset = "prop_billboard_flint"
+
+[entities.dress_billboard_toast_4]
+[entities.dress_billboard_toast_4.transform]
+position = [39.534, -0.057, 59.828]
+rotation = [0, -159.334, 0]
+[entities.dress_billboard_toast_4.model]
+asset = "prop_billboard_toast"
+
+# <<< set dressing

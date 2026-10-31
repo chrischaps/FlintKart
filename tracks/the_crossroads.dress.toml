@@ -1,0 +1,212 @@
+# The Crossroads — harvest dusk. Farm country at the end of the day: a
+# patchwork of wheat, stubble and plough with hedgerows between, autumn trees,
+# hay bales, a red barn and a windmill, pumpkins by the verge, and lamps
+# coming on along the road as the sky goes violet.
+#
+#   python tools/dress_track.py tracks/the_crossroads.dress.toml
+#
+# The canonical loop has 10 control points (CP k at t = k/10): the fork is
+# at t 0.3, the merge at t 0.7. The shortcut spline is listed so the ground
+# runs under it too.
+
+scene = "scenes/the_crossroads.scene.toml"
+seed = 31
+corridor = 11.0
+chunk = 180.0
+roads = [
+    { spline = "splines/the_crossroads/canonical.spline.toml", half_width = 6.0 },
+    { spline = "splines/the_crossroads/seg_branch_shortcut.spline.toml", half_width = 6.0 },
+]
+
+[terrain]
+mode = "farm"
+margin = 300.0
+spacing = 3.0
+base = -0.6
+lift = 0.8
+lift_sigma = 30.0
+hills = 5.0
+hill_scale = 130.0
+ring = 34.0
+ring_start = 170.0
+blend = 26.0
+rock_slope = 1.6    # embankments stay grass; this is farmland
+field_angle = 22.0
+fields = ["wheat", "grass", "plough", "stubble", "grass_dark", "wheat"]
+texture_size = 2048
+[terrain.colors]
+grass = [0.46, 0.60, 0.27]
+grass_dark = [0.34, 0.50, 0.24]
+rock = [0.58, 0.54, 0.52]
+wheat = [0.92, 0.74, 0.34]
+stubble = [0.80, 0.66, 0.40]
+plough = [0.50, 0.35, 0.25]
+
+[[entity]]
+asset = "prop_gantry"
+name = "dress_gantry"
+t = 0.0
+side = 0
+sink = 0.0
+
+[[entity]]
+asset = "prop_billboard_gas"
+t = 0.12
+side = -1
+offset = 15.0
+
+[[entity]]
+asset = "prop_billboard_cola"
+t = 0.52
+side = -1
+offset = 16.0
+
+[[entity]]
+asset = "prop_billboard_flint"
+t = 0.84
+side = 1
+offset = 14.0
+
+[[place]]
+prop = "barn"
+t = 0.45
+side = -1
+offset = 34.0
+yaw = 90.0
+seed = 0
+
+[[place]]
+prop = "windmill"
+t = 0.60
+side = -1
+offset = 40.0
+seed = 0
+
+[[place]]
+prop = "grandstand"
+t = 0.94
+side = -1
+offset = 17.0
+seed = 4
+
+[[place]]
+prop = "balloon"
+t = 0.25
+side = -1
+offset = 160.0
+y = 60.0
+seed = 1
+
+[[place]]
+prop = "balloon"
+t = 0.70
+side = 1
+offset = 180.0
+y = 75.0
+seed = 2
+scale = 1.2
+
+# lamps along the whole loop; the first sixteen (from the start) get a real
+# point light, the rest glow
+[[run]]
+prop = "lamp"
+t0 = 0.0
+t1 = 0.99
+every = 22.0
+sides = [-1, 1]
+offset = 8.4
+alternate = true
+yaw = 180.0
+light = { color = [1.0, 0.72, 0.42], intensity = 4.0, range = 16.0, at = [0.9, 3.95, 0.0] }
+
+[[run]]
+prop = "hay_bale"
+t0 = 0.33
+t1 = 0.68
+every = 26.0
+side = -1
+offset = 14.0
+
+[[run]]
+prop = "pumpkin"
+t0 = 0.05
+t1 = 0.25
+every = 9.0
+side = 1
+offset = 10.4
+
+[[run]]
+prop = "fence"
+t0 = 0.74
+t1 = 0.92
+every = 6.0
+side = -1
+offset = 12.0
+parallel = true
+yaw = 90.0
+
+[[run]]
+prop = "flag"
+t0 = 0.0
+t1 = 0.08
+every = 10.0
+side = 1
+offset = 10.8
+
+[[scatter]]
+prop = "tree_autumn_orange"
+count = 110
+near = 16.0
+far = 240.0
+variants = 4
+clump = 0.6
+radius = 2.5
+
+[[scatter]]
+prop = "tree_autumn_red"
+count = 70
+near = 16.0
+far = 240.0
+variants = 3
+clump = 0.6
+radius = 2.5
+
+[[scatter]]
+prop = "tree_autumn_gold"
+count = 60
+near = 16.0
+far = 240.0
+variants = 3
+clump = 0.5
+radius = 2.5
+
+[[scatter]]
+prop = "hay_bale"
+count = 50
+near = 30.0
+far = 200.0
+variants = 4
+clump = 0.4
+radius = 2.0
+
+[[scatter]]
+prop = "bush_autumn"
+count = 70
+near = 12.5
+far = 120.0
+variants = 3
+radius = 1.4
+
+[[scatter]]
+prop = "pumpkin"
+count = 40
+near = 11.5
+far = 40.0
+variants = 4
+clump = 0.6
+clump_size = 4.0
+radius = 0.6
+
+[pillars]
+every = 11.0
+min_gap = 2.0

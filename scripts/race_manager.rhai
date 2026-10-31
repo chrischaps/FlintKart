@@ -26,8 +26,17 @@ let SLOWMO_HOLD = 1.2;
 let SLOWMO_END = 2.0;
 let time_scale_now = 1.0;
 
+// Each kart's start slot as the scene places it ("id" -> [x, y, z, yaw]), so a
+// restart puts it back there, wherever the track's road meets the line
+let start_grid = #{};
+
 fn on_init() {
     let me = this_entity();
+    let karts = find_entities_with("kart_state");
+    for kid in karts {
+        let p = get_position(kid);
+        start_grid["" + kid] = [p.x, p.y, p.z, get_field(kid, "kart_state", "yaw")];
+    }
     set_field(me, "race_state", "state", "countdown");
     set_field(me, "race_state", "countdown_timer", 4.0);
     set_field(me, "race_state", "countdown_display", "");
@@ -79,7 +88,7 @@ fn on_update() {
         update_racing(me, dt);
         update_music(me, dt, MUSIC_VOL_RACING);
     } else if state == "finished" {
-        update_finished(me, dt);
+        update_finished(me, dt, start_grid);
         update_music(me, dt, MUSIC_VOL_FINISHED);
         // Reset prev_countdown after restart (state changes to "countdown")
         let post_state = get_field(me, "race_state", "state");
@@ -469,10 +478,10 @@ fn save_records(manager, best_lap, race_time) {
     set_field(manager, "race_state", "new_race_record", new_race);
 }
 
-fn update_finished(me, dt) {
+fn update_finished(me, dt, start_grid) {
     // Allow restart at any time
     if is_action_just_pressed("restart") {
-        restart_race(me);
+        restart_race(me, start_grid);
         return;
     }
 
@@ -521,7 +530,7 @@ fn update_finished(me, dt) {
     }
 }
 
-fn restart_race(me) {
+fn restart_race(me, start_grid) {
     let karts = find_all_karts();
 
     // Build ordered grid: player first, then AI karts
@@ -549,15 +558,24 @@ fn restart_race(me) {
         let start_x = -1.5;
         if col == 1 { start_x = 1.5; }
         let start_z = 5.0 + row * 5.0;
+        let start_y = 1.0;
+        let start_yaw = 0.0;
+        let slot = start_grid["" + kid];
+        if slot != () {
+            start_x = slot[0];
+            start_y = slot[1];
+            start_z = slot[2];
+            start_yaw = slot[3];
+        }
 
-        set_position(kid, start_x, 1.0, start_z);
-        set_rotation(kid, 0.0, 0.0, 0.0);
+        set_position(kid, start_x, start_y, start_z);
+        set_rotation(kid, 0.0, start_yaw, 0.0);
 
         set_field(kid, "kart_state", "speed", 0.0);
         set_field(kid, "kart_state", "velocity_x", 0.0);
         set_field(kid, "kart_state", "velocity_y", 0.0);
         set_field(kid, "kart_state", "velocity_z", 0.0);
-        set_field(kid, "kart_state", "yaw", 0.0);
+        set_field(kid, "kart_state", "yaw", start_yaw);
         set_field(kid, "kart_state", "grounded", false);
         set_field(kid, "kart_state", "input_enabled", false);
 

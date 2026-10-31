@@ -703,8 +703,10 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
                    node_progress_values,
                    canonical_wall_l_skips=None, canonical_wall_r_skips=None,
                    branch_wall_skips=None,
-                   junction_fills=None):
-    """Generate the complete scene TOML string."""
+                   junction_fills=None,
+                   grid=None, start_yaw=0.0):
+    """Generate the complete scene TOML string. `grid` is six start slots
+    (x, y, z, yaw) along the road behind the line (track_lib.grid_slots)."""
 
     track_cfg = track_data.get("track", {})
     road = track_data.get("road", {})
@@ -806,6 +808,15 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
             elif isinstance(val, int):
                 lines.append(f'{key} = {val}')
     lines.append(f'')
+
+    # ── Procedural sky (replaces the skybox when present) ──
+    sky = track_data.get("sky")
+    if sky:
+        lines.append(f'[entities.sky]')
+        lines.append(f'[entities.sky.sky]')
+        for key, val in sky.items():
+            lines.append(f'{key} = {fmt_color(val) if isinstance(val, list) else fmt_float(val, 3)}')
+        lines.append(f'')
     lines.append(f'')
 
     # ── Prefabs: Player + 5 AI karts ───────────────────────
@@ -818,8 +829,17 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.append(f'[prefabs.player]')
     lines.append(f'template = "kart"')
     lines.append(f'prefix = "player"')
-    lines.append(f'[prefabs.player.overrides.kart.transform]')
-    lines.append(f'position = [-1.5, 1.0, 5]')
+    def slot_lines(pfx, k, fallback):
+        if not grid:
+            return [f'[prefabs.{pfx}.overrides.kart.transform]', f'position = {fmt_array(fallback, 1)}']
+        x, y, z, yaw = grid[k]
+        return [f'[prefabs.{pfx}.overrides.kart.transform]',
+                f'position = [{fmt_float(x, 2)}, {fmt_float(y, 2)}, {fmt_float(z, 2)}]',
+                f'rotation = [0, {fmt_float(yaw, 2)}, 0]',
+                f'[prefabs.{pfx}.overrides.kart.kart_state]',
+                f'yaw = {fmt_float(yaw, 2)}']
+
+    lines.extend(slot_lines("player", 0, [-1.5, 1.0, 5]))
     lines.append(f'[prefabs.player.overrides.kart.racer_info]')
     lines.append(f'name = "YOU"')
     lines.append(f'color_r = 0.9')
@@ -841,13 +861,12 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
          "color": (0.15, 0.85, 0.85), "max_speed": 34.0, "accel": 17.0, "race_pos": 6},
     ]
 
-    for ai in ai_configs:
+    for k, ai in enumerate(ai_configs):
         pfx = ai["prefix"]
         lines.append(f'[prefabs.{pfx}]')
         lines.append(f'template = "kart"')
         lines.append(f'prefix = "{pfx}"')
-        lines.append(f'[prefabs.{pfx}.overrides.kart.transform]')
-        lines.append(f'position = {fmt_array(ai["pos"], 1)}')
+        lines.extend(slot_lines(pfx, k + 1, ai["pos"]))
         lines.append(f'[prefabs.{pfx}.overrides.kart.kart_physics]')
         lines.append(f'max_speed = {fmt_float(ai["max_speed"], 1)}')
         if ai["accel"] is not None:
@@ -1151,6 +1170,8 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.append(f'[entities.finish_line]')
     lines.append(f'[entities.finish_line.transform]')
     lines.append(f'position = [0, 0.02, 0]')
+    if abs(start_yaw) > 0.01:
+        lines.append(f'rotation = [0, {fmt_float(start_yaw, 2)}, 0]')
     lines.append(f'[entities.finish_line.model]')
     lines.append(f'asset = "finish_line"')
     lines.append(f'')
@@ -1165,10 +1186,13 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.append(f'[entities.sun.transform]')
     lines.append(f'position = [0, 50, 0]')
     lines.append(f'rotation = [-45, 30, 0]')
+    sun = track_data.get("sun", {})
     lines.append(f'[entities.sun.light]')
     lines.append(f'type = "directional"')
-    lines.append(f'color = [1.0, 0.98, 0.92]')
-    lines.append(f'intensity = 2.0')
+    if "direction" in sun:
+        lines.append(f'direction = {fmt_color(sun["direction"])}')
+    lines.append(f'color = {fmt_color(sun.get("color", [1.0, 0.98, 0.92]))}')
+    lines.append(f'intensity = {fmt_float(sun.get("intensity", 2.0), 2)}')
     lines.append(f'cast_shadows = true')
     lines.append(f'')
     lines.append(f'')
@@ -1206,6 +1230,8 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.append(f'[entities.track_path.track_info]')
     lines.append(f'length = {fmt_float(canonical_total_length, 1)}')
     lines.append(f'name = "{track_name}"')
+    if "fog_density" in pp:
+        lines.append(f'fog_density = {fmt_float(pp["fog_density"], 4)}   # chase_camera drives the live fog from this')
     lines.append(f'[entities.track_path.track_graph]')
     lines.append(f'segment_count = {len(segments)}')
     lines.append(f'node_count = {len(nodes)}')
@@ -1715,6 +1741,12 @@ def main():
     canonical_path = os.path.join(splines_dir, "canonical.spline.toml")
     write_canonical_spline(canonical_path, track_name, closed, spacing, canonical_cps)
 
+    # ── Start grid on the road behind the line (track_lib mirrors the engine) ──
+    import track_lib
+    canonical_samples = track_lib.sample(track_lib.load_spline(canonical_path))
+    grid = track_lib.grid_slots(canonical_samples)
+    start_yaw = canonical_samples.yaw_deg(0)
+
     # ── Canonical spline length (from the combined CPs, for track_info) ──
     canonical_spline_length, _ = estimate_spline_length(canonical_cps, closed=closed)
     print(f"  Canonical spline estimated length: {canonical_spline_length:.1f}m")
@@ -1732,10 +1764,20 @@ def main():
         canonical_wall_r_skips=canonical_wall_r_skips,
         branch_wall_skips=branch_wall_skips,
         junction_fills=junction_fills,
+        grid=grid, start_yaw=start_yaw,
     )
 
     scene_path = os.path.join(scenes_dir, f"{track_name_slug}.scene.toml")
     os.makedirs(os.path.dirname(scene_path), exist_ok=True)
+    # Keep the set dressing (tools/dress_track.py writes it between markers)
+    if os.path.exists(scene_path):
+        old = open(scene_path, encoding="utf-8").read()
+        a = old.find("# >>> set dressing")
+        b = old.find("# <<< set dressing")
+        if a >= 0 and b > a:
+            head = old.rfind("#  SET DRESSING", 0, a)
+            start = old.rfind("# ====", 0, head) if head >= 0 else a
+            scene_content = scene_content.rstrip("\n") + "\n\n\n" + old[start:b] + "# <<< set dressing\n"
     with open(scene_path, "w", newline="\n", encoding="utf-8") as f:
         f.write(scene_content)
     print(f"  wrote {scene_path}")
