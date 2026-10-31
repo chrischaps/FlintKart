@@ -210,22 +210,6 @@ pitch = 0.9
 
 
 # ============================================================
-#  TIRE SKID AMBIENT — subtle continuous drift squeal
-# ============================================================
-
-[entities.snd_tire_skid]
-[entities.snd_tire_skid.transform]
-position = [0, 0, 0]
-[entities.snd_tire_skid.audio_source]
-file = "audio/tire_skid.ogg"
-spatial = false
-loop = true
-autoplay = true
-volume = 0.06
-pitch = 0.85
-
-
-# ============================================================
 #  MENU CONTROLLER — drives the menu UI + camera orbit
 # ============================================================
 

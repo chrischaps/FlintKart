@@ -55,7 +55,6 @@ let straight_vx = 0.0;
 let straight_vz = 0.0;
 let straight_yaw = 0.0;
 let mode_blend = 0.0;          // 0 = donut, 1 = straight
-let skid_snd_id = -1;
 let entities_found = false;
 
 // ── 3D particle emitters ──
@@ -131,7 +130,6 @@ fn on_update() {
         wheel_rr_id = get_entity("display_wheel_rr");
         driver_id = get_entity("display_driver");
         driver_head_id = get_entity("display_driver_head");
-        skid_snd_id = get_entity("snd_tire_skid");
         dust_l_id = get_entity("display_dust_l");
         dust_r_id = get_entity("display_dust_r");
         sparks_l_id = get_entity("display_sparks_l");
@@ -317,21 +315,6 @@ fn on_update() {
     let cam_r = 8.0;
     set_camera_position(sin(orbit_angle) * cam_r, 3.5, cos(orbit_angle) * cam_r);
     set_camera_target(kart_x, 0.5, kart_z);
-
-    // ── Skid volume: proximity-based ──
-    if skid_snd_id >= 0 {
-        let dx = sin(orbit_angle) * cam_r - kart_x;
-        let dy = 3.5 - 0.5;
-        let dz = cos(orbit_angle) * cam_r - kart_z;
-        let dist = sqrt(dx * dx + dy * dy + dz * dz);
-        // ~0.12 when close (~5.8m), ~0.06 at far (~11m), fades to near-silence beyond
-        let vol = 0.7 / dist;
-        if vol > 0.15 { vol = 0.15; }
-        if vol < 0.01 { vol = 0.01; }
-        // Fade skid out during straight (no drifting)
-        vol = vol * drift_factor;
-        set_field(skid_snd_id, "audio_source", "volume", vol);
-    }
 
     // Subtle bloom/exposure lift during straight boost
     if launch_state == "none" {
