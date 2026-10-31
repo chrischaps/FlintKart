@@ -1,239 +1,140 @@
 #!/usr/bin/env python3
 """
-generate_item_audio.py — Synthesize item sound effects for FlintKart.
+generate_item_audio.py — Synthesize FlintKart's item sounds.
 
-Generates 8 OGG files in audio/ using numpy + soundfile.
-Follows generate_audio.py patterns.
+Built from tools/audio_synth.py in the same toy-box voice as
+generate_audio.py: items are springs, bubbles, bells and pops rather than
+weapons. Each file is mastered to a loudness target (audio_synth.MIX), so
+item_manager.rhai's play_sound volumes set the mix.
 
 Usage:
-    pip install numpy soundfile
+    pip install numpy scipy soundfile
     python tools/generate_item_audio.py
 """
 
-import os
 import numpy as np
-import soundfile as sf
 
-SAMPLE_RATE = 44100
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "audio")
+from audio_synth import (
+    SR, rng, t_axis, lowpass, highpass, bandpass, svf_sweep, env_ad,
+    fade_edges, fm_bell, marimba, place, soft_clip, simple_reverb, write,
+)
+from generate_audio import note, brass
 
-
-def ensure_dir():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-
-def normalize(samples, peak=0.9):
-    """Normalize to peak amplitude."""
-    mx = np.max(np.abs(samples))
-    if mx > 0:
-        samples = samples * (peak / mx)
-    return samples
-
-
-def write_ogg(name, samples):
-    """Write mono OGG file."""
-    path = os.path.join(OUTPUT_DIR, name)
-    sf.write(path, samples.astype(np.float32), SAMPLE_RATE, format="OGG", subtype="VORBIS")
-    print(f"  {name} ({len(samples) / SAMPLE_RATE:.2f}s)")
-
-
-def envelope(t, attack, sustain_end, release_end):
-    """ADSR-ish envelope: linear attack, sustain at 1.0, linear release."""
-    env = np.ones_like(t)
-    env = np.where(t < attack, t / max(attack, 1e-6), env)
-    env = np.where(t > sustain_end, np.clip(1.0 - (t - sustain_end) / max(release_end - sustain_end, 1e-6), 0, 1), env)
-    return env
-
-
-# ─── Item Collect ────────────────────────────────────────────────────
 
 def gen_item_collect():
-    """Ascending chime arpeggio — bright, rewarding pickup sound."""
-    dur = 0.3
-    t = np.linspace(0, dur, int(SAMPLE_RATE * dur), endpoint=False)
+    """Through an item box: a roulette of glockenspiel ticks running up the
+    pentatonic scale and landing on a bell."""
+    x = np.zeros(int(SR * 0.9))
+    run = ["C6", "D6", "E6", "G6", "A6", "C7", "D7", "E7"]
+    at = 0.0
+    for i, nm in enumerate(run):
+        place(x, fm_bell(t_axis(0.25), note(nm), ratio=3.5, index=0.8, decay=22) * (0.5 + i * 0.04), int(at * SR))
+        at += 0.045 - i * 0.002
+    place(x, fm_bell(t_axis(0.55), note("G7"), ratio=3.5, index=1.6, decay=6), int(at * SR))
+    place(x, marimba(t_axis(0.5), note("G5"), decay=8) * 0.6, int(at * SR))
+    write("item_collect.ogg", fade_edges(simple_reverb(x, 0.7, 0.12)), "chime")
 
-    # Three-note ascending arpeggio (C5, E5, G5)
-    freqs = [523.25, 659.25, 783.99]
-    signal = np.zeros_like(t)
-    for i, f in enumerate(freqs):
-        onset = i * 0.08
-        note_env = np.where(t >= onset, np.exp(-(t - onset) * 12.0), 0.0)
-        signal += note_env * np.sin(2 * np.pi * f * t) * 0.4
-        # Add shimmer harmonic
-        signal += note_env * np.sin(2 * np.pi * f * 2.0 * t) * 0.15
-
-    write_ogg("item_collect.ogg", normalize(signal))
-
-
-# ─── Shield Activate ─────────────────────────────────────────────────
 
 def gen_shield_activate():
-    """Rising force-field hum — protective bubble engaging."""
-    dur = 0.5
-    t = np.linspace(0, dur, int(SAMPLE_RATE * dur), endpoint=False)
+    """A bubble closing around the kart: a chorus of detuned tones rising
+    under an opening filter, a 'bloop', and a bell when it seals."""
+    t = t_axis(0.75)
+    f = 220 + 220 * np.minimum(t / 0.35, 1.0) ** 0.6
+    x = np.zeros(len(t))
+    for d in (-0.012, 0.0, 0.013):
+        ph = 2 * np.pi * np.cumsum(f * (1 + d)) / SR
+        x += sum(np.sin(k * ph) / k for k in range(1, 9)) * 0.3
+    x = svf_sweep(x, 300 + 3000 * np.minimum(t / 0.4, 1.0), q=2.0, mode="low")
+    x *= env_ad(t, 0.03, 0.0) * np.exp(-np.maximum(t - 0.4, 0) * 9)
+    bloop = np.sin(2 * np.pi * np.cumsum(300 + 500 * np.minimum(t / 0.08, 1)) / SR) * env_ad(t, 0.004, 22)
+    x += bloop * 0.4
+    place(x, fm_bell(t_axis(0.45), note("A6"), ratio=2.0, index=1.5, decay=7) * 0.4, int(0.33 * SR))
+    write("item_shield_activate.ogg", fade_edges(x), "chime")
 
-    # Rising tone with wobble
-    base_freq = 200.0 + 400.0 * (t / dur)
-    wobble = 8.0 * np.sin(2 * np.pi * 12.0 * t)
-    signal = np.sin(2 * np.pi * (base_freq + wobble) * t) * 0.5
-    # Add sub-harmonic for weight
-    signal += np.sin(2 * np.pi * base_freq * 0.5 * t) * 0.25
-    # Envelope
-    env = envelope(t, 0.02, 0.35, dur)
-    signal *= env
-
-    write_ogg("item_shield_activate.ogg", normalize(signal))
-
-
-# ─── Shield Break ────────────────────────────────────────────────────
 
 def gen_shield_break():
-    """Glass-shatter burst — shield absorbing an impact."""
-    dur = 0.4
-    t = np.linspace(0, dur, int(SAMPLE_RATE * dur), endpoint=False)
+    """The bubble pops: glassy shards of many small bells, a burst of air,
+    and a soft thump underneath."""
+    t = t_axis(0.9)
+    r = rng(201)
+    x = np.zeros(len(t))
+    for _ in range(18):
+        f = r.uniform(2000, 6500)
+        shard = fm_bell(t_axis(0.3), f, ratio=r.uniform(1.4, 2.8), index=1.0, decay=r.uniform(12, 25))
+        place(x, shard * r.uniform(0.15, 0.4), int(r.uniform(0, 0.12) * SR))
+    burst = highpass(r.standard_normal(len(t)), 1500) * env_ad(t, 0.001, 25) * 0.6
+    thump = np.sin(2 * np.pi * np.cumsum(60 + 80 * np.exp(-t * 30)) / SR) * env_ad(t, 0.001, 12) * 0.6
+    write("item_shield_break.ogg", fade_edges(simple_reverb(x + burst + thump, 0.6, 0.15)), "impact")
 
-    # White noise burst with rapid decay
-    rng = np.random.RandomState(42)
-    noise = rng.randn(len(t))
-    noise_env = np.exp(-t * 15.0)
-    signal = noise * noise_env * 0.6
-
-    # Resonant ping (glass tone)
-    signal += np.sin(2 * np.pi * 2400.0 * t) * np.exp(-t * 20.0) * 0.4
-    signal += np.sin(2 * np.pi * 3600.0 * t) * np.exp(-t * 25.0) * 0.2
-
-    # Sub-thump
-    signal += np.sin(2 * np.pi * 120.0 * t) * np.exp(-t * 8.0) * 0.3
-
-    write_ogg("item_shield_break.ogg", normalize(signal))
-
-
-# ─── Projectile Fire ────────────────────────────────────────────────
 
 def gen_projectile_fire():
-    """Sharp whoosh-thwip — something fast leaving the kart."""
-    dur = 0.3
-    t = np.linspace(0, dur, int(SAMPLE_RATE * dur), endpoint=False)
+    """Launching a projectile: a springy 'thwoop' sliding down, with a puff
+    of air behind it."""
+    t = t_axis(0.45)
+    r = rng(211)
+    f = 180 + 700 * np.exp(-t * 14)
+    thwoop = np.sin(2 * np.pi * np.cumsum(f) / SR + 1.5 * np.sin(2 * np.pi * np.cumsum(f * 2) / SR))
+    thwoop *= env_ad(t, 0.003, 9)
+    puff = svf_sweep(r.standard_normal(len(t)), 3000 * np.exp(-t * 6) + 500, q=2.0) * env_ad(t, 0.002, 14)
+    write("item_projectile_fire.ogg", fade_edges(thwoop * 0.8 + puff * 0.6), "whoosh")
 
-    # Descending tone (thwip)
-    freq = 800.0 * np.exp(-t * 6.0) + 200.0
-    signal = np.sin(2 * np.pi * freq * t) * 0.4
-
-    # Noise whoosh
-    rng = np.random.RandomState(77)
-    noise = rng.randn(len(t))
-    noise_env = np.exp(-t * 10.0)
-    signal += noise * noise_env * 0.35
-
-    # Sharp attack envelope
-    env = envelope(t, 0.005, 0.05, dur)
-    signal *= env
-
-    write_ogg("item_projectile_fire.ogg", normalize(signal))
-
-
-# ─── Projectile Hit ──────────────────────────────────────────────────
 
 def gen_projectile_hit():
-    """Low boom + high crackle — satisfying impact."""
-    dur = 0.5
-    t = np.linspace(0, dur, int(SAMPLE_RATE * dur), endpoint=False)
+    """Projectile lands: a round boom, a crackle, confetti-like debris."""
+    t = t_axis(1.0)
+    r = rng(221)
+    boom = np.sin(2 * np.pi * np.cumsum(42 + 110 * np.exp(-t * 18)) / SR) * env_ad(t, 0.001, 5)
+    crack = bandpass(r.standard_normal(len(t)), 600, 5000) * env_ad(t, 0.0005, 18) * 0.8
+    debris = np.zeros(len(t))
+    for _ in range(14):
+        tb = t_axis(0.03)
+        bit = bandpass(r.standard_normal(len(tb)), 2000, 7000) * np.exp(-tb * 200)
+        place(debris, bit * r.uniform(0.1, 0.4), int(r.uniform(0.08, 0.5) * SR))
+    x = soft_clip(boom * 1.3 + crack, 1.5) + debris
+    write("item_projectile_hit.ogg", fade_edges(simple_reverb(x, 0.9, 0.15), fade_out=0.1), "impact")
 
-    # Low boom
-    boom_freq = 80.0 + 60.0 * np.exp(-t * 5.0)
-    signal = np.sin(2 * np.pi * boom_freq * t) * np.exp(-t * 4.0) * 0.5
-
-    # High crackle (filtered noise)
-    rng = np.random.RandomState(99)
-    crackle = rng.randn(len(t))
-    crackle_env = np.exp(-t * 8.0) * 0.4
-    # Simple bandpass via mixing two decaying tones
-    crackle_filtered = crackle * crackle_env
-    signal += crackle_filtered
-
-    # Mid-frequency impact tone
-    signal += np.sin(2 * np.pi * 300.0 * t) * np.exp(-t * 10.0) * 0.3
-
-    write_ogg("item_projectile_hit.ogg", normalize(signal))
-
-
-# ─── Trap Drop ───────────────────────────────────────────────────────
 
 def gen_trap_drop():
-    """Mechanical clunk-click — dropping something heavy behind you."""
-    dur = 0.3
-    t = np.linspace(0, dur, int(SAMPLE_RATE * dur), endpoint=False)
+    """Dropping a trap: a plastic clonk on the road and a spring left
+    wobbling (a little cheeky)."""
+    t = t_axis(0.55)
+    r = rng(231)
+    clonk = (np.sin(2 * np.pi * 330 * t) + 0.6 * np.sin(2 * np.pi * 870 * t)) * env_ad(t, 0.001, 30)
+    click = bandpass(r.standard_normal(len(t)), 1500, 6000) * env_ad(t, 0.0003, 120) * 0.5
+    spring = np.sin(2 * np.pi * 260 * t + 4.0 * np.sin(2 * np.pi * 14 * t)) * env_ad(t, 0.01, 7) * 0.35
+    write("item_trap_drop.ogg", fade_edges(clonk * 0.7 + click + spring), "impact")
 
-    # Clunk — low resonant hit
-    signal = np.sin(2 * np.pi * 150.0 * t) * np.exp(-t * 15.0) * 0.5
-    signal += np.sin(2 * np.pi * 220.0 * t) * np.exp(-t * 20.0) * 0.3
-
-    # Click — high transient
-    click_env = np.where(t < 0.01, 1.0, np.exp(-(t - 0.01) * 40.0))
-    signal += np.sin(2 * np.pi * 1200.0 * t) * click_env * 0.25
-
-    # Mechanical rattle
-    rng = np.random.RandomState(33)
-    rattle = rng.randn(len(t)) * np.exp(-t * 25.0) * 0.15
-    signal += rattle
-
-    write_ogg("item_trap_drop.ogg", normalize(signal))
-
-
-# ─── Trap Trigger ────────────────────────────────────────────────────
 
 def gen_trap_trigger():
-    """Impact variant — trap going off under a kart."""
-    dur = 0.5
-    t = np.linspace(0, dur, int(SAMPLE_RATE * dur), endpoint=False)
+    """Driving into a trap: a snap, a big boing, and a thud."""
+    t = t_axis(0.8)
+    r = rng(241)
+    snap = bandpass(r.standard_normal(len(t)), 1200, 7000) * env_ad(t, 0.0003, 70)
+    clang = (fm_bell(t, 620, ratio=1.41, index=2.0, decay=12) + fm_bell(t, 1170, ratio=1.41, index=1.5, decay=15) * 0.5)
+    boing_f = 140 + 90 * np.exp(-t * 4)
+    boing = np.sin(2 * np.pi * np.cumsum(boing_f) / SR + 5.0 * np.sin(2 * np.pi * 9 * t) * np.exp(-t * 3))
+    boing *= env_ad(t, 0.005, 5) * 0.6
+    thud = np.sin(2 * np.pi * np.cumsum(50 + 60 * np.exp(-t * 30)) / SR) * env_ad(t, 0.001, 14) * 0.8
+    write("item_trap_trigger.ogg", fade_edges(snap * 0.6 + clang * 0.4 + boing + thud), "impact")
 
-    # Heavy thud
-    signal = np.sin(2 * np.pi * 100.0 * t) * np.exp(-t * 6.0) * 0.5
-
-    # Crunch (filtered noise)
-    rng = np.random.RandomState(55)
-    noise = rng.randn(len(t))
-    signal += noise * np.exp(-t * 10.0) * 0.35
-
-    # Metallic ring
-    signal += np.sin(2 * np.pi * 800.0 * t) * np.exp(-t * 12.0) * 0.2
-    signal += np.sin(2 * np.pi * 1400.0 * t) * np.exp(-t * 15.0) * 0.1
-
-    write_ogg("item_trap_trigger.ogg", normalize(signal))
-
-
-# ─── Spinout ─────────────────────────────────────────────────────────
 
 def gen_spinout():
-    """Tire screech + descending spiral — being hit and spinning out."""
-    dur = 1.0
-    t = np.linspace(0, dur, int(SAMPLE_RATE * dur), endpoint=False)
+    """Spun out: a cartoon whistle that wheels downward, tyres squealing in
+    circles, and a few dizzy bells at the end."""
+    t = t_axis(1.25)
+    r = rng(251)
+    f = (1400 * np.exp(-t * 1.6) + 250) * (1 + 0.08 * np.sin(2 * np.pi * 7 * t))
+    whistle = np.sin(2 * np.pi * np.cumsum(f) / SR) * env_ad(t, 0.01, 1.8) * 0.45
+    spin = 0.5 + 0.5 * np.sin(2 * np.pi * 4.0 * t)
+    screech = bandpass(r.standard_normal(len(t)), 1100, 3800) * spin * env_ad(t, 0.01, 2.2) * 0.5
+    hit = np.sin(2 * np.pi * np.cumsum(55 + 90 * np.exp(-t * 25)) / SR) * env_ad(t, 0.001, 10) * 0.7
+    x = whistle + screech + hit
+    for i, nm in enumerate(["E7", "C7", "G6"]):
+        place(x, fm_bell(t_axis(0.4), note(nm), ratio=3.5, index=0.8, decay=10) * 0.2, int((0.75 + i * 0.12) * SR))
+    write("item_spinout.ogg", fade_edges(x, fade_out=0.08), "impact")
 
-    # Descending spiral tone
-    freq = 600.0 * np.exp(-t * 2.0) + 100.0
-    signal = np.sin(2 * np.pi * freq * t) * 0.3
-
-    # Tire screech (bandpass noise)
-    rng = np.random.RandomState(88)
-    screech = rng.randn(len(t))
-    # Modulate screech with oscillating envelope for spinning feel
-    spin_env = (0.5 + 0.5 * np.sin(2 * np.pi * 3.0 * t)) * np.exp(-t * 1.5)
-    signal += screech * spin_env * 0.35
-
-    # Sub impact at start
-    signal += np.sin(2 * np.pi * 80.0 * t) * np.exp(-t * 5.0) * 0.4
-
-    # Overall envelope
-    env = envelope(t, 0.01, 0.6, dur)
-    signal *= env
-
-    write_ogg("item_spinout.ogg", normalize(signal))
-
-
-# ─── Main ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    ensure_dir()
     print("Generating item audio...")
     gen_item_collect()
     gen_shield_activate()
@@ -243,4 +144,4 @@ if __name__ == "__main__":
     gen_trap_drop()
     gen_trap_trigger()
     gen_spinout()
-    print("Done!")
+    print("Done.")
