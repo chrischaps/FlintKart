@@ -186,6 +186,11 @@ color_r = 0.95
 color_g = 0.3
 color_b = 0.1
 name = "Blaze"
+aggression = 0.8
+route_risk = 0.7
+item_patience = 0.3
+rubber_band = 0.4
+wobble = 0.0
 [entities.ai1_brain.script]
 source = "ai_driver.rhai"
 
@@ -203,6 +208,11 @@ color_r = 0.2
 color_g = 0.75
 color_b = 0.25
 name = "Steady"
+aggression = 0.3
+route_risk = 0.25
+item_patience = 0.8
+rubber_band = 0.6
+wobble = 0.0
 [entities.ai2_brain.script]
 source = "ai_driver.rhai"
 
@@ -220,6 +230,11 @@ color_r = 0.95
 color_g = 0.85
 color_b = 0.15
 name = "Tank"
+aggression = 0.95
+route_risk = 0.4
+item_patience = 0.5
+rubber_band = 0.5
+wobble = 0.0
 [entities.ai3_brain.script]
 source = "ai_driver.rhai"
 
@@ -237,6 +252,11 @@ color_r = 0.6
 color_g = 0.2
 color_b = 0.85
 name = "Ghost"
+aggression = 0.5
+route_risk = 0.95
+item_patience = 0.9
+rubber_band = 0.5
+wobble = 0.0
 [entities.ai4_brain.script]
 source = "ai_driver.rhai"
 
@@ -254,6 +274,11 @@ color_r = 0.15
 color_g = 0.85
 color_b = 0.85
 name = "Wild"
+aggression = 0.7
+route_risk = 0.6
+item_patience = 0.1
+rubber_band = 0.3
+wobble = 0.7
 [entities.ai5_brain.script]
 source = "ai_driver.rhai"
 

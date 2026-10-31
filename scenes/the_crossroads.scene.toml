@@ -183,6 +183,11 @@ color_r = 0.95
 color_g = 0.3
 color_b = 0.1
 name = "Blaze"
+aggression = 0.8
+route_risk = 0.7
+item_patience = 0.3
+rubber_band = 0.4
+wobble = 0.0
 [entities.ai1_brain.script]
 source = "ai_driver.rhai"
 
@@ -200,6 +205,11 @@ color_r = 0.2
 color_g = 0.75
 color_b = 0.25
 name = "Steady"
+aggression = 0.3
+route_risk = 0.25
+item_patience = 0.8
+rubber_band = 0.6
+wobble = 0.0
 [entities.ai2_brain.script]
 source = "ai_driver.rhai"
 
@@ -217,6 +227,11 @@ color_r = 0.95
 color_g = 0.85
 color_b = 0.15
 name = "Tank"
+aggression = 0.95
+route_risk = 0.4
+item_patience = 0.5
+rubber_band = 0.5
+wobble = 0.0
 [entities.ai3_brain.script]
 source = "ai_driver.rhai"
 
@@ -234,6 +249,11 @@ color_r = 0.6
 color_g = 0.2
 color_b = 0.85
 name = "Ghost"
+aggression = 0.5
+route_risk = 0.95
+item_patience = 0.9
+rubber_band = 0.5
+wobble = 0.0
 [entities.ai4_brain.script]
 source = "ai_driver.rhai"
 
@@ -251,6 +271,11 @@ color_r = 0.15
 color_g = 0.85
 color_b = 0.85
 name = "Wild"
+aggression = 0.7
+route_risk = 0.6
+item_patience = 0.1
+rubber_band = 0.3
+wobble = 0.7
 [entities.ai5_brain.script]
 source = "ai_driver.rhai"
 
@@ -752,34 +777,6 @@ chunk_size = 30
 friction = 0.8
 restitution = 0.1
 
-[entities.track_wall_l]
-[entities.track_wall_l.spline_mesh]
-spline = "track_path"
-width = 0.5
-height = 1.5
-offset = [-6.25, 0.75]
-color = [1.0, 1.0, 1.0, 1.0]
-texture = "textures/road_barrier_tomato.png"
-texture_length = 4.0
-roughness = 0.7
-friction = 0.3
-restitution = 0.5
-
-[entities.track_wall_r]
-[entities.track_wall_r.spline_mesh]
-spline = "track_path"
-width = 0.5
-height = 1.5
-offset = [6.25, 0.75]
-color = [1.0, 1.0, 1.0, 1.0]
-texture = "textures/road_barrier_sky.png"
-texture_length = 4.0
-roughness = 0.7
-friction = 0.3
-restitution = 0.5
-skip_starts = [0.2, 0.6]
-skip_ends = [0.4, 0.8]
-
 [entities.track_verge_l]
 [entities.track_verge_l.spline_mesh]
 spline = "track_path"
@@ -879,35 +876,85 @@ restitution = 0.1
 skip_starts = [0.0, 0.6667]
 skip_ends = [0.3333, 1.0]
 
-[entities.seg_branch_shortcut_wall_l]
-[entities.seg_branch_shortcut_wall_l.spline_mesh]
-spline = "seg_branch_shortcut"
+
+# ── Walls (tools/generate_crossroads_walls.py) ──
+# Each stretch of wall is its own spline whose points are the wall line,
+# cut wherever it would stand on another road. Regenerate, don't hand-edit.
+
+[entities.track_wall_l]
+[entities.track_wall_l.spline_mesh]
+spline = "track_path"
+offset = [-6.25, 0.75]
 width = 0.5
 height = 1.5
-offset = [-6.25, 0.75]
 color = [1.0, 1.0, 1.0, 1.0]
 texture = "textures/road_barrier_tomato.png"
 texture_length = 4.0
 roughness = 0.7
 friction = 0.3
 restitution = 0.5
-skip_starts = [0.0, 0.6667]
-skip_ends = [0.3333, 1.0]
 
-[entities.seg_branch_shortcut_wall_r]
-[entities.seg_branch_shortcut_wall_r.spline_mesh]
-spline = "seg_branch_shortcut"
+[entities.track_wall_r_0]
+[entities.track_wall_r_0.spline]
+file = "splines/the_crossroads/walls/track_wall_r_0.spline.toml"
+[entities.track_wall_r_0.spline_mesh]
+spline = "track_wall_r_0"
+offset = [0.0, 0.75]
 width = 0.5
 height = 1.5
-offset = [6.25, 0.75]
 color = [1.0, 1.0, 1.0, 1.0]
 texture = "textures/road_barrier_sky.png"
 texture_length = 4.0
 roughness = 0.7
 friction = 0.3
 restitution = 0.5
-skip_starts = [0.0, 0.6667]
-skip_ends = [0.3333, 1.0]
+
+[entities.track_wall_r_1]
+[entities.track_wall_r_1.spline]
+file = "splines/the_crossroads/walls/track_wall_r_1.spline.toml"
+[entities.track_wall_r_1.spline_mesh]
+spline = "track_wall_r_1"
+offset = [0.0, 0.75]
+width = 0.5
+height = 1.5
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_sky.png"
+texture_length = 4.0
+roughness = 0.7
+friction = 0.3
+restitution = 0.5
+
+[entities.seg_branch_shortcut_wall_l_0]
+[entities.seg_branch_shortcut_wall_l_0.spline]
+file = "splines/the_crossroads/walls/seg_branch_shortcut_wall_l_0.spline.toml"
+[entities.seg_branch_shortcut_wall_l_0.spline_mesh]
+spline = "seg_branch_shortcut_wall_l_0"
+offset = [0.0, 0.75]
+width = 0.5
+height = 1.5
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_tomato.png"
+texture_length = 4.0
+roughness = 0.7
+friction = 0.3
+restitution = 0.5
+
+[entities.seg_branch_shortcut_wall_r_0]
+[entities.seg_branch_shortcut_wall_r_0.spline]
+file = "splines/the_crossroads/walls/seg_branch_shortcut_wall_r_0.spline.toml"
+[entities.seg_branch_shortcut_wall_r_0.spline_mesh]
+spline = "seg_branch_shortcut_wall_r_0"
+offset = [0.0, 0.75]
+width = 0.5
+height = 1.5
+color = [1.0, 1.0, 1.0, 1.0]
+texture = "textures/road_barrier_sky.png"
+texture_length = 4.0
+roughness = 0.7
+friction = 0.3
+restitution = 0.5
+
+# ── End walls ──
 
 # ── Junction fill geometry ──
 

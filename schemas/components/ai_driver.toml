@@ -40,3 +40,29 @@ default = 0.5
 [component.ai_driver.fields.name]
 type = "string"
 default = "AI"
+
+# 0-1: how eagerly it goes for a gap, how close it follows, how little room
+# it gives alongside, and how readily it fires on a shielded rival
+[component.ai_driver.fields.aggression]
+type = "float"
+default = 0.5
+
+# 0-1: appetite for a branch (shortcut) at a fork on a branching track
+[component.ai_driver.fields.route_risk]
+type = "float"
+default = 0.5
+
+# 0-1: how long it holds an item waiting for the moment it counts
+[component.ai_driver.fields.item_patience]
+type = "float"
+default = 0.5
+
+# 0-1: how much it speeds up when far behind the player, and eases off when far ahead
+[component.ai_driver.fields.rubber_band]
+type = "float"
+default = 0.5
+
+# 0-1: how much its line wanders
+[component.ai_driver.fields.wobble]
+type = "float"
+default = 0.0

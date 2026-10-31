@@ -1,0 +1,266 @@
+[spline]
+name = "track_wall_r_0"
+closed = false
+
+[sampling]
+spacing = 1.5
+
+[[control_points]]
+position = [71.546, 0.000, -98.002]
+twist = 0.0
+
+[[control_points]]
+position = [73.729, 0.000, -98.939]
+twist = 0.0
+
+[[control_points]]
+position = [75.879, 0.000, -99.845]
+twist = 0.0
+
+[[control_points]]
+position = [77.994, 0.000, -100.707]
+twist = 0.0
+
+[[control_points]]
+position = [80.072, 0.000, -101.510]
+twist = 0.0
+
+[[control_points]]
+position = [82.111, 0.000, -102.242]
+twist = 0.0
+
+[[control_points]]
+position = [84.108, 0.000, -102.889]
+twist = 0.0
+
+[[control_points]]
+position = [86.060, 0.000, -103.440]
+twist = 0.0
+
+[[control_points]]
+position = [88.338, 0.000, -103.962]
+twist = 0.0
+
+[[control_points]]
+position = [90.543, 0.000, -104.317]
+twist = 0.0
+
+[[control_points]]
+position = [92.676, 0.000, -104.495]
+twist = 0.0
+
+[[control_points]]
+position = [94.742, 0.000, -104.488]
+twist = 0.0
+
+[[control_points]]
+position = [96.756, 0.000, -104.284]
+twist = 0.0
+
+[[control_points]]
+position = [98.756, 0.000, -103.867]
+twist = 0.0
+
+[[control_points]]
+position = [100.969, 0.000, -103.176]
+twist = 0.0
+
+[[control_points]]
+position = [102.971, 0.000, -102.392]
+twist = 0.0
+
+[[control_points]]
+position = [105.083, 0.000, -101.428]
+twist = 0.0
+
+[[control_points]]
+position = [107.277, 0.000, -100.297]
+twist = 0.0
+
+[[control_points]]
+position = [109.075, 0.000, -99.283]
+twist = 0.0
+
+[[control_points]]
+position = [110.899, 0.000, -98.180]
+twist = 0.0
+
+[[control_points]]
+position = [112.737, 0.000, -96.995]
+twist = 0.0
+
+[[control_points]]
+position = [114.579, 0.000, -95.738]
+twist = 0.0
+
+[[control_points]]
+position = [116.416, 0.000, -94.415]
+twist = 0.0
+
+[[control_points]]
+position = [118.237, 0.000, -93.037]
+twist = 0.0
+
+[[control_points]]
+position = [120.034, 0.000, -91.611]
+twist = 0.0
+
+[[control_points]]
+position = [121.797, 0.000, -90.146]
+twist = 0.0
+
+[[control_points]]
+position = [123.518, 0.000, -88.651]
+twist = 0.0
+
+[[control_points]]
+position = [125.187, 0.000, -87.134]
+twist = 0.0
+
+[[control_points]]
+position = [126.795, 0.000, -85.604]
+twist = 0.0
+
+[[control_points]]
+position = [128.334, 0.000, -84.071]
+twist = 0.0
+
+[[control_points]]
+position = [129.794, 0.000, -82.544]
+twist = 0.0
+
+[[control_points]]
+position = [131.167, 0.000, -81.033]
+twist = 0.0
+
+[[control_points]]
+position = [132.746, 0.000, -79.184]
+twist = 0.0
+
+[[control_points]]
+position = [134.155, 0.000, -77.399]
+twist = 0.0
+
+[[control_points]]
+position = [135.390, 0.000, -75.688]
+twist = 0.0
+
+[[control_points]]
+position = [136.531, 0.000, -73.944]
+twist = 0.0
+
+[[control_points]]
+position = [137.594, 0.000, -72.148]
+twist = 0.0
+
+[[control_points]]
+position = [138.580, 0.000, -70.305]
+twist = 0.0
+
+[[control_points]]
+position = [139.487, 0.000, -68.417]
+twist = 0.0
+
+[[control_points]]
+position = [140.315, 0.000, -66.492]
+twist = 0.0
+
+[[control_points]]
+position = [141.064, 0.000, -64.532]
+twist = 0.0
+
+[[control_points]]
+position = [141.733, 0.000, -62.544]
+twist = 0.0
+
+[[control_points]]
+position = [142.322, 0.000, -60.533]
+twist = 0.0
+
+[[control_points]]
+position = [142.829, 0.000, -58.504]
+twist = 0.0
+
+[[control_points]]
+position = [143.255, 0.000, -56.461]
+twist = 0.0
+
+[[control_points]]
+position = [143.600, 0.000, -54.411]
+twist = 0.0
+
+[[control_points]]
+position = [143.863, 0.000, -52.359]
+twist = 0.0
+
+[[control_points]]
+position = [144.045, 0.000, -50.311]
+twist = 0.0
+
+[[control_points]]
+position = [144.145, 0.000, -48.271]
+twist = 0.0
+
+[[control_points]]
+position = [144.164, 0.000, -46.246]
+twist = 0.0
+
+[[control_points]]
+position = [144.102, 0.000, -44.241]
+twist = 0.0
+
+[[control_points]]
+position = [143.922, 0.000, -41.869]
+twist = 0.0
+
+[[control_points]]
+position = [143.627, 0.000, -39.601]
+twist = 0.0
+
+[[control_points]]
+position = [143.162, 0.000, -37.281]
+twist = 0.0
+
+[[control_points]]
+position = [142.635, 0.000, -35.254]
+twist = 0.0
+
+[[control_points]]
+position = [141.988, 0.000, -33.160]
+twist = 0.0
+
+[[control_points]]
+position = [141.229, 0.000, -31.014]
+twist = 0.0
+
+[[control_points]]
+position = [140.367, 0.000, -28.832]
+twist = 0.0
+
+[[control_points]]
+position = [139.411, 0.000, -26.627]
+twist = 0.0
+
+[[control_points]]
+position = [138.370, 0.000, -24.413]
+twist = 0.0
+
+[[control_points]]
+position = [137.255, 0.000, -22.204]
+twist = 0.0
+
+[[control_points]]
+position = [136.075, 0.000, -20.011]
+twist = 0.0
+
+[[control_points]]
+position = [134.842, 0.000, -17.847]
+twist = 0.0
+
+[[control_points]]
+position = [133.566, 0.000, -15.723]
+twist = 0.0
+
+[[control_points]]
+position = [131.992, 0.000, -13.246]
+twist = 0.0
