@@ -109,3 +109,25 @@ event reaches listeners on the next frame.
   output together.
 - Nothing may stop a race from finishing: all six racers must still finish
   three laps on every track.
+
+## Close-out (2026-10-31)
+
+The epic closed once all eight of its **Done when** boxes held in the running
+game, checked on `master` at a51c107. The first pass (2026-10-30, at 3e7294a)
+found two boxes failing. They became #29 and #30, and both have since landed.
+
+| box | result |
+|---|---|
+| All ten tickets on `master` | #3–#12 merged, plus follow-ups #28, #29, #30, #31, #32, #33, #35, #36, #39 |
+| End to end on every track | title → track → paint → countdown → race → pause → resume, through the menu into the restitched Crossroads (#36); every run exited 0 with no script errors |
+| All six racers finish | 6/6 on Oval Plus, Mountain Switchback, The Crossroads and Lighthouse Bay, with the player finishing first (autopilot at 1.7×); the last AI finished 5–35 s after the player |
+| Every layer shows | checked in the first pass; nothing since removed a layer |
+| The camera frames the race | the countdown flyover shows the grid through "3", "2", "1" and GO on all four tracks, Mountain included, and every FINISH! frame shows the player's kart |
+| 1280×720 and 1920×1080 | checked in the first pass; the menu run was at 1280×720 |
+| Best times persist | the results screen shows NEW TRACK RECORDS! and the best lap |
+| About 60 fps | a 45 s full-grid pass: Mountain 60.0 fps (present-to-present p99 23.6 ms), Crossroads 60.0 fps (p99 30.7 ms) |
+
+The rule still holds for every change after the glow-up: **nothing may stop
+a race from finishing.** To check it, run a race where the player finishes,
+not one where the player sits on the grid. Only the player's finish moves
+the race out of `"racing"`, and that hid #29 for eight months.
