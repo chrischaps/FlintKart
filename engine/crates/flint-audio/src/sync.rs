@@ -4,28 +4,26 @@
 //! creates Kira tracks, and updates positions each frame.
 //! Also propagates per-frame pitch/volume changes from ECS to Kira sound handles.
 
-use crate::engine::{amplitude_to_db, AudioEngine, Bus};
+use crate::engine::{amplitude_to_db, AudioEngine, Bus, SoundHandle, SpatialTrack};
 use flint_core::components as comp;
 use flint_core::toml_util::{toml_f32, toml_f64};
 use flint_core::{EntityId, Vec3};
 use flint_ecs::FlintWorld;
-use kira::sound::static_sound::StaticSoundHandle;
-use kira::track::SpatialTrackHandle;
 use kira::Tween;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 /// Per-entity audio state: spatial track handle + active sound handles + cached parameters
 struct SpatialEntry {
-    track: SpatialTrackHandle,
-    handles: Vec<StaticSoundHandle>,
+    track: SpatialTrack,
+    handles: Vec<SoundHandle>,
     last_volume: f64,
     last_pitch: f64,
 }
 
 /// Non-spatial entry: sound handles + cached parameters
 struct NonSpatialEntry {
-    handles: Vec<StaticSoundHandle>,
+    handles: Vec<SoundHandle>,
     last_volume: f64,
     last_pitch: f64,
 }
@@ -39,6 +37,9 @@ pub struct AudioSync {
     non_spatial_map: HashMap<EntityId, NonSpatialEntry>,
     /// Entities that have already been discovered and synced
     synced_entities: HashSet<EntityId>,
+    /// Autoplay sources that found their sound not yet loaded (a late
+    /// bundle, a decode queue) and are waiting for it.
+    waiting: HashSet<EntityId>,
 }
 
 /// Smooth tween duration for parameter changes (avoids clicks)
@@ -54,6 +55,7 @@ impl AudioSync {
             spatial_map: HashMap::new(),
             non_spatial_map: HashMap::new(),
             synced_entities: HashSet::new(),
+            waiting: HashSet::new(),
         }
     }
 
@@ -67,17 +69,18 @@ impl AudioSync {
         };
         for entry in self.spatial_map.values_mut() {
             for handle in &mut entry.handles {
-                let _ = handle.stop(stop_tween);
+                handle.stop(stop_tween);
             }
         }
         for entry in self.non_spatial_map.values_mut() {
             for handle in &mut entry.handles {
-                let _ = handle.stop(stop_tween);
+                handle.stop(stop_tween);
             }
         }
         self.spatial_map.clear();
         self.non_spatial_map.clear();
         self.synced_entities.clear();
+        self.waiting.clear();
     }
 
     /// Discover entities with `audio_source` components and create Kira tracks
@@ -141,7 +144,11 @@ impl AudioSync {
             // and starts once it is: on the web the audio arrives in a late
             // bundle after the first frame (#98).
             if autoplay && !engine.has_sound(file) {
+                self.waiting.insert(entity_id);
                 continue;
+            }
+            if self.waiting.remove(&entity_id) {
+                tracing::info!("audio_source {file} starts: its sound has loaded");
             }
 
             if spatial {

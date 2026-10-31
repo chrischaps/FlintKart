@@ -61,6 +61,8 @@ pub struct InputSnapshot {
     pub last_device: String,
     /// True while the host reports at least one gamepad attached.
     pub gamepad_connected: bool,
+    /// True while the on-screen touch controls are drawn (#133).
+    pub touch_controls_visible: bool,
     pub mouse_delta: (f64, f64),
     /// Wheel lines (notches) this frame, (x, y); up and right are positive.
     pub mouse_wheel: (f64, f64),
@@ -533,6 +535,8 @@ pub struct ScriptCallContext {
     /// Script-driven cursor capture request. Games without a character
     /// controller (which normally gates capture) use this for mouse look.
     pub cursor_captured_override: Option<bool>,
+    /// `set_touch_controls(enabled)` this frame (#134).
+    pub touch_controls_override: Option<bool>,
     /// Whether the cursor is captured now, for `is_cursor_captured()`
     /// (ADR 0110). The host sets it each frame.
     pub cursor_captured: bool,
@@ -634,6 +638,7 @@ impl ScriptCallContext {
             postprocess_mode_params_override: None,
             audio_lowpass_cutoff_override: None,
             cursor_captured_override: None,
+            touch_controls_override: None,
             cursor_captured: false,
             state_machine: std::ptr::null_mut(),
             persistent_store: std::ptr::null_mut(),

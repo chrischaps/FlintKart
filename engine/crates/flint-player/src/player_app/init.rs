@@ -90,6 +90,9 @@ impl PlayerApp {
             skybox_path: None,
             scene_ambient: None,
             msaa_sample_count: 1,
+            render_scale: Default::default(),
+            dynamic_scale: Default::default(),
+            frame_pacer: None,
             hold_at: None,
             scene_diffuse_wrap: None,
             scene_oren_nayar: None,
@@ -127,6 +130,7 @@ impl PlayerApp {
                 version: 1,
                 game_id: String::new(),
                 actions: Default::default(),
+                touch_controls: None,
             },
             pending_rebind: None,
             gilrs: None,
@@ -142,6 +146,7 @@ impl PlayerApp {
             show_stats: false,
             stats_frame_times: std::collections::VecDeque::new(),
             stats_gpu_timing: false,
+            perf: None,
             procgen_resolver: flint_procgen::ProcGenResolver::new(),
             loaded_chunks: HashMap::new(),
             #[cfg(target_os = "android")]
@@ -580,6 +585,10 @@ impl PlayerApp {
             &mut self.audio,
             &self.scene_path,
             self.scene_preload_audio,
+            // In the browser the audio may already be here at start, and
+            // decoding it all in one frame is the stall #124 removed:
+            // queue it. The desktop decodes up front, as a load can afford.
+            cfg!(target_arch = "wasm32"),
         );
         self.audio
             .initialize(&mut self.world)

@@ -26,6 +26,12 @@ use flint_render::GrassEntityPosition;
 use flint_runtime::{RuntimeSystem, StateConfig, SystemPolicy};
 use std::collections::HashSet;
 
+/// Frame time given to decoding sounds while a late audio bundle settles in
+/// (#124). A song is 85 to 190 ms of decoding in Chrome; at 2 ms a frame it
+/// spreads over a second or two, and Float's 10 ms frames stay inside one
+/// 16.7 ms vsync (at 4 ms they slipped to 33 ms now and then).
+const AUDIO_DECODE_BUDGET: std::time::Duration = std::time::Duration::from_millis(2);
+
 impl PlayerApp {
     #[profiling::function]
     pub(super) fn render(&mut self) {
@@ -33,6 +39,7 @@ impl PlayerApp {
         if self.window.is_none() {
             return;
         }
+        self.update_render_scale();
         let Some(context) = &self.render_context else {
             return;
         };
@@ -545,9 +552,10 @@ impl PlayerApp {
             }
         }
 
-        // F2's stats show the GPU's time too (ADR 0108): time the frame
-        // while they're up. Timing the game turned on stays on after.
-        if self.show_stats {
+        // F2's stats show the GPU's time too (ADR 0108), as does the perf
+        // readout unless it was asked not to (#120): time the frame while
+        // either is up. Timing the game turned on stays on after.
+        if self.show_stats || self.perf.as_ref().is_some_and(|p| p.gpu_wanted) {
             if !renderer.gpu_timing() {
                 self.stats_gpu_timing =
                     renderer.set_gpu_timing(&context.device, &context.queue, true);
@@ -559,6 +567,10 @@ impl PlayerApp {
 
         if let Err(e) = renderer.render(context, &self.camera, &view) {
             tracing::warn!("Render error: {:?}", e);
+        }
+        // A field borrow, not `perf_mark`: `context` is still held.
+        if let Some(perf) = &mut self.perf {
+            perf.mark(super::perf::Phase::Render);
         }
 
         // Render egui HUD overlay on top of the 3D scene
@@ -572,6 +584,7 @@ impl PlayerApp {
         if let (Some(context), Some(renderer)) = (&self.render_context, &mut self.scene_renderer) {
             renderer.finish_gpu_timings(&context.device, &context.queue);
         }
+        self.perf_mark(super::perf::Phase::Hud);
 
         // Capture the composited frame (scene + HUD) before it is presented.
         if let Some(path) = self.capture_path_due() {
@@ -580,6 +593,11 @@ impl PlayerApp {
 
         output.present();
         let presented = web_time::Instant::now();
+        self.perf_mark(super::perf::Phase::Present);
+        #[cfg(target_arch = "wasm32")]
+        self.show_perf();
+        #[cfg(not(target_arch = "wasm32"))]
+        self.print_perf();
 
         if let Some(exit_after) = self.capture.exit_after {
             if self.clock.total_time >= super::PERF_SKIP_SECS {
@@ -725,6 +743,12 @@ impl PlayerApp {
 
     #[profiling::function]
     pub(super) fn tick(&mut self) {
+        // A frame begins: the perf readout's clock (#120).
+        if let Some(perf) = &mut self.perf {
+            perf.begin_frame();
+        }
+        use super::perf::Phase;
+
         // The page's Begin click and the browser's pointer lock (#102).
         #[cfg(target_arch = "wasm32")]
         self.sync_pointer_lock();
@@ -732,6 +756,9 @@ impl PlayerApp {
         // Pads are held while a text field has focus (ADR 0110), before
         // they're polled.
         self.gate_gamepads();
+
+        // The touch controls' layout follows the window and page (#133).
+        self.sync_touch_controls();
 
         // Music session drain + guide/timeline panel feed (F3, ADR 0018).
         self.tick_music_session();
@@ -776,6 +803,7 @@ impl PlayerApp {
         // the scripts run, so a collision reaches scripts one frame after the
         // step that produced it.
         let game_events = self.collect_game_events();
+        self.perf_mark(Phase::Input);
 
         // on_update runs BEFORE the fixed physics loop. Scripts pose kinematic
         // bodies with this frame's delta_time, and PhysicsSystem::begin_frame
@@ -805,10 +833,15 @@ impl PlayerApp {
             // on_update.
             self.run_scripts(&config, &game_events);
         }
+        self.perf_mark(Phase::Scripts);
+        if let Some(perf) = &mut self.perf {
+            perf.record_scripts(self.script.update_times());
+        }
 
         // Fixed-timestep physics + FPS camera/listener follow, against the
         // poses and joint targets the scripts just wrote
         self.tick_fixed_physics(&config, has_fps_player);
+        self.perf_mark(Phase::Physics);
 
         // Script pointers again for every remaining script call this frame —
         // including the sprite-anim-end callbacks inside tick_av_systems —
@@ -832,10 +865,12 @@ impl PlayerApp {
 
         // on_draw_ui (always runs), script commands, draw-command collection
         self.drive_script_ui();
+        self.perf_mark(Phase::ScriptUi);
 
         // Audio triggers, animations + sprite-end callbacks, bone matrices,
         // bone probes, particles
         self.tick_av_systems(&config, &game_events);
+        self.perf_mark(Phase::AnimFx);
 
         // Frame-budgeted procgen queue
         self.tick_procgen();
@@ -848,6 +883,7 @@ impl PlayerApp {
 
         // Script audio/cursor frame overrides, then per-frame input clear
         self.finish_frame();
+        self.perf_mark(Phase::Sync);
     }
 
     #[profiling::function]
@@ -895,6 +931,11 @@ impl PlayerApp {
         // Apply audio low-pass filter override from scripts
         if let Some(cutoff) = self.script.take_audio_overrides() {
             self.audio.set_filter_cutoff(cutoff);
+        }
+
+        // A menu put the touch controls away, or play brought them back.
+        if let Some(enabled) = self.script.take_touch_controls_override() {
+            self.input.touch_controls_mut().set_enabled(enabled);
         }
 
         // Apply cursor capture request from scripts (skipped while a debug
@@ -1194,9 +1235,10 @@ impl PlayerApp {
         config: &StateConfig,
         game_events: &Vec<flint_runtime::GameEvent>,
     ) {
-        // A late bundle (audio, #98) landed: load what wasn't there at start.
-        // Already-loaded sounds are skipped, and an autoplay source that was
-        // waiting for its file starts on the update below.
+        // A late bundle (audio, #98) landed: queue what wasn't there at
+        // start. Already-loaded sounds are skipped, and an autoplay source
+        // that was waiting for its file starts on the update after its
+        // sound is decoded.
         let generation = flint_core::vfs::generation();
         if generation != self.audio_vfs_generation {
             self.audio_vfs_generation = generation;
@@ -1205,8 +1247,11 @@ impl PlayerApp {
                 &mut self.audio,
                 &self.scene_path,
                 self.scene_preload_audio,
+                true,
             );
         }
+        // ...and decode it a few milliseconds a frame (#124).
+        self.audio.engine.decode_queued(AUDIO_DECODE_BUDGET);
 
         // Audio triggers from game events (skip when paused)
         if config.audio == SystemPolicy::Run {
@@ -1458,6 +1503,9 @@ impl PlayerApp {
         });
         let mut laid_text = Vec::new();
 
+        let touch_widgets = self.input.touch_controls().widgets();
+        let touch_opacity = self.input.touch_controls().opacity();
+
         let show_stats = self.show_stats;
         let stats_data = if show_stats {
             self.scene_renderer.as_ref().map(|r| {
@@ -1507,6 +1555,9 @@ impl PlayerApp {
             for ext in extensions.iter_mut() {
                 ext.ui(ctx);
             }
+
+            // On-screen touch controls (#133), over the game's UI.
+            super::touch_overlay::paint(ctx, &touch_widgets, touch_opacity);
 
             #[cfg(feature = "debug-hud")]
             let debug_width =
@@ -1731,11 +1782,17 @@ fn render_stats_overlay(ctx: &egui::Context, stats: &flint_render::RenderStats, 
                         ui.separator();
                     }
 
-                    // Resolution
-                    ui.colored_label(
-                        egui::Color32::from_gray(102),
-                        format!("{}x{}", stats.resolution[0], stats.resolution[1]),
-                    );
+                    // Resolution, and the scene's below render scale 1 (#122)
+                    let scene = stats.scene_resolution;
+                    let resolution = if scene == stats.resolution || scene == [0, 0] {
+                        format!("{}x{}", stats.resolution[0], stats.resolution[1])
+                    } else {
+                        format!(
+                            "{}x{}, scene {}x{}",
+                            stats.resolution[0], stats.resolution[1], scene[0], scene[1]
+                        )
+                    };
+                    ui.colored_label(egui::Color32::from_gray(102), resolution);
                 });
         });
 }
