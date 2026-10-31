@@ -21,10 +21,11 @@ axle along X, tail lights at (+-0.35, 0.22, 1.28), driver at (0, 0.32, 0.15).
 
 Usage:
     python tools/generate_kart.py            # kart_body.glb + kart_wheel.glb
-    python tools/generate_kart.py driver     # also: driver, light, all
+    python tools/generate_kart.py light      # also: light, all
 
-The driver and light GLBs in models/ were last touched in Blender
-(KartAndDriver.blend), so they are only regenerated when asked for by name.
+The light GLB in models/ was last touched in Blender (KartAndDriver.blend),
+so it is only regenerated when asked for by name. The driver and the racers'
+helmets come from tools/generate_driver.py, which borrows the builders here.
 """
 
 import os
@@ -362,7 +363,7 @@ def generate_kart_wheel():
     export(parts, "wheel", "kart_wheel.glb")
 
 
-# ── Driver and light (unchanged; see the module docstring) ───────────
+# ── Light (unchanged; see the module docstring) ─────────────────────
 
 
 def pbr_mesh(mesh, color, metallic=0.0, roughness=0.7):
@@ -385,60 +386,6 @@ def colored_box(extents, color, transform=None, metallic=0.0, roughness=0.7):
     return pbr_mesh(mesh, color, metallic, roughness)
 
 
-def generate_kart_driver():
-    """Driver: torso, arms, head, helmet. Seated pose."""
-    parts = []
-
-    suit_blue = [0.2, 0.35, 0.75, 1.0]
-    skin_tan = [0.76, 0.57, 0.40, 1.0]
-    helmet_white = [0.92, 0.92, 0.95, 1.0]
-    visor_dark = [0.15, 0.18, 0.22, 1.0]
-
-    # Torso
-    parts.append(colored_box(
-        [0.4, 0.45, 0.3], suit_blue,
-        translation(0, 0.225, 0), roughness=0.8
-    ))
-
-    # Left arm
-    parts.append(colored_box(
-        [0.14, 0.38, 0.14], suit_blue,
-        translation(-0.28, 0.20, -0.12), roughness=0.8
-    ))
-
-    # Right arm
-    parts.append(colored_box(
-        [0.14, 0.38, 0.14], suit_blue,
-        translation(0.28, 0.20, -0.12), roughness=0.8
-    ))
-
-    # Head
-    parts.append(colored_box(
-        [0.26, 0.26, 0.26], skin_tan,
-        translation(0, 0.58, 0), roughness=0.9
-    ))
-
-    # Helmet
-    parts.append(colored_box(
-        [0.3, 0.2, 0.32], helmet_white,
-        translation(0, 0.68, -0.01), metallic=0.1, roughness=0.4
-    ))
-
-    # Visor
-    parts.append(colored_box(
-        [0.26, 0.1, 0.05], visor_dark,
-        translation(0, 0.60, -0.15), metallic=0.3, roughness=0.2
-    ))
-
-    scene = trimesh.Scene()
-    for i, part in enumerate(parts):
-        scene.add_geometry(part, node_name=f"driver_part_{i}")
-
-    path = os.path.join(OUT_DIR, "kart_driver.glb")
-    scene.export(path, file_type="glb")
-    print(f"  -> {path}")
-
-
 def generate_kart_light():
     """Brake/reverse light: small rectangular box, neutral dark red."""
     light_off = [0.35, 0.08, 0.08, 1.0]
@@ -456,7 +403,6 @@ def generate_kart_light():
 GENERATORS = {
     "body": generate_kart_body,
     "wheel": generate_kart_wheel,
-    "driver": generate_kart_driver,
     "light": generate_kart_light,
 }
 

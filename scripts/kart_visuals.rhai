@@ -33,6 +33,30 @@ let fx_skid_rl = -1;
 let fx_skid_rr = -1;
 
 let driver = -1;
+let driver_head = -1;
+let driver_topper = -1;
+let kart_id = -1;
+
+// Driver head: a spring per axis (pitch, yaw, roll), in degrees, so the
+// head lags, overshoots and settles. Bumps, wall hits and landings kick
+// its velocity through on_event.
+let head_p = 0.0;
+let head_y = 0.0;
+let head_r = 0.0;
+let head_pv = 0.0;
+let head_yv = 0.0;
+let head_rv = 0.0;
+let body_lean_x = 0.0;
+let body_lean_z = 0.0;
+let prev_speed = 0.0;
+let accel_smooth = 0.0;
+let topper_angle = 0.0;
+// Seconds left of the finish reaction; happy is a podium place.
+let finish_timer = 0.0;
+let finish_happy = true;
+let was_finished = false;
+// Events for this kart, queued by on_event and handled in on_update
+let head_events = [];
 
 // Wheel rest positions (local to the kart body), read once in on_init
 let wheel_rest = [];
@@ -72,6 +96,19 @@ fn on_init() {
     fx_skid_rr = get_entity("fx_skid_rr");
 
     driver = get_entity(prefix + "_driver");
+    driver_head = get_entity(prefix + "_driver_head");
+    driver_topper = get_entity(prefix + "_driver_topper");
+    kart_id = get_entity(kart_name);
+
+    // An AI racer wears their colour on the helmet and the suit's shoulders,
+    // chest band and cuffs. The player keeps the racing red in the models.
+    if kart_id >= 0 && has_component(kart_id, "ai_input") && has_component(kart_id, "racer_info") {
+        let cr = get_field(kart_id, "racer_info", "color_r");
+        let cg = get_field(kart_id, "racer_info", "color_g");
+        let cb = get_field(kart_id, "racer_info", "color_b");
+        if driver_head >= 0 { set_material_override(driver_head, "helmet", cr, cg, cb, 1.0); }
+        if driver >= 0 { set_material_override(driver, "suit_accent", cr, cg, cb, 1.0); }
+    }
 
     // Remember where each wheel sits at rest: [id, x, y, z] per wheel
     for w in [wheel_fl, wheel_fr, wheel_rl, wheel_rr] {
@@ -93,6 +130,22 @@ fn on_init() {
         if fx_drift_sparks_r >= 0 { start_emitter(fx_drift_sparks_r); }
         if fx_skid_rl >= 0 { start_emitter(fx_skid_rl); }
         if fx_skid_rr >= 0 { start_emitter(fx_skid_rr); }
+    }
+}
+
+// Knocks that shake the driver's head (docs/glow-up.md's event contract).
+// A bump names both karts, so either one's driver feels it.
+fn on_event(name, data) {
+    if name == "kart_bump" || name == "wall_hit" || name == "kart_landed"
+        || name == "drift_boost" {
+        let mine = data.kart == kart_id;
+        if name == "kart_bump" && data.other == kart_id { mine = true; }
+        if !mine { return; }
+        let e = #{ kind: name, x: 0.0, z: 0.0, strength: 1.0, tier: 0 };
+        if "x" in data { e.x = data.x; e.z = data.z; }
+        if "strength" in data { e.strength = data.strength; }
+        if "tier" in data { e.tier = data.tier; }
+        head_events.push(e);
     }
 }
 
@@ -210,28 +263,114 @@ fn on_update() {
         }
     }
 
-    // ── Driver Lean ──
-    if driver >= 0 {
+    // ── Driver ──
+    // Euler degrees on the driver entities: +X tilts the top back, +Y turns
+    // to the left, +Z tilts to the left. Steering > 0 turns right.
+    let dt = min(delta_time(), 0.05);
+    if driver >= 0 && dt > 0.0 {
         let abs_drift = drift_angle;
         if abs_drift < 0.0 { abs_drift = -abs_drift; }
 
-        // Lean into drift direction (body pitch + roll)
-        let driver_lean_z = 0.0;
-        let driver_lean_x = 0.0;
+        // Body: thrown out of the turn, hunched into a drift, pushed back
+        // into the seat by a boost
+        let lean_z = steering * 3.0;
+        let lean_x = 0.0;
         if drift_state == "drifting" || drift_state == "hop" {
-            // Roll into the drift (lean sideways)
-            driver_lean_z = drift_angle * 0.4; // ~10° at max drift angle
-            // Slight forward lean during drift
-            driver_lean_x = abs_drift * 0.15;
+            lean_z = lean_z + drift_angle * 0.4; // ~10° at max drift angle
+            lean_x = -abs_drift * 0.15;
         } else if drift_state == "boost" {
-            // Lean back during boost (reaction to acceleration)
-            driver_lean_x = -8.0;
+            lean_x = 8.0;
         }
-        // Lean slightly with steering even when not drifting
-        driver_lean_z = driver_lean_z + steering * 3.0;
-
-        set_rotation(driver, driver_lean_x, 0.0, driver_lean_z);
+        let follow = clamp(dt * 10.0, 0.0, 1.0);
+        body_lean_x = body_lean_x + (lean_x - body_lean_x) * follow;
+        body_lean_z = body_lean_z + (lean_z - body_lean_z) * follow;
+        set_rotation(driver, body_lean_x, 0.0, body_lean_z);
     }
+
+    if driver_head >= 0 && dt > 0.0 {
+        let t = total_time();
+
+        // Knocks from on_event become kicks to the head's spring velocity
+        let rx = -fwd_z;
+        let rz = fwd_x;
+        for e in head_events {
+            if e.kind == "kart_landed" {
+                head_pv = head_pv - 80.0 - e.strength * 320.0;
+            } else if e.kind == "kart_bump" || e.kind == "wall_hit" {
+                // The kart is shoved away from the hit, the head stays put:
+                // it tips toward the side that was struck
+                let kp = get_position(kart);
+                let side = (e.x - kp["x"]) * rx + (e.z - kp["z"]) * rz;
+                let dir = if side >= 0.0 { -1.0 } else { 1.0 };
+                head_rv = head_rv + dir * (120.0 + e.strength * 380.0);
+                head_yv = head_yv - dir * e.strength * 160.0;
+            } else if e.kind == "drift_boost" && e.tier > 0 {
+                head_pv = head_pv + 90.0 + e.tier.to_float() * 70.0;
+            }
+        }
+        head_events = [];
+
+        // Where the head wants to be: looking and tilting into the turn,
+        // nodding with the pedals
+        let accel = (speed - prev_speed) / dt;
+        accel_smooth = accel_smooth + (accel - accel_smooth) * clamp(dt * 6.0, 0.0, 1.0);
+        let yaw_t = -steering * 12.0;
+        let roll_t = -steering * 7.0;
+        let pitch_t = clamp(accel_smooth * 0.5, -9.0, 9.0);
+        if drift_state == "drifting" || drift_state == "hop" {
+            let drift_dir = get_field(kart, "drift_state", "drift_direction");
+            if drift_dir != () { yaw_t = yaw_t - drift_dir * 10.0; }
+        }
+        // A little engine shiver at the throttle
+        roll_t = roll_t + sin(t * 31.0) * 0.8 * throttle;
+
+        // Spun out: dizzy
+        if has_component(kart, "item_holder") && get_field(kart, "item_holder", "spinout_active") {
+            yaw_t = yaw_t + sin(t * 8.0) * 25.0;
+            roll_t = roll_t + sin(t * 11.0) * 14.0;
+        }
+
+        // Crossing the line: a happy bob on the podium, a droop off it.
+        // (race_manager sets finish_time; there is no race_finish event yet.)
+        let ft = get_field(kart, "race_progress", "finish_time");
+        let finished = ft != () && ft > 0.0;
+        if finished && !was_finished {
+            finish_timer = 3.0;
+            finish_happy = get_field(kart, "race_position", "position") <= 3;
+        }
+        was_finished = finished;
+        if finish_timer > 0.0 {
+            finish_timer = finish_timer - dt;
+            if finish_happy {
+                pitch_t = pitch_t + 6.0 + sin(t * 14.0) * 12.0;
+                roll_t = roll_t + sin(t * 7.0) * 9.0;
+            } else {
+                pitch_t = pitch_t - 16.0;
+            }
+        }
+
+        // Springs: stiff enough to follow, soft enough to wobble (about two
+        // swings before a knock settles)
+        let k = 140.0;
+        let c = 10.0;
+        head_pv = head_pv + (k * (pitch_t - head_p) - c * head_pv) * dt;
+        head_yv = head_yv + (k * (yaw_t - head_y) - c * head_yv) * dt;
+        head_rv = head_rv + (k * (roll_t - head_r) - c * head_rv) * dt;
+        head_p = clamp(head_p + head_pv * dt, -35.0, 35.0);
+        head_y = clamp(head_y + head_yv * dt, -45.0, 45.0);
+        head_r = clamp(head_r + head_rv * dt, -35.0, 35.0);
+        set_rotation(driver_head, head_p, head_y, head_r);
+
+        // A topper (Wild's propeller) spins with speed
+        if driver_topper >= 0 && has_component(driver_topper, "model") {
+            let abs_speed = speed;
+            if abs_speed < 0.0 { abs_speed = -abs_speed; }
+            topper_angle = topper_angle + dt * (180.0 + abs_speed * 45.0);
+            if topper_angle > 360.0 { topper_angle = topper_angle - 360.0; }
+            set_rotation(driver_topper, 0.0, topper_angle, 0.0);
+        }
+    }
+    prev_speed = speed;
 
     // ── Particle effects (player kart only) ──
     if has_component(kart, "ai_input") {

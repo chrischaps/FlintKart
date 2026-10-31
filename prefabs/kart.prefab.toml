@@ -1,5 +1,5 @@
 # ================================================================
-#  Kart Prefab — complete kart entity group (14 entities)
+#  Kart Prefab — complete kart entity group (16 entities)
 # ================================================================
 #
 #  Instantiated per-racer with prefix substitution.
@@ -133,7 +133,13 @@ position = [0.73, 0.1, 0.85]
 asset = "kart_wheel"
 
 
-# ── Driver (child of kart) ──
+# ── Driver (child of kart): body, head on the neck pivot, and a topper ──
+#
+#  kart_visuals.rhai leans the body and turns, tilts and wobbles the head.
+#  Each racer swaps in their own helmet with a driver_head.model override
+#  (driver_head_ace / blaze / steady / tank / ghost / wild; see
+#  tools/generate_driver.py). The topper has no model unless a racer gives
+#  it one (Wild's propeller); kart_visuals spins it with speed.
 
 [entities.driver]
 parent = "kart"
@@ -141,6 +147,18 @@ parent = "kart"
 position = [0.0, 0.32, 0.15]
 [entities.driver.model]
 asset = "kart_driver"
+
+[entities.driver_head]
+parent = "driver"
+[entities.driver_head.transform]
+position = [0.0, 0.44, 0.03]
+[entities.driver_head.model]
+asset = "driver_head_ace"
+
+[entities.driver_topper]
+parent = "driver_head"
+[entities.driver_topper.transform]
+position = [0.0, 0.425, 0.0]
 
 
 # ── Tail lights (children of kart) ──

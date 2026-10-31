@@ -30,6 +30,7 @@ let wheel_fr_id = -1;
 let wheel_rl_id = -1;
 let wheel_rr_id = -1;
 let driver_id = -1;
+let driver_head_id = -1;
 let donut_angle = 0.0;
 let wheel_spin = 0.0;
 let donut_dir = 1.0;
@@ -186,6 +187,7 @@ fn on_update() {
         wheel_rl_id = get_entity("display_wheel_rl");
         wheel_rr_id = get_entity("display_wheel_rr");
         driver_id = get_entity("display_driver");
+        driver_head_id = get_entity("display_driver_head");
         skid_snd_id = get_entity("snd_tire_skid");
         dust_l_id = get_entity("display_dust_l");
         dust_r_id = get_entity("display_dust_r");
@@ -301,6 +303,14 @@ fn on_update() {
         let lean_roll = -12.0 * donut_dir_blend * drift_factor;
         let lean_pitch = -5.0 - 3.0 * mode_blend;  // extra forward lean during boost
         set_rotation(driver_id, lean_pitch, 0.0, lean_roll);
+    }
+    // Head: looks into the donut and holds itself a little more level than
+    // the body, with a cheerful bob
+    if driver_head_id >= 0 {
+        let head_yaw = -16.0 * donut_dir_blend * drift_factor;
+        let head_roll = 6.0 * donut_dir_blend * drift_factor + sin(total_time() * 2.2) * 3.0;
+        let head_pitch = 4.0 + sin(total_time() * 4.4) * 2.5;
+        set_rotation(driver_head_id, head_pitch, head_yaw, head_roll);
     }
 
     // ── Position 3D particle emitters at rear wheels ──

@@ -80,6 +80,8 @@ name = "Blaze"
 color_r = 0.95
 color_g = 0.3
 color_b = 0.1
+[prefabs.ai1.overrides.driver_head.model]
+asset = "driver_head_blaze"
 
 [prefabs.ai2]
 template = "kart"
@@ -101,6 +103,8 @@ name = "Steady"
 color_r = 0.2
 color_g = 0.75
 color_b = 0.25
+[prefabs.ai2.overrides.driver_head.model]
+asset = "driver_head_steady"
 
 [prefabs.ai3]
 template = "kart"
@@ -121,6 +125,10 @@ name = "Tank"
 color_r = 0.95
 color_g = 0.85
 color_b = 0.15
+[prefabs.ai3.overrides.driver_head.model]
+asset = "driver_head_tank"
+[prefabs.ai3.overrides.driver.transform]
+scale = [1.12, 1.0, 1.06]
 
 [prefabs.ai4]
 template = "kart"
@@ -142,6 +150,10 @@ name = "Ghost"
 color_r = 0.6
 color_g = 0.2
 color_b = 0.85
+[prefabs.ai4.overrides.driver_head.model]
+asset = "driver_head_ghost"
+[prefabs.ai4.overrides.driver.transform]
+scale = [0.92, 1.0, 1.0]
 
 [prefabs.ai5]
 template = "kart"
@@ -163,6 +175,10 @@ name = "Wild"
 color_r = 0.15
 color_g = 0.85
 color_b = 0.85
+[prefabs.ai5.overrides.driver_head.model]
+asset = "driver_head_wild"
+[prefabs.ai5.overrides.driver_topper.model]
+asset = "driver_topper_propeller"
 
 
 # ============================================================

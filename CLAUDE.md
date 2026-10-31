@@ -30,7 +30,7 @@ engine/target/release/flint render scenes/oval_plus.scene.toml --output test.png
 - `scenes/` - Scene files (TOML). Main scene: `oval_plus.scene.toml`
 - `scripts/` - Rhai scripts: `kart_controller`, `kart_visuals`, `chase_camera`, `race_manager`, `hud`
 - `splines/` - Track spline data (`oval_plus.spline.toml`)
-- `models/` - GLB models (kart_body, kart_wheel, kart_driver, kart_light)
+- `models/` - GLB models (kart_body, kart_wheel, kart_light from `tools/generate_kart.py`; kart_driver, one `driver_head_<racer>` per racer and Wild's propeller topper from `tools/generate_driver.py`)
 - `schemas/components/` - Game-specific ECS components (kart_physics, kart_state, race_progress, etc.)
 - `textures/` - Skybox panoramas, and `road_*` surfaces from `tools/generate_road_textures.py` (asphalt with curbs and markings, barrier panels, verge grass), applied through `spline_mesh` `texture` / `normal_texture` / `texture_length`
 - `tools/` - Asset generators (Python)
@@ -50,6 +50,7 @@ The engine lives at `engine/` as a git subtree. Remote: `engine` → `https://gi
 
 - Vehicle physics are 100% script-driven (`kart_controller.rhai`)
 - Kart is a parent entity with child entities for wheels, driver, and lights (transform hierarchy)
+- The driver is a body with a head on the neck pivot (`driver_head`) and an optional `driver_topper`. Each race scene picks a racer's helmet with a `driver_head.model` override; `kart_visuals.rhai` tints AI helmets and suits from `racer_info`, and springs the head on steering, acceleration and the `kart_bump` / `wall_hit` / `kart_landed` events. Euler degrees: +X tilts back, +Y turns left, +Z tilts left
 - Track is a spline path (`spline` component) with swept cross-section meshes (`spline_mesh` component)
 - Race state machine in `race_manager.rhai`: countdown -> racing -> finished
 - `on_update()` is parameterless — use `delta_time()` API for frame delta
