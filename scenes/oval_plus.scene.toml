@@ -25,9 +25,6 @@ version = "1.0"
 description = "Phase 1: single kart racing prototype on the Oval Plus track"
 input_config = "config/input.toml"
 
-[environment]
-skybox = "textures/skybox_kart.png"
-
 [post_process]
 bloom_enabled = true
 bloom_intensity = 0.05
@@ -35,6 +32,9 @@ bloom_threshold = 0.9
 vignette_enabled = true
 vignette_intensity = 0.35
 vignette_smoothness = 0.9
+# A one-step ordered dither: no 8-bit banding in the sky's long gradients
+dither_enabled = true
+dither_intensity = 0.005
 exposure = 1.1
 ssao_enabled = true
 ssao_radius = 0.8
@@ -54,7 +54,7 @@ fog_height_origin = 0.0
 [entities.sky.sky]
 zenith_color = [0.04, 0.20, 0.66, 1.0]
 horizon_color = [0.34, 0.58, 0.90, 1.0]
-haze_color = [0.80, 0.89, 0.98, 0.4]
+haze_color = [0.89, 0.93, 0.95, 0.4]
 cloud_tint = [1.0, 0.99, 0.96, 0.9]
 cloud_coverage = 0.38
 cloud_density = 0.3
