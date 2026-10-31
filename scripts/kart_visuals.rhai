@@ -41,6 +41,9 @@ let wheel_rest = [];
 let prev_drift_state = "none";
 let prev_boost_tier = 0;
 let prev_shield_on = false;
+// The kart's own "paint" override from before the shield came up (an AI
+// racer's colour), or () when it shows the model's paint.
+let paint_before_shield = ();
 
 fn on_init() {
     let me = this_entity();
@@ -167,25 +170,28 @@ fn on_update() {
         set_rotation(wheel_rr, spin, 0.0, body_roll);
     }
 
-    // ── Shield Tint (pulsing green on kart body when shield active) ──
+    // ── Shield Tint (pulsing green on the kart's paint when shield active) ──
+    // Only the body's "paint" material is tinted, so bumpers, rims and tyres
+    // keep their own colours.
     if has_component(kart, "item_holder") {
         let shield_on = get_field(kart, "item_holder", "shield_active");
         if shield_on {
+            if !prev_shield_on {
+                paint_before_shield = get_field(kart, "material_overrides", "paint");
+            }
             let pulse = 0.5 + 0.5 * sin(total_time() * 6.0);
             let sr = 0.3 + pulse * 0.2;
             let sg = 0.9 + pulse * 0.1;
             let sb = 0.3 + pulse * 0.2;
-            set_material_color(kart, sr, sg, sb, 1.0);
+            set_material_override(kart, "paint", sr, sg, sb, 1.0);
         } else if prev_shield_on {
-            // Shield just ended — restore the racer's base color
-            // (racer_info carries each kart's color; player defaults to white)
-            let br = 1.0; let bg = 1.0; let bb = 1.0;
-            if has_component(kart, "racer_info") {
-                br = get_field(kart, "racer_info", "color_r");
-                bg = get_field(kart, "racer_info", "color_g");
-                bb = get_field(kart, "racer_info", "color_b");
+            // Shield just ended: put the paint back. A non-array value
+            // clears the override, so the player's kart shows the model's paint.
+            if type_of(paint_before_shield) == "array" {
+                set_field(kart, "material_overrides", "paint", paint_before_shield);
+            } else {
+                set_field(kart, "material_overrides", "paint", false);
             }
-            set_material_color(kart, br, bg, bb, 1.0);
         }
         prev_shield_on = shield_on;
     }
