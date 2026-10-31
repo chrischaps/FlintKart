@@ -196,17 +196,34 @@ pub(super) fn hash_parts(parts: &[&[u8]]) -> u64 {
     h
 }
 
-/// A draw call for a skinned mesh (has bone bind group)
+/// One skinned draw's bone bind group, kept across frames like
+/// [`CachedDrawBinds`]. It points at the entity's own bone buffer once
+/// `update_bone_matrices` has made one, and at the asset's shared buffer
+/// before that; `from_entity` records which, so the switch rebuilds it.
+pub(super) struct CachedBoneBind {
+    pub from_entity: bool,
+    pub bind_group: Arc<wgpu::BindGroup>,
+    pub touched: u64,
+}
+
+/// The `draw_bind_cache` key bit that keeps a skinned draw's binds apart
+/// from a static draw's of the same entity and sub-mesh index.
+pub(super) const SKINNED_DRAW_KEY: u32 = 1 << 31;
+
+/// A draw call for a skinned mesh (has bone bind group). Everything in it
+/// is shared or cached: until #121 each frame made each skinned sub-mesh
+/// four buffers (two of them copies of the mesh) and three bind groups,
+/// which Firefox's WebGPU paid for in garbage collection.
 #[allow(dead_code)]
 struct SkinnedDrawCall {
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
+    vertex_buffer: Arc<wgpu::Buffer>,
+    index_buffer: Arc<wgpu::Buffer>,
     index_count: u32,
-    transform_buffer: wgpu::Buffer,
-    transform_bind_group: wgpu::BindGroup,
-    material_buffer: wgpu::Buffer,
-    material_bind_group: wgpu::BindGroup,
-    bone_bind_group: wgpu::BindGroup,
+    transform_buffer: Arc<wgpu::Buffer>,
+    transform_bind_group: Arc<wgpu::BindGroup>,
+    material_buffer: Arc<wgpu::Buffer>,
+    material_bind_group: Arc<wgpu::BindGroup>,
+    bone_bind_group: Arc<wgpu::BindGroup>,
     /// Unique-edge index buffer for wireframe debug modes (shares the
     /// skinned vertex buffer, so the lines follow the animated pose).
     wire_index_buffer: Option<wgpu::Buffer>,
@@ -436,6 +453,15 @@ pub struct SceneRenderer {
     postprocess_pipeline: Option<PostProcessPipeline>,
     postprocess_resources: Option<PostProcessResources>,
     postprocess_config: PostProcessConfig,
+    /// Render scale (#122): the HDR chain is this fraction of the surface on
+    /// each side, 1 = the surface. `surface_size` is what the last resize
+    /// gave; the chain's own size is `postprocess_resources`'.
+    render_scale: f32,
+    surface_size: (u32, u32),
+    /// Below scale 1, the scene's depth at the chain's size, and the pass
+    /// that copies it into the caller's surface-sized depth view.
+    scaled_depth: Option<std::sync::Arc<crate::render_scale::ScaledDepth>>,
+    depth_upscale: Option<crate::render_scale::DepthUpscale>,
     /// The ground fog's map, set by the game (ADR 0106).
     ground_fog: Option<crate::ground_fog::GroundFogGpu>,
     #[allow(dead_code)]
@@ -456,6 +482,8 @@ pub struct SceneRenderer {
     /// shared by every entity that instances the asset, so entities playing
     /// different clips need their own storage or the last upload wins.
     entity_bone_buffers: HashMap<flint_core::EntityId, wgpu::Buffer>,
+    /// Bone bind groups of skinned draws, by entity and sub-mesh.
+    skinned_bone_binds: HashMap<(flint_core::EntityId, u32), CachedBoneBind>,
 }
 
 impl SceneRenderer {
@@ -565,6 +593,7 @@ impl SceneRenderer {
             ray_meshes: HashMap::new(),
             ray_scene: Arc::default(),
             entity_bone_buffers: HashMap::new(),
+            skinned_bone_binds: HashMap::new(),
             grid_draw,
             entity_draws: Vec::new(),
             skinned_entity_draws: Vec::new(),
@@ -673,6 +702,10 @@ impl SceneRenderer {
             postprocess_pipeline: Some(postprocess_pipeline),
             postprocess_resources: Some(postprocess_resources),
             postprocess_config,
+            render_scale: 1.0,
+            surface_size: (context.config.width, context.config.height),
+            scaled_depth: None,
+            depth_upscale: None,
             ground_fog: None,
             surface_format,
             camera_offset: [0.0, 0.0],
@@ -1903,6 +1936,7 @@ impl SceneRenderer {
     pub fn clear_model_data(&mut self) {
         self.mesh_cache.clear();
         self.draw_bind_cache.clear();
+        self.skinned_bone_binds.clear();
         self.box_mesh_cache.clear();
         if let Some(tc) = &mut self.texture_cache {
             tc.clear_user_textures();
@@ -2032,6 +2066,7 @@ impl SceneRenderer {
             ray_meshes: HashMap::new(),
             ray_scene: Arc::default(),
             entity_bone_buffers: HashMap::new(),
+            skinned_bone_binds: HashMap::new(),
             grid_draw,
             entity_draws: Vec::new(),
             skinned_entity_draws: Vec::new(),
@@ -2142,6 +2177,10 @@ impl SceneRenderer {
             postprocess_pipeline: Some(postprocess_pipeline),
             postprocess_resources: Some(postprocess_resources),
             postprocess_config,
+            render_scale: 1.0,
+            surface_size: (width, height),
+            scaled_depth: None,
+            depth_upscale: None,
             ground_fog: None,
             surface_format,
             camera_offset: [0.0, 0.0],
@@ -2299,6 +2338,7 @@ impl SceneRenderer {
     /// Drop per-entity bone buffers (call when a scene is unloaded).
     pub fn clear_entity_bone_buffers(&mut self) {
         self.entity_bone_buffers.clear();
+        self.skinned_bone_binds.clear();
     }
 
     /// Load a texture from an image file into the texture cache
@@ -2311,6 +2351,22 @@ impl SceneRenderer {
     ) -> Result<bool, String> {
         if let Some(cache) = &mut self.texture_cache {
             cache.load_file(device, queue, name, path)
+        } else {
+            Err("Texture cache not initialized".to_string())
+        }
+    }
+
+    /// Load a texture from an image file with a full mip chain (see
+    /// [`TextureCache::load_file_mipmapped`](crate::TextureCache::load_file_mipmapped)).
+    pub fn load_texture_file_mipmapped(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        name: &str,
+        path: &Path,
+    ) -> Result<bool, String> {
+        if let Some(cache) = &mut self.texture_cache {
+            cache.load_file_mipmapped(device, queue, name, path)
         } else {
             Err("Texture cache not initialized".to_string())
         }
@@ -2420,6 +2476,7 @@ impl SceneRenderer {
     ///
     /// Timing (`fps`, `frame_time_ms`) and `resolution` are left at zero —
     /// the caller fills these from their own timing and context.
+    /// `scene_resolution` is the renderer's own.
     pub fn collect_stats(&self) -> crate::render_stats::RenderStats {
         use crate::grass_pipeline::BLADE_INDEX_COUNT;
 
@@ -2523,6 +2580,7 @@ impl SceneRenderer {
                 .gpu_timer
                 .as_ref()
                 .map_or(0.0, |t| t.timings().frame_ms),
+            scene_resolution: self.scene_size().into(),
             ..Default::default()
         }
     }
@@ -3049,6 +3107,7 @@ impl SceneRenderer {
         // entities that changed shape/model).
         let frame = self.extract_frame;
         self.draw_bind_cache.retain_frame(frame);
+        self.skinned_bone_binds.retain(|_, b| b.touched == frame);
         self.ray_scene = Arc::new(ray_scene);
 
         // Put texture cache back
@@ -3235,6 +3294,23 @@ impl SceneRenderer {
             sort_depth: 0.0,
             world_aabb: None,
         }
+    }
+
+    /// A skinned draw's bind group over `bones`, the entity's own bone
+    /// buffer or the asset's shared one.
+    pub(super) fn create_bone_bind(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        bones: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: bones.as_entire_binding(),
+            }],
+            label: Some("Skinned Draw Bone Bind Group"),
+        })
     }
 
     fn create_transform_bind(
@@ -3933,19 +4009,67 @@ impl SceneRenderer {
     }
 
     /// Resize post-processing resources (call on window resize).
+    /// `width` x `height` is the surface's size; the HDR chain is that at the
+    /// render scale.
     pub fn resize_postprocess(&mut self, device: &wgpu::Device, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;
         }
+        self.surface_size = (width, height);
+        let (w, h) = crate::render_scale::scaled_size(width, height, self.render_scale);
         self.postprocess_resources = Some(PostProcessResources::new(
             device,
-            width,
-            height,
+            w,
+            h,
             self.postprocess_config.kuwahara_enabled,
         ));
+        // Below the surface's size the scene keeps a depth buffer of its own
+        // (#122); at scale 1 it draws into the caller's, as it always has.
+        if (w, h) == (width, height) {
+            self.scaled_depth = None;
+            self.depth_upscale = None;
+        } else {
+            let depth = crate::render_scale::ScaledDepth::new(device, w, h);
+            self.depth_upscale = Some(crate::render_scale::DepthUpscale::new(device, &depth));
+            self.scaled_depth = Some(std::sync::Arc::new(depth));
+        }
         // The recreated resources drop the FXAA intermediate; re-allocate it
         // at the new size when the pass is active (ADR 0050).
         self.ensure_fxaa_resources(device);
+    }
+
+    /// Draw the scene at `scale` of the surface's size on each side, and
+    /// upscale it in the composite pass (#122). What's drawn over the
+    /// finished frame (world lines, world text, the HUD) stays at the
+    /// surface's size. Clamped to [`MIN_RENDER_SCALE`]`..=1`; 1, the
+    /// default, draws the scene exactly as before. Rebuilds the HDR chain
+    /// when the size it gives changes.
+    ///
+    /// [`MIN_RENDER_SCALE`]: crate::MIN_RENDER_SCALE
+    pub fn set_render_scale(&mut self, device: &wgpu::Device, scale: f32) {
+        let scale = crate::render_scale::clamp_render_scale(scale);
+        if scale == self.render_scale {
+            return;
+        }
+        let (width, height) = self.surface_size;
+        let before = crate::render_scale::scaled_size(width, height, self.render_scale);
+        self.render_scale = scale;
+        if crate::render_scale::scaled_size(width, height, scale) != before {
+            self.resize_postprocess(device, width, height);
+        }
+    }
+
+    /// The render scale [`set_render_scale`](Self::set_render_scale) set.
+    pub fn render_scale(&self) -> f32 {
+        self.render_scale
+    }
+
+    /// The size the scene is drawn at: the HDR chain's, which is the
+    /// surface's at scale 1.
+    pub fn scene_size(&self) -> (u32, u32) {
+        self.postprocess_resources
+            .as_ref()
+            .map_or(self.surface_size, |r| (r.width, r.height))
     }
 
     /// Ensure FXAA GPU resources exist (call after enabling FXAA at runtime
@@ -4205,6 +4329,12 @@ impl SceneRenderer {
         // Taken for the frame, so the phases can be scoped while self is
         // borrowed; put back at the end (ADR 0108).
         let mut gpu_timer = self.gpu_timer.take();
+        // Below render scale 1 the scene draws against a depth buffer of
+        // its own size, copied into the caller's once the frame is drawn
+        // (#122). Every scene pass and effect below sees that one.
+        let surface_depth_view = depth_view;
+        let scaled_depth = self.scaled_depth.clone();
+        let depth_view = scaled_depth.as_ref().map_or(depth_view, |d| &d.view);
         let clear_color = wgpu::Color {
             r: self.clear_color[0] as f64,
             g: self.clear_color[1] as f64,
@@ -4546,6 +4676,16 @@ impl SceneRenderer {
             );
         }
 
+        // The scaled scene's depth, into the surface-sized view the overlays
+        // below and the caller's own (world text, gizmos) test against.
+        if let (Some(_), Some(upscale)) = (&scaled_depth, &self.depth_upscale) {
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Depth Upscale Encoder"),
+            });
+            upscale.record(&mut encoder, surface_depth_view);
+            queue.submit(std::iter::once(encoder.finish()));
+        }
+
         // World lines (ADR 0083) go over the finished image, tested against
         // the frame's single-sample depth. Without the HDR chain an MSAA depth
         // is never resolved, so they're skipped there.
@@ -4553,7 +4693,7 @@ impl SceneRenderer {
             let scope = gpu_timer
                 .as_mut()
                 .map(|t| t.begin_submit(device, queue, "World lines"));
-            self.render_world_lines(device, queue, depth_view, target_view, camera);
+            self.render_world_lines(device, queue, surface_depth_view, target_view, camera);
             if let (Some(timer), Some(scope)) = (gpu_timer.as_mut(), scope) {
                 timer.end_submit(device, queue, scope);
             }
@@ -4569,13 +4709,11 @@ impl SceneRenderer {
         target_view: &wgpu::TextureView,
         camera: &Camera,
     ) {
-        let Some(viewport) = self
-            .postprocess_resources
-            .as_ref()
-            .map(|r| [r.width as f32, r.height as f32])
-        else {
+        if self.postprocess_resources.is_none() {
             return;
-        };
+        }
+        // Drawn into the surface, whatever the scene's render scale
+        let viewport = [self.surface_size.0 as f32, self.surface_size.1 as f32];
         let format = self.surface_format;
         let pipeline = self.world_line_pipeline.get_or_insert_with(|| {
             crate::world_line_pipeline::WorldLinePipeline::new(device, format)

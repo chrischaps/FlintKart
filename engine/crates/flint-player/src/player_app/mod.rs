@@ -8,6 +8,8 @@ mod events;
 #[cfg(test)]
 mod capture_gate_tests;
 #[cfg(test)]
+mod touch_controls_tests;
+#[cfg(test)]
 mod debug_key_tests;
 #[cfg(test)]
 mod extension_tests;
@@ -17,6 +19,7 @@ mod hold_tests;
 mod vfs_tests;
 pub mod fonts;
 mod frame;
+pub mod frame_rate;
 mod hud_render;
 mod init;
 mod input_config;
@@ -25,7 +28,10 @@ pub mod input_script;
 mod music_guide_panel;
 mod music_session;
 mod pacing;
+mod perf;
 mod persist;
+pub mod render_scale;
+mod touch_overlay;
 pub(crate) mod scene_loading;
 mod script_commands;
 #[cfg(feature = "debug-hud")]
@@ -33,6 +39,10 @@ mod timeline_panel;
 mod transition;
 #[cfg(target_arch = "wasm32")]
 pub mod web_page;
+#[cfg(target_arch = "wasm32")]
+pub mod web_pacing;
+#[cfg(target_arch = "wasm32")]
+mod web_perf;
 #[cfg(target_arch = "wasm32")]
 pub mod web_startup;
 mod world_text;
@@ -248,6 +258,14 @@ pub struct PlayerApp {
     /// MSAA sample count for the scene renderer (1 = off, 4 = on; ADR 0058).
     /// Set from the --msaa CLI flag before the window/renderer exist.
     pub msaa_sample_count: u32,
+    /// The scene's render scale: a ceiling (fixed, and capped by pixel
+    /// ratio) and whether to step under it to hold the frame rate (#122).
+    /// The desktop's default draws at the surface; a page's caps DPR 1.5.
+    pub render_scale: render_scale::RenderScaleSetting,
+    dynamic_scale: render_scale::DynamicScale,
+    /// Which refreshes the web player draws (#140, `?fps=`); `None` draws
+    /// every one, as the desktop always does. See `set_frame_rate`.
+    frame_pacer: Option<frame_rate::FramePacer>,
     /// Game time, in seconds, at which the clock stops (it steps by zero
     /// from then on, and scripts keep running on a still world). With
     /// `clock.frame_step` it holds a page on an exact moment for a
@@ -355,6 +373,9 @@ pub struct PlayerApp {
     /// The player turned the renderer's GPU timing on for the overlay
     /// (ADR 0108), so it turns it off again when the overlay closes
     stats_gpu_timing: bool,
+    /// The perf readout's recorder (`?perf=1` on the web, #120): frame and
+    /// phase times for the last ten seconds. `None` costs nothing.
+    perf: Option<perf::PerfRecorder>,
 
     // Procedural generation resolver for runtime asset resolution
     procgen_resolver: flint_procgen::ProcGenResolver,
