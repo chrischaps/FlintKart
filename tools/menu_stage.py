@@ -95,7 +95,8 @@ def stage_block():
         "",
     ]
     for name, comps in ents.items():
-        if not name.startswith("dress_"):
+        # (the camera stage is the race camera's, and the menu has none)
+        if not name.startswith("dress_") or "camera_stage" in comps:
             continue
         comps = {c: dict(f) for c, f in comps.items()}
         t = comps.setdefault("transform", {})

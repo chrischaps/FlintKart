@@ -1,0 +1,34 @@
+[component.camera_stage]
+description = "What stands round the start/finish line, for the race camera. Written by tools/dress_track.py: the set dressing has no colliders, so chase_camera tests its countdown flyover and finish orbit against these instead. Never collides."
+
+[component.camera_stage.fields.boxes]
+type = "array"
+element = "float"
+default = []
+description = "Occluders as flat groups of 8: centre x, y, z, half extents x, y, z, then cos and sin of the yaw. A world point p is inside when its local x = c*dx - s*dz, y = dy, z = s*dx + c*dz (d = p - centre) lies within the half extents"
+
+[component.camera_stage.fields.ground]
+type = "array"
+element = "float"
+default = []
+description = "Terrain heights on a grid of ground_nx by ground_nz points, row by row along x, ground_step metres apart from (ground_x0, ground_z0)"
+
+[component.camera_stage.fields.ground_x0]
+type = "float"
+default = 0.0
+
+[component.camera_stage.fields.ground_z0]
+type = "float"
+default = 0.0
+
+[component.camera_stage.fields.ground_step]
+type = "float"
+default = 4.0
+
+[component.camera_stage.fields.ground_nx]
+type = "integer"
+default = 0
+
+[component.camera_stage.fields.ground_nz]
+type = "integer"
+default = 0

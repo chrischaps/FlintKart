@@ -16,6 +16,11 @@ what grows around them. From it this writes:
 - A block in the scene between `# >>> set dressing` and `# <<< set dressing`
   holding those models, the standalone props (signs, the gantry, the blimp)
   and point lights. Everything outside the block is left alone.
+- In that block, a `camera_stage` entity: boxes round every prop that could
+  hide the karts near the start/finish line, and the ground's heights there.
+  chase_camera flies the countdown and the finish orbit round them, since
+  the dressing has no colliders to raycast. `[camera_stage] reach` and
+  `step` in the recipe size it (default 110 m round the line, every 3.5 m).
 
 None of it collides: physics only knows the road and walls, so the dressing
 cannot trap a kart (see the memory note on off-track scenery). Needs numpy,
@@ -336,6 +341,7 @@ class Dresser:
         self.placed = []        # (prop Prop, world xform)
         self.footprints = []    # (x, z, r)
         self.entities = []      # TOML blocks
+        self.standalone = []    # (prop, world xform) of the entities, for the camera stage
         self.lights = []
 
     # where things go
@@ -477,6 +483,9 @@ class Dresser:
             name = spec.get("name", f"dress_{spec['asset'].replace('prop_', '')}_{k}")
             pos[1] += spec.get("lift", 0.0) - spec.get("sink", 0.1)
             self.entities.append(entity_block(name, spec["asset"], pos, yaw, spec.get("scale", 1.0)))
+            if spec["asset"] in gp.STANDALONE:
+                prop = gp.STANDALONE[spec["asset"]]()[0]
+                self.standalone.append((prop, gp.chain(gp.T(*pos), gp.Ry(yaw), gp.S(spec.get("scale", 1.0)))))
             self.footprints.append((pos[0], pos[2], spec.get("foot", 5.0)))
 
     def run_pillars(self):
@@ -515,6 +524,55 @@ class Dresser:
         self.run_pillars()
         self.run_scatter()
 
+    def camera_stage(self):
+        """The race camera's view of the start/finish line: a box round each
+        prop near it that could stand between the camera and a kart, and the
+        ground's heights, since none of the dressing collides."""
+        spec = self.recipe.get("camera_stage", {})
+        reach = spec.get("reach", 110.0)
+        step = spec.get("step", 3.5)
+        c = self.roads.samples[0].frame(0.0)[0]
+        boxes = []
+        for prop, xf in self.placed + self.standalone:
+            if math.hypot(xf[0, 3] - c[0], xf[2, 3] - c[2]) > reach + 20.0:
+                continue
+            scale = float(np.linalg.norm(xf[:3, 0]))
+            cos, sin = xf[0, 0] / scale, xf[0, 2] / scale
+            for lo, hi in prop.blockers():
+                mid = xf @ np.r_[(lo + hi) / 2, 1.0]
+                half = (hi - lo) / 2 * scale
+                boxes += [*mid[:3], *half, cos, sin]
+        # Bridge decks: the road and its grass verges where they stand clear
+        # of the ground. The road collides but the verges don't, and from
+        # above a verge hides whatever is under the bridge
+        for s, road in zip(self.roads.samples, self.recipe["roads"]):
+            half_w = road.get("half_width", 6.0) + 5.0
+            every = max(1, int(round(4.0 / max(np.linalg.norm(s.pos[1] - s.pos[0]), 0.1))))
+            for i in range(0, len(s), every):
+                p, f = s.pos[i], s.fwd[i]
+                if math.hypot(p[0] - c[0], p[2] - c[2]) > reach + 10.0:
+                    continue
+                if p[1] - float(self.terrain.sample(np.array([p[0]]), np.array([p[2]]))[0]) < 2.5:
+                    continue
+                fl = math.hypot(f[0], f[2])
+                seg = float(np.linalg.norm(s.pos[min(i + every, len(s) - 1)] - p))
+                # local +Z along the road: yaw turns +Z to the forward direction
+                boxes += [p[0], p[1] - 0.25, p[2], half_w, 0.35, seg / 2 + 0.3, f[2] / fl, f[0] / fl]
+        n = int(math.ceil(2 * reach / step)) + 1
+        x0, z0 = c[0] - reach, c[2] - reach
+        gx, gz = np.meshgrid(x0 + np.arange(n) * step, z0 + np.arange(n) * step)   # [z, x]
+        ground = self.terrain.sample(gx, gz)
+        print(f"  camera stage: {len(boxes) // 8} boxes, {n}x{n} ground")
+        f2 = lambda v: f"{v:.2f}"      # always a decimal point: TOML floats, not integers
+        return "\n".join([
+            "[entities.dress_camera_stage]",
+            "[entities.dress_camera_stage.camera_stage]",
+            f"ground_x0 = {f2(x0)}", f"ground_z0 = {f2(z0)}", f"ground_step = {f2(step)}",
+            f"ground_nx = {n}", f"ground_nz = {n}",
+            "boxes = [" + ", ".join(f2(v) for v in boxes) + "]",
+            "ground = [" + ", ".join(f2(v) for v in ground.ravel()) + "]",
+            ""])
+
     def write(self):
         models = os.path.join(ROOT, "models")
         for f in os.listdir(models):
@@ -539,6 +597,7 @@ class Dresser:
             blocks.append(entity_block(f"dress_chunk_{k}", asset, [0, 0, 0], 0.0))
         print(f"  {len(self.placed)} props in {len(cells)} chunks, {tris} triangles")
         blocks += self.entities
+        blocks.append(self.camera_stage())
         for k, (p, lo) in enumerate(self.lights):
             blocks.append(light_block(f"dress_light_{k:02d}", p, lo))
         recipe_rel = f"tracks/{self.name}.dress.toml"
