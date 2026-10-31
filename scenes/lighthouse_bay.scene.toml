@@ -16,9 +16,6 @@ version = "1.0"
 description = "Coastal circuit: promenade, headland tunnel, cliff descent and lagoon causeway"
 input_config = "config/input.toml"
 
-[environment]
-skybox = "textures/skybox_kart.png"
-
 [post_process]
 bloom_enabled = true
 bloom_intensity = 0.06
@@ -26,13 +23,16 @@ bloom_threshold = 0.9
 vignette_enabled = true
 vignette_intensity = 0.35
 vignette_smoothness = 0.9
+# A one-step ordered dither: no 8-bit banding in the sky's long gradients
+dither_enabled = true
+dither_intensity = 0.005
 exposure = 1.1
 ssao_enabled = true
 ssao_radius = 0.8
 ssao_intensity = 0.7
 # Sea air: a bright, faintly warm haze over the water
 fog_enabled = true
-fog_color = [0.70, 0.80, 0.90]
+fog_color = [0.74, 0.81, 0.88]
 fog_density = 0.0014
 fog_start = 60.0
 fog_height_enabled = true
@@ -44,7 +44,7 @@ fog_height_origin = 0.0
 [entities.sky.sky]
 zenith_color = [0.05, 0.24, 0.70, 1.0]
 horizon_color = [0.62, 0.74, 0.92, 1.0]
-haze_color = [1.0, 0.88, 0.70, 0.45]
+haze_color = [0.89, 0.90, 0.83, 0.45]
 cloud_tint = [1.0, 0.95, 0.88, 0.85]
 cloud_coverage = 0.28
 cloud_density = 0.3

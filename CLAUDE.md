@@ -32,7 +32,7 @@ engine/target/release/flint render scenes/oval_plus.scene.toml --output test.png
 - `splines/` - Track spline data (`oval_plus.spline.toml`)
 - `models/` - GLB models (kart_body, kart_wheel, kart_light from `tools/generate_kart.py`; kart_driver, one `driver_head_<racer>` per racer and Wild's propeller topper from `tools/generate_driver.py`)
 - `schemas/components/` - Game-specific ECS components (kart_physics, kart_state, race_progress, etc.)
-- `textures/` - Skybox panoramas, and `road_*` surfaces from `tools/generate_road_textures.py` (asphalt with curbs and markings, barrier panels, verge grass), applied through `spline_mesh` `texture` / `normal_texture` / `texture_length`
+- `textures/` - `road_*` surfaces from `tools/generate_road_textures.py` (asphalt with curbs and markings, barrier panels, verge grass), applied through `spline_mesh` `texture` / `normal_texture` / `texture_length`
 - `tracks/` - Track recipes: `the_crossroads.track.toml` (branching builder) and `<track>.dress.toml` (set dressing)
 - `tools/` - Asset generators (Python)
 - `engine/` - Flint engine (git subtree)
@@ -71,4 +71,6 @@ The engine lives at `engine/` as a git subtree. Remote: `engine` → `https://gi
 - Props live in `tools/generate_props.py`. Every prop colours its faces from one shared palette texture, so a merged chunk is one draw call. Textured standalones (`prop_gantry`, `prop_billboard_*`, `prop_blimp`) are written by running the script.
 - `tools/track_lib.py` samples splines exactly as the engine does; use it for anything placed relative to the road (`grid_slots` gives an on-road start grid with `kart_state.yaw`).
 - Nothing in the dressing collides. Physics knows only the road and walls, so scenery can't trap a kart.
-- Lighting per scene: a procedural `sky` entity (replaces the skybox), the `sun` light, `[post_process]` fog, and `track_info.fog_density`, which `chase_camera` uses for the live fog.
+- Lighting per scene: a procedural `sky` entity (no scene uses a painted `skybox`), the `sun` light, `[post_process]` fog, and `track_info.fog_density`, which `chase_camera` uses for the live fog.
+- The sky is never fogged, so distant ground fades to the fog colour while the sky behind it shows its own colour. Keep them equal at the horizon: there the sky is `mix(horizon_color, haze_color, haze_color.a)`, so after changing `fog_color` or `horizon_color`, solve `haze_color = (fog - (1 - a) * horizon) / a`. Every scene sets `dither_enabled` with `dither_intensity = 0.005` (one display step) to stop the sky's gradients banding.
+- The title screen is set in the Oval Plus infield: `python tools/menu_stage.py` copies the oval's dressing and road into `main_menu.scene.toml` (between `# >>> menu stage` and `# <<< menu stage`) and writes `splines/menu_stage.spline.toml`, moved so the display kart's donuts sit on open lawn. Rerun it after re-dressing Oval Plus; the menu's sky, fog and sun copy the oval's.
