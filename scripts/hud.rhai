@@ -1231,6 +1231,9 @@ fn draw_results(th, k, sw, sh, kart_id, manager_id, t, options, sel, sel_t, touc
     if sorted.len() > 0 {
         winner_t = get_field(sorted[0], "race_progress", "finish_time");
     }
+    // Still out when the grace period runs dry: did not finish
+    let grace = get_field(manager_id, "race_state", "finishing_timer");
+    let out_label = if grace != () && grace <= 0.0 { "DNF" } else { "racing..." };
     let i = 0;
     while i < sorted.len() {
         let eid = sorted[i];
@@ -1249,7 +1252,7 @@ fn draw_results(th, k, sw, sh, kart_id, manager_id, t, options, sel, sel_t, touc
             kit::circle(x + 50.0 * k, y + rh / 2.0, 7.0 * k, racer_color(eid), 9);
             kit::label(th, x + 68.0 * k, y + 6.0 * k, racer_name(eid), th.t.md * k, txt, "left", 9);
             let ft = get_field(eid, "race_progress", "finish_time");
-            let ts = if ft <= 0.0 { "racing..." } else if i == 0 || winner_t <= 0.0 || ft - winner_t < 0.01 { kit::format_time(ft) }
+            let ts = if ft <= 0.0 { out_label } else if i == 0 || winner_t <= 0.0 || ft - winner_t < 0.01 { kit::format_time(ft) }
                      else { "+" + kit::format_time(ft - winner_t) };
             let tcol = if ft <= 0.0 { if is_me { th.c.ink } else { th.c.quiet } } else { txt };
             kit::number(th, x + tw - 18.0 * k, y + 6.0 * k, ts, th.t.md * k, tcol, "right", 9);
