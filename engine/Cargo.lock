@@ -1617,16 +1617,28 @@ name = "flint-audio"
 version = "0.1.0"
 dependencies = [
  "cpal",
+ "flint-audio-worklet",
  "flint-core",
  "flint-ecs",
  "flint-runtime",
  "glam",
+ "js-sys",
  "kira",
  "send_wrapper",
+ "symphonia",
  "toml",
  "tracing",
  "wasm-bindgen",
  "web-sys",
+ "web-time",
+]
+
+[[package]]
+name = "flint-audio-worklet"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "kira",
 ]
 
 [[package]]

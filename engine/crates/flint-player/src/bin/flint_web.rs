@@ -21,10 +21,30 @@
 //!                   without: a scene TOML fetched from <url> (default: the
 //!                   first-light demo, which needs no other files)
 //!   msaa=1|4        scene-pass MSAA (ADR 0058)
+//!   scale=<f>|auto  the 3D scene's render scale (#122). By default it is
+//!                   drawn at no more than DPR 1.5 (`WEB_DPR_CAP`) and the
+//!                   HUD at the full DPR; a number from 0.25 to 1 draws at
+//!                   that scale instead, whatever the DPR (`scale=1` is
+//!                   native); `auto` keeps the cap and steps under it when
+//!                   frames run over budget for seconds
 //!   width=, height= fix the canvas to this many CSS pixels instead of the page
 //!   frame_step=<s>  step game time exactly s per frame (`--frame-step`)
 //!   hold_at=<s>     stop game time at s seconds, for a screenshot of an
 //!                   exact moment (with frame_step; `PlayerApp::hold_at`)
+//!   perf=1|cpu      the perf readout in a corner (#120): frame times over
+//!                   the last 10 s, each phase's CPU time, each pass's GPU
+//!                   time where the adapter has timestamp-query (`cpu`
+//!                   leaves GPU timing off), and a line to copy
+//!   fps=30|60|auto|native  which refreshes are drawn (#140). A rate is
+//!                   drawn as a whole number of refreshes (30 is every
+//!                   other at 60 Hz, every fourth at 120); `auto` draws
+//!                   every refresh while the frames hold it and drops to
+//!                   the rate they do hold when they don't; `native` draws
+//!                   every refresh unpaced. Default: `auto` where the
+//!                   primary pointer is a finger, `native` elsewhere
+//!   loop=poll       run winit's loop flat out (`ControlFlow::Poll`), as
+//!                   before #121, to compare against; the default draws once
+//!                   per `requestAnimationFrame`
 //!
 //! Build and serve from `crates/flint-player`:
 //!   trunk serve            # http://127.0.0.1:8080
@@ -66,9 +86,18 @@ mod web {
         bundle: Option<String>,
         scene: Option<String>,
         msaa: u32,
+        render_scale: flint_player::RenderScaleSetting,
         size: Option<(u32, u32)>,
         frame_step: Option<f64>,
         hold_at: Option<f64>,
+        /// `Some(gpu)`: show the perf readout, timing the GPU too when true.
+        perf: Option<bool>,
+        /// `loop=poll`: the old flat-out loop, for comparison (#121).
+        poll: bool,
+        /// `touch=always|never`: the on-screen touch controls (#133).
+        touch: flint_runtime::TouchControlsMode,
+        /// `fps=`: which refreshes are drawn (#140).
+        fps: flint_player::FrameRateSetting,
     }
 
     impl WebArgs {
@@ -89,9 +118,30 @@ mod web {
                     .or_else(|| get("game").as_deref().and_then(game_bundle)),
                 scene: get("scene").filter(|s| !s.is_empty()),
                 msaa: num("msaa").filter(|&m| m == 1 || m == 4).unwrap_or(1),
+                render_scale: get("scale")
+                    .and_then(|v| flint_player::RenderScaleSetting::web().parse(&v))
+                    .unwrap_or_else(flint_player::RenderScaleSetting::web),
                 size: num("width").zip(num("height")),
                 frame_step: secs("frame_step").filter(|s| *s > 0.0),
                 hold_at: secs("hold_at"),
+                perf: get("perf").and_then(|v| match v.as_str() {
+                    "cpu" => Some(false),
+                    "0" => None,
+                    _ => Some(true),
+                }),
+                poll: get("loop").as_deref() == Some("poll"),
+                touch: get("touch")
+                    .and_then(|v| flint_runtime::TouchControlsMode::parse(&v))
+                    .unwrap_or_default(),
+                fps: get("fps")
+                    .and_then(|v| flint_player::FrameRateSetting::parse(&v))
+                    .unwrap_or_else(|| {
+                        if flint_player::web_coarse_pointer() {
+                            flint_player::FrameRateSetting::Auto
+                        } else {
+                            flint_player::FrameRateSetting::Native
+                        }
+                    }),
             }
         }
     }
@@ -158,7 +208,18 @@ mod web {
         status(&title);
 
         let event_loop = EventLoop::new().map_err(|e| format!("event loop: {e}"))?;
-        event_loop.set_control_flow(ControlFlow::Poll);
+        // Draw once per requestAnimationFrame: `about_to_wait` asks for a
+        // redraw, winit waits for the browser's next frame, and the main
+        // thread sleeps in between. Poll queued a new task as soon as the
+        // last one ended, so the thread never went idle; Chrome still ran
+        // its frames, but Firefox starved its own refresh driver and showed
+        // one frame in five, with stalls of seconds and broken sound (#121,
+        // docs/design/web.md).
+        event_loop.set_control_flow(if args.poll {
+            ControlFlow::Poll
+        } else {
+            ControlFlow::Wait
+        });
         let mut app = PlayerApp::new(
             loaded.world,
             loaded.scene_path,
@@ -167,8 +228,14 @@ mod web {
             loaded.scene_file.scene.input_config.clone(),
         );
         app.msaa_sample_count = args.msaa;
+        app.render_scale = args.render_scale;
+        app.input.touch_controls_mut().set_mode(args.touch);
         app.clock.frame_step = args.frame_step;
         app.hold_at = args.hold_at;
+        app.set_frame_rate(args.fps);
+        if let Some(gpu) = args.perf {
+            app.enable_perf(gpu);
+        }
         app.apply_scene_settings(&loaded.scene_file);
         app.set_schema_paths(loaded.schemas);
         app.set_event_proxy(event_loop.create_proxy());
