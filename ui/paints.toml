@@ -3,7 +3,7 @@
 # player's kart with it when a race scene starts. With nothing saved the
 # kart keeps its model's own colour.
 #
-#   color  the kart body tint (set_material_color), close to the theme
+#   color  the kart's "paint" material (set_material_override), close to the theme
 #          colour of the same name so the HUD dot matches the kart
 
 [[paints]]

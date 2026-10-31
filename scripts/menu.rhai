@@ -486,7 +486,7 @@ fn on_draw_ui() {
     };
     if want_paint != painted && kart_id >= 0 && want_paint >= 0 && want_paint < paints.len() {
         let pc = paints[want_paint].color;
-        set_material_color(kart_id, pc[0], pc[1], pc[2], 1.0);
+        set_material_override(kart_id, "paint", pc[0], pc[1], pc[2], 1.0);
         painted = want_paint;
     }
 

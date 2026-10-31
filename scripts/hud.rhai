@@ -185,7 +185,7 @@ fn on_draw_ui() {
         let pi = persist_get("player_paint");
         if type_of(pi) == "i64" && pi >= 0 && pi < paints.len() {
             let pc = paints[pi].color;
-            set_material_color(kart_id, pc[0], pc[1], pc[2], 1.0);
+            set_material_override(kart_id, "paint", pc[0], pc[1], pc[2], 1.0);
             if has_component(kart_id, "racer_info") {
                 set_field(kart_id, "racer_info", "color_r", pc[0]);
                 set_field(kart_id, "racer_info", "color_g", pc[1]);
