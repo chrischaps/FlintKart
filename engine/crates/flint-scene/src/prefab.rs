@@ -3,7 +3,7 @@
 use crate::format::{PrefabFile, SceneFile};
 use flint_core::{FlintError, Result};
 use std::collections::HashMap;
-use std::fs;
+use flint_core::vfs;
 use std::path::Path;
 
 /// Expand all prefab instances in a scene file, inserting their entities into `scene.entities`.
@@ -13,9 +13,7 @@ pub fn expand_prefabs(scene: &mut SceneFile, scene_path: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let scene_dir = scene_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
+    let scene_dir = scene_path.parent().unwrap_or_else(|| Path::new("."));
 
     // Cache loaded prefab templates by template name
     let mut cache: HashMap<String, PrefabFile> = HashMap::new();
@@ -29,7 +27,7 @@ pub fn expand_prefabs(scene: &mut SceneFile, scene_path: &Path) -> Result<()> {
             cached.clone()
         } else {
             let prefab_path = resolve_prefab_path(scene_dir, &instance.template)?;
-            let content = fs::read_to_string(&prefab_path).map_err(|e| {
+            let content = vfs::read_to_string(&prefab_path).map_err(|e| {
                 FlintError::ParseError(format!(
                     "Failed to read prefab '{}': {}",
                     prefab_path.display(),
@@ -99,14 +97,14 @@ fn resolve_prefab_path(scene_dir: &Path, template_name: &str) -> Result<std::pat
 
     // Try scene_dir/prefabs/
     let path1 = scene_dir.join("prefabs").join(&filename);
-    if path1.exists() {
+    if vfs::exists(&path1) {
         return Ok(path1);
     }
 
     // Try scene_dir/../prefabs/ (project root when scenes/ is a subdirectory)
     if let Some(parent) = scene_dir.parent() {
         let path2 = parent.join("prefabs").join(&filename);
-        if path2.exists() {
+        if vfs::exists(&path2) {
             return Ok(path2);
         }
     }
@@ -168,7 +166,7 @@ fn deep_merge_component(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format::{PrefabInstance, SceneMetadata};
+    use crate::format::{EntityDef, PrefabInstance, SceneMetadata};
 
     fn default_version() -> String {
         "1.0".to_string()
@@ -250,7 +248,9 @@ mod tests {
                 version: default_version(),
                 description: None,
                 input_config: None,
+                preload_audio: true,
             },
+            camera: None,
             environment: None,
             post_process: None,
             prefabs: HashMap::new(),

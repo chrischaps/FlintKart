@@ -1,0 +1,26 @@
+# What `flint bundle .` packs for the web player (Flint#98, #104).
+# Flint's docs/design/web.md explains the format and the defaults.
+name = "kart"
+scene = "scenes/main_menu.scene.toml"
+schemas = ["engine/schemas", "schemas"]
+# The render_*.png captures and logo.png at the root are evidence and
+# portfolio art, not content (the menu draws sprites/logo.png); the _chris
+# scene is a personal tuning copy of the mountain, and the only one that
+# names the Panorama_Lush skybox; the source music was converted into
+# audio/race_music.ogg; tracks/ is the input to
+# tools/build_branching_track.py, baked into the_crossroads scene.
+exclude = [
+    "render_*.png",
+    "logo.png",
+    "scenes/mountain_switchback_chris.scene.toml",
+    "textures/Panorama_Lush_*",
+    "Kart_Racer_Groove_*.ogg",
+    "tracks/**",
+    "android.toml",
+    "sprites/logo_old.png",
+    # play.chaps.dev's film and poster for browsers without WebGPU: served
+    # beside the bundle, not inside it (Flint tools/play-site/games.toml).
+    "web/**",
+]
+[late]
+audio = ["**/*.ogg", "**/*.wav", "**/*.mp3", "**/*.flac"]

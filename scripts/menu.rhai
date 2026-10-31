@@ -17,10 +17,11 @@ let select_pulse = 0.0;
 let prev_steer_dir = 0;
 let fade_alpha = 1.0;
 let scene_entered = true;
-let track_scenes = ["scenes/oval_plus.scene.toml", "scenes/mountain_switchback.scene.toml"];
+let track_scenes = ["scenes/oval_plus.scene.toml", "scenes/mountain_switchback.scene.toml", "scenes/the_crossroads.scene.toml"];
 let menu_ui_handle = -1;
 let menu_ui_loaded = false;
 let prev_screen = "";
+let touch_active = false;       // latches on after first touch/tap detected
 
 // ── Feature 1: Drifting kart ──
 let kart_id = -1;
@@ -69,6 +70,10 @@ let line_burst = 1.0;
 
 
 fn on_scene_enter() {
+    // Menus are tapped: keep the engine's touch stick and buttons away
+    // (the race HUD brings them back).
+    set_touch_controls(false);
+
     // Return-from-race routing
     let menu_screen = persist_get("menu_screen");
     if menu_screen == "select" {
@@ -163,6 +168,7 @@ fn on_scene_enter() {
 }
 
 fn on_init() {
+    set_touch_controls(false);
     if !menu_ui_loaded {
         menu_ui_handle = load_ui("ui/main_menu.ui.toml");
         menu_ui_loaded = menu_ui_handle >= 0;
@@ -175,11 +181,11 @@ fn on_update() {
     // ── Lazy entity lookup — retry until found ──
     if !entities_found {
         kart_id = get_entity("display_kart");
-        wheel_fl_id = get_entity("display_kart_wheel_fl");
-        wheel_fr_id = get_entity("display_kart_wheel_fr");
-        wheel_rl_id = get_entity("display_kart_wheel_rl");
-        wheel_rr_id = get_entity("display_kart_wheel_rr");
-        driver_id = get_entity("display_kart_driver");
+        wheel_fl_id = get_entity("display_wheel_fl");
+        wheel_fr_id = get_entity("display_wheel_fr");
+        wheel_rl_id = get_entity("display_wheel_rl");
+        wheel_rr_id = get_entity("display_wheel_rr");
+        driver_id = get_entity("display_driver");
         skid_snd_id = get_entity("snd_tire_skid");
         dust_l_id = get_entity("display_dust_l");
         dust_r_id = get_entity("display_dust_r");
@@ -735,8 +741,16 @@ fn on_draw_ui() {
             if is_action_just_pressed("menu_confirm") {
                 screen = "select";
                 card_anim_t = 0.0;
-                play_sound("audio/countdown_beep.ogg", 0.3);
+                play_sound("audio/ui_select.ogg", 0.5);
             }
+            // Touch: tap anywhere to continue
+            if tap_count() > 0 {
+                touch_active = true;
+                screen = "select";
+                card_anim_t = 0.0;
+                play_sound("audio/ui_select.ogg", 0.5);
+            }
+            if touch_count() > 0 { touch_active = true; }
         }
 
     // ════════════════════════════════════════════════════════
@@ -774,6 +788,7 @@ fn on_draw_ui() {
         let start_x = (sw - total_w) / 2.0;
         let card_y = sh * 0.30;
 
+        let card_rects = [];
         let ci = 0;
         while ci < num_tracks {
             let final_x = start_x + ci * (card_w + gap);
@@ -782,7 +797,7 @@ fn on_draw_ui() {
             // Feature 3: Slide-in from offscreen
             let cx = final_x;
             if card_anim_t < 1.0 {
-                let offscreen = if ci == 0 {
+                let offscreen = if ci % 2 == 0 {
                     -(final_x + card_w + 100.0)
                 } else {
                     sw + 100.0 - final_x
@@ -870,16 +885,33 @@ fn on_draw_ui() {
                 ui_set_color("arrow_right", 1.0, 0.85, 0.2, arr_alpha);
             }
 
+            card_rects.push(#{x: fx, y: fy, w: fw, h: fh});
             ci += 1;
         }
 
         ui_set_style("select_hint", "y", sh * 0.82);
+        // A finger reads its own hint, not the keys'.
+        ui_set_text("select_hint", if touch_active {
+            "Tap a track to choose it  |  tap it again to race"
+        } else {
+            "A/D to browse  |  ENTER to race  |  BACKSPACE for title"
+        });
+
+        // ── Touch: back button (visible after touch detected) ──
+        if touch_active {
+            let back_x = 16.0;
+            let back_y = 16.0;
+            let back_w = 110.0;
+            let back_h = 44.0;
+            draw_rect_ex(back_x, back_y, back_w, back_h, 0.15, 0.15, 0.2, 0.5, 10.0, 5);
+            draw_text_ex(back_x + 14.0, back_y + 12.0, "< BACK", 18.0, 1.0, 1.0, 1.0, 0.7, 5);
+        }
 
         // ── Input (blocked during launch and card animation) ──
         if launch_state == "none" && card_anim_t >= 1.0 {
             if is_action_just_pressed("menu_back") {
                 screen = "title";
-                play_sound("audio/countdown_beep.ogg", 0.2);
+                play_sound("audio/ui_back.ogg", 0.45);
             }
 
             let steer = action_value("steering");
@@ -890,11 +922,11 @@ fn on_draw_ui() {
             if steer_dir != 0 && steer_dir != prev_steer_dir {
                 if steer_dir > 0 && select_index < num_tracks - 1 {
                     select_index += 1;
-                    play_sound("audio/countdown_beep.ogg", 0.2);
+                    play_sound("audio/ui_hover.ogg", 0.45);
                 }
                 if steer_dir < 0 && select_index > 0 {
                     select_index -= 1;
-                    play_sound("audio/countdown_beep.ogg", 0.2);
+                    play_sound("audio/ui_hover.ogg", 0.45);
                 }
             }
             prev_steer_dir = steer_dir;
@@ -906,6 +938,44 @@ fn on_draw_ui() {
                 launch_state = "rev";
                 launch_timer = 0.0;
                 play_sound("audio/menu_launch.ogg", 0.5);
+            }
+
+            // Touch: tap cards to select/launch, tap back button
+            let tc = tap_count();
+            if tc > 0 { touch_active = true; }
+            if touch_count() > 0 { touch_active = true; }
+            let ti = 0;
+            while ti < tc {
+                let tx = tap_x(ti) * sw;
+                let ty = tap_y(ti) * sh;
+
+                // Back button (top-left)
+                if tx < 130.0 && ty < 64.0 {
+                    screen = "title";
+                    play_sound("audio/ui_back.ogg", 0.45);
+                } else {
+                    // Check card taps
+                    let cci = 0;
+                    while cci < card_rects.len() {
+                        let cr = card_rects[cci];
+                        if tx >= cr.x && tx <= cr.x + cr.w && ty >= cr.y && ty <= cr.y + cr.h {
+                            if cci == select_index {
+                                // Tap selected card → launch
+                                selected_scene_path = track_scenes[select_index];
+                                persist_set("selected_track", selected_scene_path);
+                                launch_state = "rev";
+                                launch_timer = 0.0;
+                                play_sound("audio/menu_launch.ogg", 0.5);
+                            } else {
+                                // Tap unselected card → select it
+                                select_index = cci;
+                                play_sound("audio/ui_hover.ogg", 0.45);
+                            }
+                        }
+                        cci += 1;
+                    }
+                }
+                ti += 1;
             }
         }
     }

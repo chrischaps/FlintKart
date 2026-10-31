@@ -36,6 +36,16 @@ engine/target/release/flint render scenes/oval_plus.scene.toml --output test.png
 - `tools/` - Asset generators (Python)
 - `engine/` - Flint engine (git subtree)
 
+## Engine Subtree Workflow
+
+The engine lives at `engine/` as a git subtree. Remote: `engine` → `https://github.com/chrischaps/Flint.git`.
+
+- **Engine's main branch is `main`** (not `master`). Always target `main` for engine pushes.
+- **Routine engine changes**: push to `main` via `git subtree push --prefix=engine engine main`
+- **Risky or diverged changes**: push to a feature branch and merge via PR
+- If subtree push to `main` fails with non-fast-forward, push to a feature branch instead — do NOT force push
+- **Pulling engine updates**: `git subtree pull --prefix=engine engine main --squash`
+
 ## Architecture
 
 - Vehicle physics are 100% script-driven (`kart_controller.rhai`)
@@ -44,3 +54,10 @@ engine/target/release/flint render scenes/oval_plus.scene.toml --output test.png
 - Race state machine in `race_manager.rhai`: countdown -> racing -> finished
 - `on_update()` is parameterless — use `delta_time()` API for frame delta
 - Scene TOML uses `asset = "name"` without .glb extension (engine appends it)
+
+## Audio
+
+- Every sound is generated: `tools/generate_audio.py` (driving, race, UI), `tools/generate_item_audio.py`, `tools/generate_music.py` (per-track music), all built on `tools/audio_synth.py`. Needs numpy, scipy, soundfile.
+- Files are mastered to a loudness per category (`audio_synth.MIX`); script volumes set the mix. `python tools/audio_mix.py` prints what the player hears; keep its `MIX_TABLE` in step when a volume changes.
+- `engine_audio.rhai` (one per kart) owns continuous loops: engine layers, tyres, surfaces, wall scrape, wind, AI Doppler and pass-bys. `sfx.rhai` (one per race scene) owns one-shots and listens for the glow-up events (`kart_bump`, `wall_hit`, `kart_landed`, `drift_tier`, `drift_boost`, `final_lap`), deriving them from kart state until physics fires them.
+- Music is per scene (`snd_music.audio_source.file`, `bus = "music"`); race_manager's `MUSIC_VOL_*` hold for every track because the generator levels new pieces to `race_music.ogg`.

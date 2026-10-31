@@ -1,0 +1,18 @@
+[component.item_config]
+description = "Configuration for the item system manager"
+
+[component.item_config.fields.collection_radius]
+type = "float"
+default = 2.5
+
+[component.item_config.fields.projectile_hit_radius]
+type = "float"
+default = 2.0
+
+[component.item_config.fields.trap_trigger_radius]
+type = "float"
+default = 2.0
+
+[component.item_config.fields.enabled]
+type = "bool"
+default = true

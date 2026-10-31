@@ -7,10 +7,14 @@
 //! - `AudioSystem` — implements `RuntimeSystem` for game loop integration
 
 pub mod engine;
+pub mod meter;
 pub mod sync;
 pub mod trigger;
+#[cfg(target_arch = "wasm32")]
+pub mod web;
 
 use engine::AudioEngine;
+pub use engine::Bus;
 use flint_core::{Result, Vec3};
 use flint_ecs::FlintWorld;
 use flint_runtime::{GameEvent, RuntimeSystem};
@@ -39,11 +43,32 @@ impl AudioSystem {
         }
     }
 
+    /// Open the audio device if it isn't open, and pick up what
+    /// [`initialize`](RuntimeSystem::initialize) skipped while silent: the
+    /// listener, the trigger rules and every `audio_source` already in the
+    /// world, so looping sources begin from the click. In the browser, call
+    /// it from the user gesture that begins the game; until then the game
+    /// runs silent. Says whether there is sound.
+    pub fn start(&mut self, world: &FlintWorld) -> bool {
+        if !self.engine.start() {
+            return false;
+        }
+        if !self.engine.has_listener() {
+            if let Err(e) = self.engine.create_listener(Vec3::new(0.0, 1.0, 0.0)) {
+                tracing::warn!("{e:?}");
+            }
+            self.triggers.load_rules(world);
+            self.sync.sync_new_sources(world, &mut self.engine);
+        }
+        true
+    }
+
     /// Clear sync and trigger state for a scene transition.
     /// Preserves the AudioEngine and its sound_cache (reusable across scenes).
     pub fn clear(&mut self) {
         self.sync.clear();
         self.triggers = AudioTrigger::new();
+        self.engine.clear_oneshots();
     }
 
     /// Update the listener position (called from PlayerApp after camera update)
@@ -54,6 +79,11 @@ impl AudioSystem {
     /// Set the low-pass filter cutoff frequency on the master bus (Hz)
     pub fn set_filter_cutoff(&mut self, hz: f32) {
         self.engine.set_filter_cutoff(hz);
+    }
+
+    /// Set a mixer bus volume (linear amplitude; 0.0 mutes the bus)
+    pub fn set_bus_volume(&mut self, bus: Bus, volume: f64) {
+        self.engine.set_bus_volume(bus, volume);
     }
 
     /// Process game events and execute resulting audio commands
@@ -71,14 +101,15 @@ impl AudioSystem {
                     volume,
                 } => {
                     if let Some(pos) = position {
-                        if let Err(e) = self.engine.play_at_position(&sound, pos, volume) {
-                            eprintln!("Audio: {:?}", e);
+                        if let Err(e) = self.engine.play_at_position(&sound, pos, volume, 1.0) {
+                            tracing::warn!("{:?}", e);
                         }
                     } else if let Err(e) =
-                        self.engine.play_non_spatial(&sound, volume, 1.0, false)
+                        self.engine
+                            .play_non_spatial(&sound, volume, 1.0, false, Bus::Sfx)
                     {
                         // One-shot non-spatial: handle not needed
-                        eprintln!("Audio: {:?}", e);
+                        tracing::warn!("{:?}", e);
                     }
                 }
                 AudioCommand::Stop { entity: _ } => {
@@ -93,7 +124,9 @@ impl AudioSystem {
 impl RuntimeSystem for AudioSystem {
     fn initialize(&mut self, world: &mut FlintWorld) -> Result<()> {
         if !self.engine.is_available() {
-            eprintln!("Audio: no device, running silent");
+            // No device, or (in the browser) no click yet: `start` picks up
+            // the rest.
+            tracing::warn!("No sound yet, running silent");
             return Ok(());
         }
 
@@ -130,6 +163,9 @@ impl RuntimeSystem for AudioSystem {
 
         // Reload trigger rules for any new entities
         self.triggers.load_rules(world);
+
+        // Clean up finished one-shot spatial sounds
+        self.engine.cleanup_finished_oneshots();
 
         Ok(())
     }

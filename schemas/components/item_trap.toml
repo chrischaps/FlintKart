@@ -1,0 +1,18 @@
+[component.item_trap]
+description = "Dropped trap from item system"
+
+[component.item_trap.fields.active]
+type = "bool"
+default = false
+
+[component.item_trap.fields.owner_kart]
+type = "string"
+default = ""
+
+[component.item_trap.fields.grace_timer]
+type = "float"
+default = 1.0
+
+[component.item_trap.fields.lifetime]
+type = "float"
+default = 30.0

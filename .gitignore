@@ -20,3 +20,9 @@ nul
 
 # Claude Code local config
 .claude/
+
+# Render evidence (flint-render skill)
+renders/
+
+# Android build output
+build/

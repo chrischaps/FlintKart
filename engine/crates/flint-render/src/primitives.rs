@@ -3,7 +3,10 @@
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashSet;
 
-/// A vertex with position, normal, color, and UV coordinates
+/// A vertex with position, normal, color, and UV coordinates.
+///
+/// `color` is linear RGBA (the surface is sRGB): convert colours picked in
+/// sRGB, such as hex codes, with [`srgb_to_linear`] or they wash out.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Vertex {
@@ -28,6 +31,19 @@ impl Vertex {
             attributes: &Self::ATTRIBS,
         }
     }
+}
+
+/// An sRGB colour (each channel 0–1, as from a hex code) as the linear
+/// colour vertex colours and material colours expect. Alpha is unchanged.
+pub fn srgb_to_linear(rgba: [f32; 4]) -> [f32; 4] {
+    let lin = |c: f32| {
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    [lin(rgba[0]), lin(rgba[1]), lin(rgba[2]), rgba[3]]
 }
 
 /// A vertex with position, normal, color, UV, and bone skinning data
@@ -84,12 +100,7 @@ impl Mesh {
 }
 
 /// Create a box mesh with the given dimensions and color
-pub fn create_box_mesh(
-    width: f32,
-    height: f32,
-    depth: f32,
-    color: [f32; 4],
-) -> Mesh {
+pub fn create_box_mesh(width: f32, height: f32, depth: f32, color: [f32; 4]) -> Mesh {
     let hw = width / 2.0;
     let hh = height / 2.0;
     let hd = depth / 2.0;
@@ -122,35 +133,155 @@ pub fn create_box_mesh(
     // World-space UVs: 1 UV unit = 1 world unit, so textures tile naturally.
     let vertices = vec![
         // Back face (z-), normal [0,0,-1] — U spans width, V spans height
-        Vertex { position: positions[0], normal: normals[0], color, uv: [0.0, 0.0] },
-        Vertex { position: positions[3], normal: normals[0], color, uv: [0.0, height] },
-        Vertex { position: positions[2], normal: normals[0], color, uv: [width, height] },
-        Vertex { position: positions[1], normal: normals[0], color, uv: [width, 0.0] },
+        Vertex {
+            position: positions[0],
+            normal: normals[0],
+            color,
+            uv: [0.0, 0.0],
+        },
+        Vertex {
+            position: positions[3],
+            normal: normals[0],
+            color,
+            uv: [0.0, height],
+        },
+        Vertex {
+            position: positions[2],
+            normal: normals[0],
+            color,
+            uv: [width, height],
+        },
+        Vertex {
+            position: positions[1],
+            normal: normals[0],
+            color,
+            uv: [width, 0.0],
+        },
         // Front face (z+), normal [0,0,1] — U spans width, V spans height
-        Vertex { position: positions[4], normal: normals[1], color, uv: [0.0, 0.0] },
-        Vertex { position: positions[5], normal: normals[1], color, uv: [width, 0.0] },
-        Vertex { position: positions[6], normal: normals[1], color, uv: [width, height] },
-        Vertex { position: positions[7], normal: normals[1], color, uv: [0.0, height] },
+        Vertex {
+            position: positions[4],
+            normal: normals[1],
+            color,
+            uv: [0.0, 0.0],
+        },
+        Vertex {
+            position: positions[5],
+            normal: normals[1],
+            color,
+            uv: [width, 0.0],
+        },
+        Vertex {
+            position: positions[6],
+            normal: normals[1],
+            color,
+            uv: [width, height],
+        },
+        Vertex {
+            position: positions[7],
+            normal: normals[1],
+            color,
+            uv: [0.0, height],
+        },
         // Left face (x-), normal [-1,0,0] — U spans depth, V spans height
-        Vertex { position: positions[0], normal: normals[2], color, uv: [0.0, 0.0] },
-        Vertex { position: positions[4], normal: normals[2], color, uv: [depth, 0.0] },
-        Vertex { position: positions[7], normal: normals[2], color, uv: [depth, height] },
-        Vertex { position: positions[3], normal: normals[2], color, uv: [0.0, height] },
+        Vertex {
+            position: positions[0],
+            normal: normals[2],
+            color,
+            uv: [0.0, 0.0],
+        },
+        Vertex {
+            position: positions[4],
+            normal: normals[2],
+            color,
+            uv: [depth, 0.0],
+        },
+        Vertex {
+            position: positions[7],
+            normal: normals[2],
+            color,
+            uv: [depth, height],
+        },
+        Vertex {
+            position: positions[3],
+            normal: normals[2],
+            color,
+            uv: [0.0, height],
+        },
         // Right face (x+), normal [1,0,0] — U spans depth, V spans height
-        Vertex { position: positions[5], normal: normals[3], color, uv: [0.0, 0.0] },
-        Vertex { position: positions[1], normal: normals[3], color, uv: [depth, 0.0] },
-        Vertex { position: positions[2], normal: normals[3], color, uv: [depth, height] },
-        Vertex { position: positions[6], normal: normals[3], color, uv: [0.0, height] },
+        Vertex {
+            position: positions[5],
+            normal: normals[3],
+            color,
+            uv: [0.0, 0.0],
+        },
+        Vertex {
+            position: positions[1],
+            normal: normals[3],
+            color,
+            uv: [depth, 0.0],
+        },
+        Vertex {
+            position: positions[2],
+            normal: normals[3],
+            color,
+            uv: [depth, height],
+        },
+        Vertex {
+            position: positions[6],
+            normal: normals[3],
+            color,
+            uv: [0.0, height],
+        },
         // Bottom face (y-), normal [0,-1,0] — U spans width, V spans depth
-        Vertex { position: positions[0], normal: normals[4], color, uv: [0.0, 0.0] },
-        Vertex { position: positions[1], normal: normals[4], color, uv: [width, 0.0] },
-        Vertex { position: positions[5], normal: normals[4], color, uv: [width, depth] },
-        Vertex { position: positions[4], normal: normals[4], color, uv: [0.0, depth] },
+        Vertex {
+            position: positions[0],
+            normal: normals[4],
+            color,
+            uv: [0.0, 0.0],
+        },
+        Vertex {
+            position: positions[1],
+            normal: normals[4],
+            color,
+            uv: [width, 0.0],
+        },
+        Vertex {
+            position: positions[5],
+            normal: normals[4],
+            color,
+            uv: [width, depth],
+        },
+        Vertex {
+            position: positions[4],
+            normal: normals[4],
+            color,
+            uv: [0.0, depth],
+        },
         // Top face (y+), normal [0,1,0] — U spans width, V spans depth
-        Vertex { position: positions[3], normal: normals[5], color, uv: [0.0, 0.0] },
-        Vertex { position: positions[7], normal: normals[5], color, uv: [0.0, depth] },
-        Vertex { position: positions[6], normal: normals[5], color, uv: [width, depth] },
-        Vertex { position: positions[2], normal: normals[5], color, uv: [width, 0.0] },
+        Vertex {
+            position: positions[3],
+            normal: normals[5],
+            color,
+            uv: [0.0, 0.0],
+        },
+        Vertex {
+            position: positions[7],
+            normal: normals[5],
+            color,
+            uv: [0.0, depth],
+        },
+        Vertex {
+            position: positions[6],
+            normal: normals[5],
+            color,
+            uv: [width, depth],
+        },
+        Vertex {
+            position: positions[2],
+            normal: normals[5],
+            color,
+            uv: [width, 0.0],
+        },
     ];
 
     // Indices (two triangles per face)
@@ -165,12 +296,7 @@ pub fn create_box_mesh(
 }
 
 /// Create a wireframe box (edges only)
-pub fn create_wireframe_box_mesh(
-    width: f32,
-    height: f32,
-    depth: f32,
-    color: [f32; 4],
-) -> Mesh {
+pub fn create_wireframe_box_mesh(width: f32, height: f32, depth: f32, color: [f32; 4]) -> Mesh {
     let hw = width / 2.0;
     let hh = height / 2.0;
     let hd = depth / 2.0;
@@ -199,10 +325,8 @@ pub fn create_wireframe_box_mesh(
     // Line indices for 12 edges
     let indices: Vec<u32> = vec![
         // Bottom face edges
-        0, 1, 1, 5, 5, 4, 4, 0,
-        // Top face edges
-        3, 2, 2, 6, 6, 7, 7, 3,
-        // Vertical edges
+        0, 1, 1, 5, 5, 4, 4, 0, // Top face edges
+        3, 2, 2, 6, 6, 7, 7, 3, // Vertical edges
         0, 3, 1, 2, 5, 6, 4, 7,
     ];
 
@@ -391,5 +515,134 @@ pub fn generate_normal_arrows(vertices: &[Vertex], indices: &[u32], arrow_length
     Mesh {
         vertices: arrow_verts,
         indices: arrow_indices,
+    }
+}
+
+/// Generate line-segment geometry showing a skeleton armature.
+///
+/// Creates yellow lines from each bone to its parent, plus small axis crosses
+/// at each joint position for orientation reference.
+pub fn generate_skeleton_lines(
+    bone_world_positions: &[[f32; 3]],
+    bone_parents: &[Option<usize>],
+) -> Mesh {
+    let yellow = vec![[1.0, 1.0, 0.0, 1.0]; bone_world_positions.len()];
+    generate_skeleton_lines_colored(bone_world_positions, bone_parents, &yellow)
+}
+
+/// Like [`generate_skeleton_lines`], but each bone line takes the colour
+/// of its child joint (`joint_colors[i]`, RGBA). Missing entries fall back
+/// to yellow. Lets callers paint "which layer drives this bone".
+pub fn generate_skeleton_lines_colored(
+    bone_world_positions: &[[f32; 3]],
+    bone_parents: &[Option<usize>],
+    joint_colors: &[[f32; 4]],
+) -> Mesh {
+    let yellow = [1.0, 1.0, 0.0, 1.0];
+    let red = [1.0, 0.2, 0.2, 1.0];
+    let green = [0.2, 1.0, 0.2, 1.0];
+    let blue = [0.2, 0.2, 1.0, 1.0];
+
+    let mut verts = Vec::new();
+    let mut indices = Vec::new();
+    let mut idx = 0u32;
+
+    let axis_len = 0.025;
+    let ring_radius = 0.005;
+    let ring_segments = 12u32;
+
+    for (i, pos) in bone_world_positions.iter().enumerate() {
+        let bone_color = joint_colors.get(i).copied().unwrap_or(yellow);
+        // Bone-to-parent line
+        if let Some(parent) = bone_parents[i] {
+            let parent_pos = bone_world_positions[parent];
+            verts.push(Vertex {
+                position: parent_pos,
+                normal: [0.0, 1.0, 0.0],
+                color: bone_color,
+                uv: [0.0, 0.0],
+            });
+            verts.push(Vertex {
+                position: *pos,
+                normal: [0.0, 1.0, 0.0],
+                color: bone_color,
+                uv: [0.0, 0.0],
+            });
+            indices.push(idx);
+            indices.push(idx + 1);
+            idx += 2;
+        }
+
+        // Small axis cross at joint position
+        for (axis_offset, color) in [
+            ([axis_len, 0.0, 0.0], red),
+            ([0.0, axis_len, 0.0], green),
+            ([0.0, 0.0, axis_len], blue),
+        ] {
+            let tip = [
+                pos[0] + axis_offset[0],
+                pos[1] + axis_offset[1],
+                pos[2] + axis_offset[2],
+            ];
+            verts.push(Vertex {
+                position: *pos,
+                normal: [0.0, 1.0, 0.0],
+                color,
+                uv: [0.0, 0.0],
+            });
+            verts.push(Vertex {
+                position: tip,
+                normal: [0.0, 1.0, 0.0],
+                color,
+                uv: [0.0, 0.0],
+            });
+            indices.push(idx);
+            indices.push(idx + 1);
+            idx += 2;
+        }
+
+        // Small wire sphere (three axis-aligned rings) marking the joint
+        for plane in 0..3 {
+            let first = idx;
+            for k in 0..ring_segments {
+                let a = k as f32 / ring_segments as f32 * std::f32::consts::TAU;
+                let (c, s) = (a.cos() * ring_radius, a.sin() * ring_radius);
+                let offset = match plane {
+                    0 => [0.0, c, s],
+                    1 => [c, 0.0, s],
+                    _ => [c, s, 0.0],
+                };
+                verts.push(Vertex {
+                    position: [pos[0] + offset[0], pos[1] + offset[1], pos[2] + offset[2]],
+                    normal: [0.0, 1.0, 0.0],
+                    color: bone_color,
+                    uv: [0.0, 0.0],
+                });
+                indices.push(first + k);
+                indices.push(first + (k + 1) % ring_segments);
+            }
+            idx += ring_segments;
+        }
+    }
+
+    Mesh {
+        vertices: verts,
+        indices,
+    }
+}
+
+#[cfg(test)]
+mod srgb_tests {
+    use super::srgb_to_linear;
+
+    #[test]
+    fn srgb_to_linear_matches_the_standard_curve() {
+        let [r, g, b, a] = srgb_to_linear([0.0, 0.5, 1.0, 0.25]);
+        assert_eq!(r, 0.0);
+        assert!((g - 0.214_041).abs() < 1e-5);
+        assert!((b - 1.0).abs() < 1e-6);
+        assert_eq!(a, 0.25);
+        // The linear segment near black.
+        assert!((srgb_to_linear([0.04, 0.0, 0.0, 1.0])[0] - 0.04 / 12.92).abs() < 1e-7);
     }
 }

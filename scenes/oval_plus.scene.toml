@@ -259,6 +259,284 @@ source = "ai_driver.rhai"
 
 
 # ============================================================
+#  ITEM SYSTEM — manager, boxes, projectile/trap pools
+# ============================================================
+
+[entities.item_manager]
+[entities.item_manager.transform]
+position = [0, 0, 0]
+[entities.item_manager.item_config]
+collection_radius = 2.5
+projectile_hit_radius = 2.0
+trap_trigger_radius = 2.0
+enabled = true
+[entities.item_manager.script]
+source = "item_manager.rhai"
+
+# ── Item Boxes: 4 rows × 4 lanes (spline_t: 0.15, 0.40, 0.65, 0.90) ──
+
+[entities.ibox_r1_l1]
+[entities.ibox_r1_l1.transform]
+position = [0, -100, 0]
+[entities.ibox_r1_l1.model]
+asset = "item_box"
+[entities.ibox_r1_l1.item_box]
+spline_t = 0.15
+lane = -3.0
+
+[entities.ibox_r1_l2]
+[entities.ibox_r1_l2.transform]
+position = [0, -100, 0]
+[entities.ibox_r1_l2.model]
+asset = "item_box"
+[entities.ibox_r1_l2.item_box]
+spline_t = 0.15
+lane = -1.0
+
+[entities.ibox_r1_l3]
+[entities.ibox_r1_l3.transform]
+position = [0, -100, 0]
+[entities.ibox_r1_l3.model]
+asset = "item_box"
+[entities.ibox_r1_l3.item_box]
+spline_t = 0.15
+lane = 1.0
+
+[entities.ibox_r1_l4]
+[entities.ibox_r1_l4.transform]
+position = [0, -100, 0]
+[entities.ibox_r1_l4.model]
+asset = "item_box"
+[entities.ibox_r1_l4.item_box]
+spline_t = 0.15
+lane = 3.0
+
+[entities.ibox_r2_l1]
+[entities.ibox_r2_l1.transform]
+position = [0, -100, 0]
+[entities.ibox_r2_l1.model]
+asset = "item_box"
+[entities.ibox_r2_l1.item_box]
+spline_t = 0.40
+lane = -3.0
+
+[entities.ibox_r2_l2]
+[entities.ibox_r2_l2.transform]
+position = [0, -100, 0]
+[entities.ibox_r2_l2.model]
+asset = "item_box"
+[entities.ibox_r2_l2.item_box]
+spline_t = 0.40
+lane = -1.0
+
+[entities.ibox_r2_l3]
+[entities.ibox_r2_l3.transform]
+position = [0, -100, 0]
+[entities.ibox_r2_l3.model]
+asset = "item_box"
+[entities.ibox_r2_l3.item_box]
+spline_t = 0.40
+lane = 1.0
+
+[entities.ibox_r2_l4]
+[entities.ibox_r2_l4.transform]
+position = [0, -100, 0]
+[entities.ibox_r2_l4.model]
+asset = "item_box"
+[entities.ibox_r2_l4.item_box]
+spline_t = 0.40
+lane = 3.0
+
+[entities.ibox_r3_l1]
+[entities.ibox_r3_l1.transform]
+position = [0, -100, 0]
+[entities.ibox_r3_l1.model]
+asset = "item_box"
+[entities.ibox_r3_l1.item_box]
+spline_t = 0.65
+lane = -3.0
+
+[entities.ibox_r3_l2]
+[entities.ibox_r3_l2.transform]
+position = [0, -100, 0]
+[entities.ibox_r3_l2.model]
+asset = "item_box"
+[entities.ibox_r3_l2.item_box]
+spline_t = 0.65
+lane = -1.0
+
+[entities.ibox_r3_l3]
+[entities.ibox_r3_l3.transform]
+position = [0, -100, 0]
+[entities.ibox_r3_l3.model]
+asset = "item_box"
+[entities.ibox_r3_l3.item_box]
+spline_t = 0.65
+lane = 1.0
+
+[entities.ibox_r3_l4]
+[entities.ibox_r3_l4.transform]
+position = [0, -100, 0]
+[entities.ibox_r3_l4.model]
+asset = "item_box"
+[entities.ibox_r3_l4.item_box]
+spline_t = 0.65
+lane = 3.0
+
+[entities.ibox_r4_l1]
+[entities.ibox_r4_l1.transform]
+position = [0, -100, 0]
+[entities.ibox_r4_l1.model]
+asset = "item_box"
+[entities.ibox_r4_l1.item_box]
+spline_t = 0.90
+lane = -3.0
+
+[entities.ibox_r4_l2]
+[entities.ibox_r4_l2.transform]
+position = [0, -100, 0]
+[entities.ibox_r4_l2.model]
+asset = "item_box"
+[entities.ibox_r4_l2.item_box]
+spline_t = 0.90
+lane = -1.0
+
+[entities.ibox_r4_l3]
+[entities.ibox_r4_l3.transform]
+position = [0, -100, 0]
+[entities.ibox_r4_l3.model]
+asset = "item_box"
+[entities.ibox_r4_l3.item_box]
+spline_t = 0.90
+lane = 1.0
+
+[entities.ibox_r4_l4]
+[entities.ibox_r4_l4.transform]
+position = [0, -100, 0]
+[entities.ibox_r4_l4.model]
+asset = "item_box"
+[entities.ibox_r4_l4.item_box]
+spline_t = 0.90
+lane = 3.0
+
+# ── Projectile Pool (6 entities, start inactive at y=-100) ──
+
+[entities.proj_1]
+[entities.proj_1.transform]
+position = [0, -100, 0]
+[entities.proj_1.model]
+asset = "item_projectile"
+[entities.proj_1.item_projectile]
+active = false
+
+[entities.proj_2]
+[entities.proj_2.transform]
+position = [0, -100, 0]
+[entities.proj_2.model]
+asset = "item_projectile"
+[entities.proj_2.item_projectile]
+active = false
+
+[entities.proj_3]
+[entities.proj_3.transform]
+position = [0, -100, 0]
+[entities.proj_3.model]
+asset = "item_projectile"
+[entities.proj_3.item_projectile]
+active = false
+
+[entities.proj_4]
+[entities.proj_4.transform]
+position = [0, -100, 0]
+[entities.proj_4.model]
+asset = "item_projectile"
+[entities.proj_4.item_projectile]
+active = false
+
+[entities.proj_5]
+[entities.proj_5.transform]
+position = [0, -100, 0]
+[entities.proj_5.model]
+asset = "item_projectile"
+[entities.proj_5.item_projectile]
+active = false
+
+[entities.proj_6]
+[entities.proj_6.transform]
+position = [0, -100, 0]
+[entities.proj_6.model]
+asset = "item_projectile"
+[entities.proj_6.item_projectile]
+active = false
+
+# ── Trap Pool (8 entities, start inactive at y=-100) ──
+
+[entities.trap_1]
+[entities.trap_1.transform]
+position = [0, -100, 0]
+[entities.trap_1.model]
+asset = "item_trap"
+[entities.trap_1.item_trap]
+active = false
+
+[entities.trap_2]
+[entities.trap_2.transform]
+position = [0, -100, 0]
+[entities.trap_2.model]
+asset = "item_trap"
+[entities.trap_2.item_trap]
+active = false
+
+[entities.trap_3]
+[entities.trap_3.transform]
+position = [0, -100, 0]
+[entities.trap_3.model]
+asset = "item_trap"
+[entities.trap_3.item_trap]
+active = false
+
+[entities.trap_4]
+[entities.trap_4.transform]
+position = [0, -100, 0]
+[entities.trap_4.model]
+asset = "item_trap"
+[entities.trap_4.item_trap]
+active = false
+
+[entities.trap_5]
+[entities.trap_5.transform]
+position = [0, -100, 0]
+[entities.trap_5.model]
+asset = "item_trap"
+[entities.trap_5.item_trap]
+active = false
+
+[entities.trap_6]
+[entities.trap_6.transform]
+position = [0, -100, 0]
+[entities.trap_6.model]
+asset = "item_trap"
+[entities.trap_6.item_trap]
+active = false
+
+[entities.trap_7]
+[entities.trap_7.transform]
+position = [0, -100, 0]
+[entities.trap_7.model]
+asset = "item_trap"
+[entities.trap_7.item_trap]
+active = false
+
+[entities.trap_8]
+[entities.trap_8.transform]
+position = [0, -100, 0]
+[entities.trap_8.model]
+asset = "item_trap"
+[entities.trap_8.item_trap]
+active = false
+
+
+# ============================================================
 #  PARTICLE EFFECTS — standalone emitters driven by kart_visuals
 # ============================================================
 #  These are NOT parented to "kart" — the particle system reads
@@ -537,6 +815,50 @@ pitch = 1.0
 min_distance = 1.5
 max_distance = 30.0
 
+# ── Player surface sounds (engine_audio.rhai drives their volume) ──
+
+[entities.player_tire_offroad]
+parent = "player_kart"
+[entities.player_tire_offroad.transform]
+position = [0, 0.1, 0]
+[entities.player_tire_offroad.audio_source]
+file = "audio/offroad_rumble.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 25.0
+
+[entities.player_tire_curb]
+parent = "player_kart"
+[entities.player_tire_curb.transform]
+position = [0, 0.1, 0]
+[entities.player_tire_curb.audio_source]
+file = "audio/curb_rumble.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 25.0
+
+[entities.player_wall_scrape]
+parent = "player_kart"
+[entities.player_wall_scrape.transform]
+position = [0, 0.4, 0]
+[entities.player_wall_scrape.audio_source]
+file = "audio/wall_scrape.ogg"
+spatial = true
+loop = true
+autoplay = true
+volume = 0.0
+pitch = 1.0
+min_distance = 1.5
+max_distance = 30.0
+
 # ── Ambient sounds (non-spatial) ──
 
 [entities.snd_wind]
@@ -568,11 +890,20 @@ pitch = 1.0
 position = [0, 0, 0]
 [entities.snd_music.audio_source]
 file = "audio/race_music.ogg"
+bus = "music"
 spatial = false
 loop = true
 autoplay = true
 volume = 0.0
 pitch = 1.0
+
+# ── One-shot effects: collisions, landings, drift tiers, boosts, final lap ──
+
+[entities.sfx]
+[entities.sfx.transform]
+position = [0, 0, 0]
+[entities.sfx.script]
+source = "sfx.rhai"
 
 
 # ============================================================

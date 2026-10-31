@@ -27,6 +27,22 @@ fn on_init() {
     log("AI driver initialized for " + kart_name);
 }
 
+// Approximate length in meters of a track-graph segment from its canonical
+// progress span. Branch segments (off the canonical loop) get the span of the
+// loop between their nodes; close enough for lookahead scaling.
+fn segment_length_m(track_id, seg_eid, track_length) {
+    if has_component(seg_eid, "segment_info") {
+        let ps = get_field(seg_eid, "segment_info", "progress_start");
+        let pe = get_field(seg_eid, "segment_info", "progress_end");
+        let span = pe - ps;
+        if span < 0.0 { span = span + 1.0; }
+        if span > 0.001 { return span * track_length; }
+    }
+    let seg_count = get_field(track_id, "track_graph", "segment_count");
+    if seg_count == () || seg_count < 1 { return track_length; }
+    track_length / seg_count
+}
+
 fn on_update() {
     if kart_id < 0 || track_id < 0 { return; }
 
@@ -78,33 +94,144 @@ fn on_update() {
     let max_speed = get_field(kart_id, "kart_physics", "max_speed");
 
     // Find current position on spline (3D distance for elevation crossings)
-    let closest = spline_closest_point(track_id, kx, ky, kz);
-    if closest == () { return; }
-    let current_t = closest["t"];
+    // Branch: segment-aware driving for branching tracks
+    let current_t = 0.0;
+    let current_seg_eid = track_id;  // default: use track_path spline
+    let is_branching = has_component(track_id, "track_graph");
+
+    if is_branching {
+        // Find closest segment using same approach as race_manager
+        let names_str = get_field(track_id, "track_graph", "segment_names");
+        let names = names_str.split(",");
+        let best_dist = 999999.0;
+        let best_seg = -1;
+        let best_local_t = 0.0;
+        let si = 0;
+        while si < names.len() {
+            let seg_eid = get_entity(names[si]);
+            if seg_eid >= 0 {
+                let cl = spline_closest_point(seg_eid, kx, ky, kz);
+                if cl != () && cl["dist_sq"] < best_dist {
+                    best_dist = cl["dist_sq"];
+                    best_seg = seg_eid;
+                    best_local_t = cl["t"];
+                }
+            }
+            si += 1;
+        }
+        if best_seg < 0 { return; }
+        current_seg_eid = best_seg;
+        current_t = best_local_t;
+    } else {
+        let closest = spline_closest_point(track_id, kx, ky, kz);
+        if closest == () { return; }
+        current_t = closest["t"];
+    }
+
+    // --- Gap handling: airborne over gaps ---
+    let in_gap = spline_is_gap(current_seg_eid, current_t);
+    if in_gap {
+        // Airborne over gap — maintain heading, full throttle, damped steering
+        set_field(kart_id, "ai_input", "throttle", 1.0);
+        set_field(kart_id, "ai_input", "steering", smoothed_steering * 0.3);
+        set_field(kart_id, "ai_input", "brake", 0.0);
+        set_field(kart_id, "ai_input", "drift", false);
+        return;
+    }
 
     // Look ahead on spline — convert meters to t units
     let track_length = 660.0;
     if has_component(track_id, "track_info") {
         track_length = get_field(track_id, "track_info", "length");
     }
-    let lookahead_t = lookahead / track_length;
-    // Increase lookahead at higher speeds for smoother cornering
-    let speed_ratio = abs(speed) / max_speed;
-    lookahead_t = lookahead_t * (1.0 + speed_ratio * 0.6);
 
-    let target_t = current_t + lookahead_t;
+    let target_t;
+    let target_spline_eid = current_seg_eid;
+
+    if is_branching {
+        // For branching tracks, lookahead is on the current segment's local t
+        // Segment length from its canonical progress span (falls back to an
+        // even split when segment_info is missing)
+        let seg_length_est = segment_length_m(track_id, current_seg_eid, track_length);
+        let lookahead_t = lookahead / seg_length_est;
+        let speed_ratio = abs(speed) / max_speed;
+        lookahead_t = lookahead_t * (1.0 + speed_ratio * 0.6);
+        target_t = current_t + lookahead_t;
+
+        // When near segment end, switch lookahead to next segment
+        if target_t > 1.0 {
+            let overflow = target_t - 1.0;
+            // Find outgoing segments from our segment's to_node
+            let to_node = get_field(current_seg_eid, "segment_info", "to_node");
+            let outgoing_str = get_field(track_id, "track_graph", "node_outgoing");
+            // Parse node_outgoing: "node_0:seg0;node_1:seg1,seg2"
+            let entries = outgoing_str.split(";");
+            let next_seg_name = "";
+            let ei = 0;
+            while ei < entries.len() {
+                let parts = entries[ei].split(":");
+                if parts.len() >= 2 && parts[0] == to_node {
+                    // TODO: branch choice — always takes the first (canonical)
+                    // outgoing segment; AI never uses shortcuts yet
+                    let seg_names = parts[1].split(",");
+                    if seg_names.len() > 0 {
+                        next_seg_name = seg_names[0];
+                    }
+                }
+                ei += 1;
+            }
+            if next_seg_name != "" {
+                let next_eid = get_entity(next_seg_name);
+                if next_eid >= 0 {
+                    target_spline_eid = next_eid;
+                    target_t = overflow;
+                    if target_t > 1.0 { target_t = 1.0; }
+                }
+            } else {
+                target_t = 1.0;  // clamp to end of current segment
+            }
+        }
+    } else {
+        let lookahead_t = lookahead / track_length;
+        // Increase lookahead at higher speeds for smoother cornering
+        let speed_ratio = abs(speed) / max_speed;
+        lookahead_t = lookahead_t * (1.0 + speed_ratio * 0.6);
+        target_t = current_t + lookahead_t;
+    }
+
+    // If the lookahead target is inside a gap, aim past the landing zone instead
+    let approaching_gap = spline_is_gap(target_spline_eid, target_t);
+    if approaching_gap {
+        let gap_info = spline_gap_at(target_spline_eid, target_t);
+        if gap_info != () {
+            let landing_t_offset = lookahead / track_length * 0.3;
+            let landing_t = gap_info["end_t"] + landing_t_offset;
+            target_t = landing_t;
+        }
+    }
 
     // Sample target point on spline
-    let target = spline_sample_at(track_id, target_t);
+    let target = spline_sample_at(target_spline_eid, target_t);
     if target == () { return; }
 
     let target_x = target["x"];
     let target_z = target["z"];
 
     // --- Dynamic Racing Line ---
+    // Compute lookahead_t for curvature analysis (approximate)
+    let lookahead_t_approx = lookahead / track_length;
+    let speed_ratio = abs(speed) / max_speed;
+    lookahead_t_approx = lookahead_t_approx * (1.0 + speed_ratio * 0.6);
+    if is_branching {
+        let seg_length_est = segment_length_m(track_id, current_seg_eid, track_length);
+        lookahead_t_approx = lookahead / seg_length_est;
+        lookahead_t_approx = lookahead_t_approx * (1.0 + speed_ratio * 0.6);
+    }
+
     // Sample curvature ahead to determine inside/outside of corner
-    let curve_t = current_t + lookahead_t * 1.5;
-    let curve_sample = spline_sample_at(track_id, curve_t);
+    let curve_t = current_t + lookahead_t_approx * 1.5;
+    if curve_t > 1.0 && is_branching { curve_t = 1.0; }
+    let curve_sample = spline_sample_at(current_seg_eid, curve_t);
     let dynamic_offset = line_offset;
 
     if curve_sample != () {
@@ -159,10 +286,14 @@ fn on_update() {
 
     // --- Curvature Analysis (multi-sample) ---
     // Look at near and far ahead for throttle/brake decisions
-    let near_t = current_t + lookahead_t * 1.2;
-    let far_t = current_t + lookahead_t * 2.8;
-    let near_sample = spline_sample_at(track_id, near_t);
-    let far_sample = spline_sample_at(track_id, far_t);
+    let near_t = current_t + lookahead_t_approx * 1.2;
+    let far_t = current_t + lookahead_t_approx * 2.8;
+    if is_branching {
+        if near_t > 1.0 { near_t = 1.0; }
+        if far_t > 1.0 { far_t = 1.0; }
+    }
+    let near_sample = spline_sample_at(current_seg_eid, near_t);
+    let far_sample = spline_sample_at(current_seg_eid, far_t);
 
     let throttle = 1.0;
     let brake = 0.0;
@@ -264,6 +395,37 @@ fn on_update() {
         // "boost" state: don't write drift_input — let the boost play out
     }
 
+    // ── Item Usage Decision ──
+    let use_item = false;
+    if has_component(kart_id, "item_holder") {
+        let held = get_field(kart_id, "item_holder", "held_item");
+        if held != "none" {
+            let dot = worst_dot;
+
+            if held == "boost" {
+                // Use boost on straights, or when in last place
+                if (dot > 0.95 && speed > max_speed * 0.7) || race_position >= 5 {
+                    use_item = true;
+                }
+            } else if held == "shield" {
+                // Activate mid-pack (positions 2-5) or if behind
+                if race_position >= 2 && race_position <= 5 {
+                    use_item = true;
+                }
+            } else if held == "projectile" {
+                // Fire on straights when not in 1st
+                if dot > 0.92 && race_position > 1 {
+                    use_item = true;
+                }
+            } else if held == "trap" {
+                // Drop in curves
+                if dot < 0.88 {
+                    use_item = true;
+                }
+            }
+        }
+    }
+
     // During drift boost, go full throttle
     if has_component(kart_id, "drift_state") {
         let ds = get_field(kart_id, "drift_state", "state");
@@ -278,4 +440,5 @@ fn on_update() {
     set_field(kart_id, "ai_input", "steering", steering);
     set_field(kart_id, "ai_input", "brake", brake);
     set_field(kart_id, "ai_input", "drift", drift_input);
+    set_field(kart_id, "ai_input", "use_item", use_item);
 }

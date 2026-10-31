@@ -1,0 +1,38 @@
+[component.segment_info]
+description = "Metadata for a track graph segment entity"
+
+[component.segment_info.fields.segment_id]
+type = "string"
+default = ""
+
+[component.segment_info.fields.from_node]
+type = "string"
+default = ""
+
+[component.segment_info.fields.to_node]
+type = "string"
+default = ""
+
+[component.segment_info.fields.is_canonical]
+type = "bool"
+default = true
+
+[component.segment_info.fields.entry_type]
+type = "string"
+default = "default"
+
+[component.segment_info.fields.min_speed]
+type = "float"
+default = 0.0
+
+[component.segment_info.fields.min_score]
+type = "integer"
+default = 0
+
+[component.segment_info.fields.progress_start]
+type = "float"
+default = 0.0
+
+[component.segment_info.fields.progress_end]
+type = "float"
+default = 0.0

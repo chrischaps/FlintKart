@@ -1,0 +1,9 @@
+# Android build configuration for FlintKart
+# The engine's Gradle build reads this to customize the APK.
+
+app_name = "FlintKart"
+application_id = "com.flintkart.game"
+orientation = "landscape"
+scene = "scenes/main_menu.scene.toml"
+version_name = "0.1.0"
+version_code = 1

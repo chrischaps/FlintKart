@@ -12,6 +12,11 @@
 //   - Countdown overlay (center)
 //   - Finish overlay (center)
 
+// Item indicator state
+let item_flash_alpha = 0.0;
+let spinout_flash_alpha = 0.0;
+let prev_held_item = "none";
+
 // Boost flash state
 let boost_flash_alpha = 0.0;
 let boost_flash_r = 1.0;
@@ -35,6 +40,8 @@ let pause_options = ["Resume", "Restart Race", "Track Select", "Main Menu"];
 let finish_selection = 0;
 let finish_options = ["Restart", "Track Select", "Main Menu"];
 let finish_menu_active = false;  // becomes true after a short delay post-finish
+let hud_touch_active = false;   // latches on after first touch/tap detected
+let touch_controls_out = -1;    // last set_touch_controls(): -1 unset, 0 away, 1 out
 let prev_finish_steer = 0;      // edge detection for steering in finish menu
 
 // Transition fade
@@ -106,6 +113,15 @@ fn on_draw_ui() {
 
     // ── Pause system ──
     let cur_state = current_state();
+
+    // The engine's touch stick and buttons (config/input.toml) are out while
+    // racing and put away under the pause and finish menus, so every tap
+    // reaches the menu rows instead of a floating stick.
+    let want_controls = if cur_state != "paused" && !finish_menu_active { 1 } else { 0 };
+    if want_controls != touch_controls_out {
+        set_touch_controls(want_controls == 1);
+        touch_controls_out = want_controls;
+    }
     if cur_state == "paused" {
         // Dark overlay
         draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.05, 0.7, 0.0, 0);
@@ -151,11 +167,11 @@ fn on_draw_ui() {
         } else {
             if is_action_just_pressed("menu_up") && pause_selection > 0 {
                 pause_selection -= 1;
-                play_sound("audio/countdown_beep.ogg", 0.15);
+                play_sound("audio/ui_hover.ogg", 0.45);
             }
             if is_action_just_pressed("menu_down") && pause_selection < pause_options.len() - 1 {
                 pause_selection += 1;
-                play_sound("audio/countdown_beep.ogg", 0.15);
+                play_sound("audio/ui_hover.ogg", 0.45);
             }
             if is_action_just_pressed("menu_confirm") {
                 if pause_selection == 0 {
@@ -164,20 +180,55 @@ fn on_draw_ui() {
                 } else if pause_selection == 1 {
                     // Restart Race
                     pop_state();
-                    play_sound("audio/countdown_beep.ogg", 0.3);
+                    play_sound("audio/ui_select.ogg", 0.5);
                     reload_scene();
                 } else if pause_selection == 2 {
                     // Track Select
                     pop_state();
                     persist_set("menu_screen", "select");
-                    play_sound("audio/countdown_beep.ogg", 0.3);
+                    play_sound("audio/ui_select.ogg", 0.5);
                     load_scene("scenes/main_menu.scene.toml");
                 } else if pause_selection == 3 {
                     // Main Menu
                     pop_state();
-                    play_sound("audio/countdown_beep.ogg", 0.3);
+                    play_sound("audio/ui_select.ogg", 0.5);
                     load_scene("scenes/main_menu.scene.toml");
                 }
+            }
+
+            // Touch: tap menu options directly
+            let p_tc = tap_count();
+            if p_tc > 0 { hud_touch_active = true; }
+            if touch_count() > 0 { hud_touch_active = true; }
+            let p_ti = 0;
+            while p_ti < p_tc {
+                let ptx = tap_x(p_ti) * sw;
+                let pty = tap_y(p_ti) * sh;
+                let p_menu_y = sh * 0.42;
+                let p_row_h = 48.0;
+                if ptx > sw * 0.25 && ptx < sw * 0.75 && pty >= p_menu_y - 10.0 && pty < p_menu_y + pause_options.len() * p_row_h {
+                    let tapped = floor((pty - p_menu_y + 10.0) / p_row_h);
+                    if tapped >= 0 && tapped < pause_options.len() {
+                        pause_selection = tapped;
+                        if tapped == 0 {
+                            pop_state();
+                        } else if tapped == 1 {
+                            pop_state();
+                            play_sound("audio/ui_select.ogg", 0.5);
+                            reload_scene();
+                        } else if tapped == 2 {
+                            pop_state();
+                            persist_set("menu_screen", "select");
+                            play_sound("audio/ui_select.ogg", 0.5);
+                            load_scene("scenes/main_menu.scene.toml");
+                        } else if tapped == 3 {
+                            pop_state();
+                            play_sound("audio/ui_select.ogg", 0.5);
+                            load_scene("scenes/main_menu.scene.toml");
+                        }
+                    }
+                }
+                p_ti += 1;
             }
         }
 
@@ -198,6 +249,28 @@ fn on_draw_ui() {
                     push_state("paused");
                     pause_selection = 0;
                     return;
+                }
+                // Touch: pause button (top-right corner)
+                let pb_tc = tap_count();
+                if pb_tc > 0 { hud_touch_active = true; }
+                if touch_count() > 0 { hud_touch_active = true; }
+                let pb_i = 0;
+                while pb_i < pb_tc {
+                    let pb_tx = tap_x(pb_i) * sw;
+                    let pb_ty = tap_y(pb_i) * sh;
+                    if pb_tx > sw - 64.0 && pb_ty < 52.0 {
+                        push_state("paused");
+                        pause_selection = 0;
+                        return;
+                    }
+                    pb_i += 1;
+                }
+                // Draw pause button for touch users
+                if hud_touch_active || touch_controls_visible() {
+                    draw_rect_ex(sw - 56.0, 8.0, 48.0, 40.0, 0.15, 0.15, 0.2, 0.4, 8.0, 3);
+                    // Two vertical bars (pause icon)
+                    draw_rect_ex(sw - 44.0, 16.0, 8.0, 24.0, 1.0, 1.0, 1.0, 0.6, 2.0, 3);
+                    draw_rect_ex(sw - 30.0, 16.0, 8.0, 24.0, 1.0, 1.0, 1.0, 0.6, 2.0, 3);
                 }
             }
         }
@@ -427,7 +500,10 @@ fn on_draw_ui() {
     }
 
     // --- Leaderboard (right side, during racing/countdown/finishing) ---
-    if state == "racing" || state == "countdown" {
+    // On a short touch screen the right thumb's DRIFT and ITEM need that
+    // side: the board gives way, and the big position stays.
+    let board_room = !(touch_controls_visible() && sh < 600.0);
+    if (state == "racing" || state == "countdown") && board_room {
         let all_karts = find_entities_with("race_position");
         let num = all_karts.len();
         if num > 0 {
@@ -764,11 +840,11 @@ fn on_draw_ui() {
         if f_dir != 0 && f_dir != prev_finish_steer {
             if f_dir > 0 && finish_selection < finish_options.len() - 1 {
                 finish_selection += 1;
-                play_sound("audio/countdown_beep.ogg", 0.15);
+                play_sound("audio/ui_hover.ogg", 0.45);
             }
             if f_dir < 0 && finish_selection > 0 {
                 finish_selection -= 1;
-                play_sound("audio/countdown_beep.ogg", 0.15);
+                play_sound("audio/ui_hover.ogg", 0.45);
             }
         }
         prev_finish_steer = f_dir;
@@ -777,17 +853,190 @@ fn on_draw_ui() {
         if is_action_just_pressed("menu_confirm") && finish_menu_active {
             if finish_selection == 0 {
                 // Restart
-                play_sound("audio/countdown_beep.ogg", 0.3);
+                play_sound("audio/ui_select.ogg", 0.5);
                 reload_scene();
             } else if finish_selection == 1 {
                 // Track Select
                 persist_set("menu_screen", "select");
-                play_sound("audio/countdown_beep.ogg", 0.3);
+                play_sound("audio/ui_select.ogg", 0.5);
                 load_scene("scenes/main_menu.scene.toml");
             } else if finish_selection == 2 {
                 // Main Menu
-                play_sound("audio/countdown_beep.ogg", 0.3);
+                play_sound("audio/ui_select.ogg", 0.5);
                 load_scene("scenes/main_menu.scene.toml");
+            }
+        }
+
+        // Touch: tap finish menu options
+        if finish_menu_active {
+            let f_tc = tap_count();
+            let f_ti = 0;
+            while f_ti < f_tc {
+                let ftx = tap_x(f_ti) * sw;
+                let fty = tap_y(f_ti) * sh;
+                // Check each option — horizontal layout
+                let foi = 0;
+                while foi < finish_options.len() {
+                    let fo_cx = opt_start_x + foi * opt_gap;
+                    let fo_half_w = 80.0;
+                    if ftx > fo_cx - fo_half_w && ftx < fo_cx + fo_half_w && fty > opt_y - 12.0 && fty < opt_y + 32.0 {
+                        finish_selection = foi;
+                        play_sound("audio/ui_select.ogg", 0.5);
+                        if foi == 0 { reload_scene(); }
+                        else if foi == 1 { persist_set("menu_screen", "select"); load_scene("scenes/main_menu.scene.toml"); }
+                        else if foi == 2 { load_scene("scenes/main_menu.scene.toml"); }
+                    }
+                    foi += 1;
+                }
+                f_ti += 1;
+            }
+        }
+    }
+
+    // --- Item Indicator (bottom-center-left, next to drift bar) ---
+    if has_component(kart_id, "item_holder") {
+        let held_item = get_field(kart_id, "item_holder", "held_item");
+        let shield_on = get_field(kart_id, "item_holder", "shield_active");
+        let iboost_on = get_field(kart_id, "item_holder", "item_boost_active");
+        let spinout_on = get_field(kart_id, "item_holder", "spinout_active");
+
+        // Flash on new item pickup
+        if held_item != "none" && prev_held_item == "none" {
+            item_flash_alpha = 0.8;
+        }
+        prev_held_item = held_item;
+
+        // Item flash decay
+        if item_flash_alpha > 0.01 {
+            item_flash_alpha = item_flash_alpha - dt * 3.0;
+            if item_flash_alpha < 0.0 { item_flash_alpha = 0.0; }
+        }
+
+        // Spinout flash
+        if spinout_on {
+            spinout_flash_alpha = 0.3;
+        }
+        if spinout_flash_alpha > 0.01 {
+            spinout_flash_alpha = spinout_flash_alpha - dt * 2.0;
+            if spinout_flash_alpha < 0.0 { spinout_flash_alpha = 0.0; }
+        }
+
+        // Draw spinout yellow edge flash
+        if spinout_flash_alpha > 0.01 {
+            let edge = 60.0;
+            draw_rect_ex(0.0, 0.0, sw, edge, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.6, 0.0, -2);
+            draw_rect_ex(0.0, sh - edge, sw, edge, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.6, 0.0, -2);
+            draw_rect_ex(0.0, 0.0, edge, sh, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.4, 0.0, -2);
+            draw_rect_ex(sw - edge, 0.0, edge, sh, 0.9, 0.8, 0.1, spinout_flash_alpha * 0.4, 0.0, -2);
+        }
+
+        // Show item box if holding an item OR an effect is active
+        let show_indicator = held_item != "none" || shield_on || iboost_on || spinout_on;
+        if show_indicator && state == "racing" {
+            let box_w = 56.0;
+            let box_h = 56.0;
+            let box_x = sw / 2.0 - box_w / 2.0 - 140.0;
+            let box_y = sh - 90.0;
+
+            // Background
+            let bg_alpha = 0.6;
+            if item_flash_alpha > 0.01 { bg_alpha = 0.8; }
+            draw_rect_ex(box_x, box_y, box_w, box_h, 0.08, 0.08, 0.12, bg_alpha, 8.0, 1);
+
+            // Flash highlight border
+            if item_flash_alpha > 0.01 {
+                draw_rect_ex(box_x - 2.0, box_y - 2.0, box_w + 4.0, box_h + 4.0,
+                             1.0, 0.9, 0.3, item_flash_alpha, 10.0, 1);
+            }
+
+            // Icon + color by type
+            let icon = "";
+            let icon_r = 1.0;
+            let icon_g = 1.0;
+            let icon_b = 1.0;
+            let icon_size = 20.0;
+
+            if spinout_on {
+                icon = "!!!";
+                icon_r = 0.9;
+                icon_g = 0.8;
+                icon_b = 0.1;
+                icon_size = 22.0;
+            } else if shield_on {
+                icon = "(O)";
+                icon_r = 0.2;
+                icon_g = 0.9;
+                icon_b = 0.3;
+                // Pulsing effect
+                let pulse = 0.7 + 0.3 * sin(total_time() * 6.0);
+                icon_r = icon_r * pulse + 0.3 * (1.0 - pulse);
+                icon_g = icon_g * pulse + 0.3 * (1.0 - pulse);
+            } else if iboost_on {
+                icon = ">>>";
+                icon_r = 0.2;
+                icon_g = 0.9;
+                icon_b = 1.0;
+                icon_size = 22.0;
+            } else if held_item == "boost" {
+                icon = ">>>";
+                icon_r = 0.2;
+                icon_g = 0.9;
+                icon_b = 1.0;
+            } else if held_item == "shield" {
+                icon = "(O)";
+                icon_r = 0.2;
+                icon_g = 0.9;
+                icon_b = 0.3;
+            } else if held_item == "projectile" {
+                icon = ">>O";
+                icon_r = 1.0;
+                icon_g = 0.6;
+                icon_b = 0.15;
+            } else if held_item == "trap" {
+                icon = "[X]";
+                icon_r = 0.6;
+                icon_g = 0.2;
+                icon_b = 0.85;
+            }
+
+            if icon != "" {
+                let im = measure_text(icon, icon_size);
+                let ix = box_x + (box_w - im["width"]) / 2.0;
+                let iy = box_y + (box_h - icon_size) / 2.0 - 2.0;
+                draw_text_stroked(ix, iy, icon, icon_size, icon_r, icon_g, icon_b, 1.0,
+                                  0.0, 0.0, 0.0, 0.8, 1.5);
+            }
+
+            // Key hint below (only when holding, not during active effects)
+            if held_item != "none" && !shield_on && !iboost_on && !spinout_on {
+                let hint = if touch_controls_visible() { "ITEM" } else { "[E]" };
+                let hm = measure_text(hint, 12.0);
+                let hx = box_x + (box_w - hm["width"]) / 2.0;
+                draw_text(hx, box_y + box_h + 4.0, hint, 12.0, 0.6, 0.6, 0.65, 0.7);
+            }
+
+            // Timer bar for active effects
+            let timer_val = 0.0;
+            let timer_max = 1.0;
+            if shield_on {
+                timer_val = get_field(kart_id, "item_holder", "shield_timer");
+                timer_max = 8.0;
+            } else if iboost_on {
+                timer_val = get_field(kart_id, "item_holder", "item_boost_timer");
+                timer_max = 2.0;
+            } else if spinout_on {
+                timer_val = get_field(kart_id, "item_holder", "spinout_timer");
+                timer_max = 1.5;
+            }
+
+            if timer_val > 0.0 {
+                let bar_w = box_w - 8.0;
+                let bar_h = 4.0;
+                let bar_x = box_x + 4.0;
+                let bar_y = box_y + box_h - 8.0;
+                let fill = clamp(timer_val / timer_max, 0.0, 1.0);
+                draw_rect_ex(bar_x, bar_y, bar_w, bar_h, 0.2, 0.2, 0.2, 0.5, 2.0, 1);
+                draw_rect_ex(bar_x, bar_y, bar_w * fill, bar_h, icon_r, icon_g, icon_b, 0.8, 2.0, 1);
             }
         }
     }
@@ -982,6 +1231,21 @@ fn on_draw_ui() {
 
             // Start/finish marker — gold dot at index 0
             draw_circle(minimap_pts_x[0], minimap_pts_y[0], 3.0, 1.0, 0.85, 0.2, 0.9);
+
+            // Item box dots — small yellow dots for active boxes
+            let item_boxes = find_entities_with("item_box");
+            let ibi = 0;
+            while ibi < item_boxes.len() {
+                let ib_id = item_boxes[ibi];
+                let ib_active = get_field(ib_id, "item_box", "active");
+                if ib_active {
+                    let ibpos = get_position(ib_id);
+                    let ib_sx = minimap_cx + (ibpos["x"] - minimap_world_cx) * minimap_scale;
+                    let ib_sy = minimap_cy + (ibpos["z"] - minimap_world_cz) * minimap_scale;
+                    draw_circle(ib_sx, ib_sy, 2.0, 0.95, 0.85, 0.2, 0.7);
+                }
+                ibi += 1;
+            }
 
             // Racer dots
             let all_karts = find_entities_with("kart_state");

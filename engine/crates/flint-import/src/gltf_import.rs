@@ -1,20 +1,20 @@
 //! glTF/GLB file importer
 
 use crate::types::{
-    ImportResult, ImportedChannel, ImportedJoint, ImportedKeyframe, ImportedMaterial, ImportedMesh,
-    ImportedSkeleton, ImportedSkeletalClip, ImportedTexture, JointProperty,
+    AlphaMode, ImportResult, ImportedChannel, ImportedJoint, ImportedKeyframe, ImportedMaterial,
+    ImportedMesh, ImportedNode, ImportedNodeChannel, ImportedNodeClip, ImportedSkeletalClip,
+    ImportedSkeleton, ImportedTexture, JointProperty,
 };
 use flint_asset::{AssetMeta, AssetType};
-use flint_core::{ContentHash, FlintError, Result};
+use flint_core::{vfs, ContentHash, FlintError, Result};
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Import a glTF or GLB file
 pub fn import_gltf<P: AsRef<Path>>(path: P) -> Result<ImportResult> {
     let path = path.as_ref();
-    let (document, buffers, images) = gltf::import(path).map_err(|e| {
-        FlintError::ImportError(format!("Failed to import glTF: {}", e))
-    })?;
+    let (document, buffers, images) = import_via_vfs(path)
+        .map_err(|e| FlintError::ImportError(format!("Failed to import glTF: {}", e)))?;
 
     let hash = ContentHash::from_file(path)
         .map_err(|e| FlintError::ImportError(format!("Failed to hash file: {}", e)))?;
@@ -44,71 +44,154 @@ pub fn import_gltf<P: AsRef<Path>>(path: P) -> Result<ImportResult> {
 
     let mut meshes = Vec::new();
     let mut total_vertices = 0u64;
+    let mut imported_nodes: Vec<ImportedNode> = Vec::new();
+    let mut root_nodes: Vec<usize> = Vec::new();
 
-    for mesh in document.meshes() {
-        let mesh_name = mesh
+    // Track which glTF node index maps to which ImportedNode index
+    let mut gltf_node_to_imported: HashMap<usize, usize> = HashMap::new();
+
+    // Walk the scene graph via scenes → root nodes → recursive children.
+    // This extracts meshes per-node (preserving transforms) instead of per-mesh.
+    let scene_root_nodes: Vec<gltf::Node> =
+        document.scenes().flat_map(|scene| scene.nodes()).collect();
+
+    // Recursive helper: extract a node and all its children
+    fn walk_node(
+        node: &gltf::Node,
+        buffers: &[gltf::buffer::Data],
+        node_skin_map: &HashMap<usize, usize>,
+        meshes: &mut Vec<ImportedMesh>,
+        imported_nodes: &mut Vec<ImportedNode>,
+        gltf_node_to_imported: &mut HashMap<usize, usize>,
+        total_vertices: &mut u64,
+    ) -> usize {
+        let (translation, rotation, scale) = node.transform().decomposed();
+
+        let node_name = node
             .name()
             .map(String::from)
-            .unwrap_or_else(|| format!("mesh_{}", mesh.index()));
+            .unwrap_or_else(|| format!("node_{}", node.index()));
 
-        let skin_index = node_skin_map.get(&mesh.index()).copied();
+        let skin_index = if node.skin().is_some() {
+            node.skin().map(|s| s.index())
+        } else {
+            // Check if this node's mesh is associated with a skin via another node
+            node.mesh()
+                .and_then(|m| node_skin_map.get(&m.index()).copied())
+        };
 
-        for primitive in mesh.primitives() {
-            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+        // Extract mesh primitives if this node has a mesh
+        let mut mesh_primitive_indices = Vec::new();
+        if let Some(mesh) = node.mesh() {
+            let mesh_name = mesh
+                .name()
+                .map(String::from)
+                .unwrap_or_else(|| node_name.clone());
 
-            let positions: Vec<[f32; 3]> = reader
-                .read_positions()
-                .map(|iter| iter.collect())
-                .unwrap_or_default();
+            for primitive in mesh.primitives() {
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
-            let normals: Vec<[f32; 3]> = reader
-                .read_normals()
-                .map(|iter| iter.collect())
-                .unwrap_or_default();
+                let positions: Vec<[f32; 3]> = reader
+                    .read_positions()
+                    .map(|iter| iter.collect())
+                    .unwrap_or_default();
 
-            let uvs: Vec<[f32; 2]> = reader
-                .read_tex_coords(0)
-                .map(|iter| iter.into_f32().collect())
-                .unwrap_or_default();
+                let normals: Vec<[f32; 3]> = reader
+                    .read_normals()
+                    .map(|iter| iter.collect())
+                    .unwrap_or_default();
 
-            let indices: Vec<u32> = reader
-                .read_indices()
-                .map(|iter| iter.into_u32().collect())
-                .unwrap_or_default();
+                let uvs: Vec<[f32; 2]> = reader
+                    .read_tex_coords(0)
+                    .map(|iter| iter.into_f32().collect())
+                    .unwrap_or_default();
 
-            let material_index = primitive.material().index();
+                let indices: Vec<u32> = reader
+                    .read_indices()
+                    .map(|iter| iter.into_u32().collect())
+                    .unwrap_or_default();
 
-            // Read joint indices and weights for skinned meshes
-            let joint_indices: Option<Vec<[u16; 4]>> = reader
-                .read_joints(0)
-                .map(|iter| iter.into_u16().collect());
+                let material_index = primitive.material().index();
 
-            let joint_weights: Option<Vec<[f32; 4]>> = reader
-                .read_weights(0)
-                .map(|iter| iter.into_f32().collect());
+                let joint_indices: Option<Vec<[u16; 4]>> =
+                    reader.read_joints(0).map(|iter| iter.into_u16().collect());
 
-            total_vertices += positions.len() as u64;
+                let joint_weights: Option<Vec<[f32; 4]>> =
+                    reader.read_weights(0).map(|iter| iter.into_f32().collect());
 
-            meshes.push(ImportedMesh {
-                name: mesh_name.clone(),
-                positions,
-                normals,
-                uvs,
-                indices,
-                material_index,
-                joint_indices,
-                joint_weights,
-                skin_index,
-            });
+                *total_vertices += positions.len() as u64;
+
+                let prim_index = meshes.len();
+                meshes.push(ImportedMesh {
+                    name: mesh_name.clone(),
+                    positions,
+                    normals,
+                    uvs,
+                    indices,
+                    material_index,
+                    joint_indices,
+                    joint_weights,
+                    skin_index,
+                });
+                mesh_primitive_indices.push(prim_index);
+            }
         }
+
+        // Reserve this node's index
+        let node_index = imported_nodes.len();
+        gltf_node_to_imported.insert(node.index(), node_index);
+        imported_nodes.push(ImportedNode {
+            name: node_name,
+            translation,
+            rotation,
+            scale,
+            mesh_primitive_indices,
+            children: Vec::new(), // filled in below
+            skin_index,
+        });
+
+        // Recurse into children
+        let child_indices: Vec<usize> = node
+            .children()
+            .map(|child| {
+                walk_node(
+                    &child,
+                    buffers,
+                    node_skin_map,
+                    meshes,
+                    imported_nodes,
+                    gltf_node_to_imported,
+                    total_vertices,
+                )
+            })
+            .collect();
+
+        imported_nodes[node_index].children = child_indices;
+
+        node_index
     }
 
+    for root_node in &scene_root_nodes {
+        let idx = walk_node(
+            root_node,
+            &buffers,
+            &node_skin_map,
+            &mut meshes,
+            &mut imported_nodes,
+            &mut gltf_node_to_imported,
+            &mut total_vertices,
+        );
+        root_nodes.push(idx);
+    }
+
+    // Name each texture the same way the material references below do
+    // (`texture_name`), so embedded textures resolve by name after upload.
     let mut textures = Vec::new();
     for (i, image) in images.iter().enumerate() {
         let tex_name = document
             .textures()
             .nth(i)
-            .and_then(|t| t.name().map(String::from))
+            .map(texture_name)
             .unwrap_or_else(|| format!("texture_{}", i));
 
         let format = match image.format {
@@ -145,32 +228,28 @@ pub fn import_gltf<P: AsRef<Path>>(path: P) -> Result<ImportResult> {
         let metallic = pbr.metallic_factor();
         let roughness = pbr.roughness_factor();
 
-        let base_color_texture = pbr
-            .base_color_texture()
-            .map(|info| {
-                info.texture()
-                    .name()
-                    .map(String::from)
-                    .unwrap_or_else(|| format!("texture_{}", info.texture().index()))
-            });
+        let base_color_texture = pbr.base_color_texture().map(|info| {
+            texture_name(info.texture())
+        });
 
-        let normal_texture = material
-            .normal_texture()
-            .map(|info| {
-                info.texture()
-                    .name()
-                    .map(String::from)
-                    .unwrap_or_else(|| format!("texture_{}", info.texture().index()))
-            });
+        let normal_texture = material.normal_texture().map(|info| {
+            texture_name(info.texture())
+        });
 
-        let metallic_roughness_texture = pbr
-            .metallic_roughness_texture()
-            .map(|info| {
-                info.texture()
-                    .name()
-                    .map(String::from)
-                    .unwrap_or_else(|| format!("texture_{}", info.texture().index()))
-            });
+        let metallic_roughness_texture = pbr.metallic_roughness_texture().map(|info| {
+            texture_name(info.texture())
+        });
+
+        let emissive_texture = material.emissive_texture().map(|info| {
+            texture_name(info.texture())
+        });
+
+        let alpha_mode = match material.alpha_mode() {
+            gltf::material::AlphaMode::Opaque => AlphaMode::Opaque,
+            gltf::material::AlphaMode::Mask => AlphaMode::Mask,
+            gltf::material::AlphaMode::Blend => AlphaMode::Blend,
+        };
+        let alpha_cutoff = material.alpha_cutoff().unwrap_or(0.5);
 
         materials.push(ImportedMaterial {
             name: mat_name,
@@ -181,6 +260,12 @@ pub fn import_gltf<P: AsRef<Path>>(path: P) -> Result<ImportResult> {
             normal_texture,
             metallic_roughness_texture,
             use_vertex_color: false,
+            alpha_mode,
+            alpha_cutoff,
+            emissive: material.emissive_factor(),
+            emissive_strength: material.emissive_strength().unwrap_or(1.0),
+            emissive_texture,
+            vertex_emission: false,
         });
     }
 
@@ -189,6 +274,15 @@ pub fn import_gltf<P: AsRef<Path>>(path: P) -> Result<ImportResult> {
 
     // --- Extract skeletal animation clips ---
     let skeletal_clips = extract_skeletal_clips(&document, &buffers, &skeletons);
+
+    // --- Extract node-level animation clips ---
+    let node_clips = extract_node_clips(
+        &document,
+        &buffers,
+        &skeletons,
+        &gltf_node_to_imported,
+        &imported_nodes,
+    );
 
     let mut properties = HashMap::new();
     properties.insert(
@@ -215,6 +309,12 @@ pub fn import_gltf<P: AsRef<Path>>(path: P) -> Result<ImportResult> {
             toml::Value::Integer(skeletal_clips.len() as i64),
         );
     }
+    if !node_clips.is_empty() {
+        properties.insert(
+            "node_clip_count".to_string(),
+            toml::Value::Integer(node_clips.len() as i64),
+        );
+    }
 
     let asset_meta = AssetMeta {
         name: file_name,
@@ -233,6 +333,9 @@ pub fn import_gltf<P: AsRef<Path>>(path: P) -> Result<ImportResult> {
         materials,
         skeletons,
         skeletal_clips,
+        node_clips,
+        nodes: imported_nodes,
+        root_nodes,
     })
 }
 
@@ -276,12 +379,16 @@ fn extract_skeletons(
             let parent = find_parent_joint(document, node.index(), &node_to_joint);
 
             let ibm = ibms.get(joint_idx).copied().unwrap_or_else(identity_4x4);
+            let (rest_translation, rest_rotation, rest_scale) = node.transform().decomposed();
 
             joints.push(ImportedJoint {
                 name: joint_name,
                 index: joint_idx,
                 parent,
                 inverse_bind_matrix: ibm,
+                rest_translation,
+                rest_rotation,
+                rest_scale,
             });
         }
 
@@ -375,48 +482,36 @@ fn extract_skeletal_clips(
             };
 
             let outputs: Vec<Vec<f32>> = match &property {
-                JointProperty::Translation | JointProperty::Scale => {
-                    reader
-                        .read_outputs()
-                        .map(|out| match out {
-                            gltf::animation::util::ReadOutputs::Translations(iter) => {
-                                iter.map(|v| vec![v[0], v[1], v[2]]).collect()
-                            }
-                            gltf::animation::util::ReadOutputs::Scales(iter) => {
-                                iter.map(|v| vec![v[0], v[1], v[2]]).collect()
-                            }
-                            _ => Vec::new(),
-                        })
-                        .unwrap_or_default()
-                }
-                JointProperty::Rotation => {
-                    reader
-                        .read_outputs()
-                        .map(|out| match out {
-                            gltf::animation::util::ReadOutputs::Rotations(iter) => {
-                                iter.into_f32()
-                                    .map(|v| vec![v[0], v[1], v[2], v[3]])
-                                    .collect()
-                            }
-                            _ => Vec::new(),
-                        })
-                        .unwrap_or_default()
-                }
+                JointProperty::Translation | JointProperty::Scale => reader
+                    .read_outputs()
+                    .map(|out| match out {
+                        gltf::animation::util::ReadOutputs::Translations(iter) => {
+                            iter.map(|v| vec![v[0], v[1], v[2]]).collect()
+                        }
+                        gltf::animation::util::ReadOutputs::Scales(iter) => {
+                            iter.map(|v| vec![v[0], v[1], v[2]]).collect()
+                        }
+                        _ => Vec::new(),
+                    })
+                    .unwrap_or_default(),
+                JointProperty::Rotation => reader
+                    .read_outputs()
+                    .map(|out| match out {
+                        gltf::animation::util::ReadOutputs::Rotations(iter) => iter
+                            .into_f32()
+                            .map(|v| vec![v[0], v[1], v[2], v[3]])
+                            .collect(),
+                        _ => Vec::new(),
+                    })
+                    .unwrap_or_default(),
             };
 
-            let keyframes: Vec<ImportedKeyframe> = timestamps
-                .iter()
-                .zip(outputs.iter())
-                .map(|(&time, value)| {
-                    if time > max_time {
-                        max_time = time;
-                    }
-                    ImportedKeyframe {
-                        time,
-                        value: value.clone(),
-                    }
-                })
-                .collect();
+            let keyframes = build_keyframes(&timestamps, &outputs, interpolation);
+            for kf in &keyframes {
+                if kf.time > max_time {
+                    max_time = kf.time;
+                }
+            }
 
             channels.push(ImportedChannel {
                 joint_index: joint_idx,
@@ -438,6 +533,124 @@ fn extract_skeletal_clips(
     clips
 }
 
+/// Extract node-level animation clips from glTF animations.
+///
+/// Processes animation channels where the target node is NOT a skeleton joint,
+/// producing node transform animations that can drive entity hierarchies at runtime.
+fn extract_node_clips(
+    document: &gltf::Document,
+    buffers: &[gltf::buffer::Data],
+    _skeletons: &[ImportedSkeleton],
+    gltf_node_to_imported: &HashMap<usize, usize>,
+    imported_nodes: &[ImportedNode],
+) -> Vec<ImportedNodeClip> {
+    // Build a set of glTF node indices that are skeleton joints
+    let mut skeleton_joint_nodes: std::collections::HashSet<usize> =
+        std::collections::HashSet::new();
+    for skin in document.skins() {
+        for node in skin.joints() {
+            skeleton_joint_nodes.insert(node.index());
+        }
+    }
+
+    let mut clips = Vec::new();
+
+    for animation in document.animations() {
+        let clip_name = animation
+            .name()
+            .map(String::from)
+            .unwrap_or_else(|| format!("clip_{}", animation.index()));
+
+        let mut channels = Vec::new();
+        let mut max_time: f32 = 0.0;
+
+        for channel in animation.channels() {
+            let target_node = channel.target().node().index();
+
+            // Only process channels that target NON-skeleton nodes
+            if skeleton_joint_nodes.contains(&target_node) {
+                continue;
+            }
+
+            // Resolve to imported node index and name
+            let Some(&imported_idx) = gltf_node_to_imported.get(&target_node) else {
+                continue;
+            };
+            let node_name = imported_nodes[imported_idx].name.clone();
+
+            let property = match channel.target().property() {
+                gltf::animation::Property::Translation => JointProperty::Translation,
+                gltf::animation::Property::Rotation => JointProperty::Rotation,
+                gltf::animation::Property::Scale => JointProperty::Scale,
+                _ => continue, // Skip morph targets etc.
+            };
+
+            let reader = channel.reader(|buf| Some(&buffers[buf.index()]));
+
+            let timestamps: Vec<f32> = reader
+                .read_inputs()
+                .map(|iter| iter.collect())
+                .unwrap_or_default();
+
+            let interpolation = match channel.sampler().interpolation() {
+                gltf::animation::Interpolation::Step => "STEP",
+                gltf::animation::Interpolation::Linear => "LINEAR",
+                gltf::animation::Interpolation::CubicSpline => "CUBICSPLINE",
+            };
+
+            let outputs: Vec<Vec<f32>> = match &property {
+                JointProperty::Translation | JointProperty::Scale => reader
+                    .read_outputs()
+                    .map(|out| match out {
+                        gltf::animation::util::ReadOutputs::Translations(iter) => {
+                            iter.map(|v| vec![v[0], v[1], v[2]]).collect()
+                        }
+                        gltf::animation::util::ReadOutputs::Scales(iter) => {
+                            iter.map(|v| vec![v[0], v[1], v[2]]).collect()
+                        }
+                        _ => Vec::new(),
+                    })
+                    .unwrap_or_default(),
+                JointProperty::Rotation => reader
+                    .read_outputs()
+                    .map(|out| match out {
+                        gltf::animation::util::ReadOutputs::Rotations(iter) => iter
+                            .into_f32()
+                            .map(|v| vec![v[0], v[1], v[2], v[3]])
+                            .collect(),
+                        _ => Vec::new(),
+                    })
+                    .unwrap_or_default(),
+            };
+
+            let keyframes = build_keyframes(&timestamps, &outputs, interpolation);
+            for kf in &keyframes {
+                if kf.time > max_time {
+                    max_time = kf.time;
+                }
+            }
+
+            channels.push(ImportedNodeChannel {
+                node_index: imported_idx,
+                node_name,
+                property,
+                interpolation: interpolation.to_string(),
+                keyframes,
+            });
+        }
+
+        if !channels.is_empty() {
+            clips.push(ImportedNodeClip {
+                name: clip_name,
+                duration: max_time,
+                channels,
+            });
+        }
+    }
+
+    clips
+}
+
 fn identity_4x4() -> [[f32; 4]; 4] {
     [
         [1.0, 0.0, 0.0, 0.0],
@@ -447,3 +660,287 @@ fn identity_4x4() -> [[f32; 4]; 4] {
     ]
 }
 
+/// Pair sampler timestamps with their output values.
+///
+/// For STEP/LINEAR samplers glTF stores one output per timestamp. For CUBICSPLINE it
+/// stores three per timestamp — `[in_tangent, value, out_tangent]` — so the outputs
+/// must be consumed in triples or the tangents (typically zero) end up as keyframe
+/// values and the animation collapses toward zero between keys.
+fn build_keyframes(
+    timestamps: &[f32],
+    outputs: &[Vec<f32>],
+    interpolation: &str,
+) -> Vec<ImportedKeyframe> {
+    if interpolation == "CUBICSPLINE" {
+        if outputs.len() < timestamps.len() * 3 {
+            eprintln!(
+                "warning: CUBICSPLINE sampler has {} outputs for {} timestamps (expected {}); treating as LINEAR",
+                outputs.len(),
+                timestamps.len(),
+                timestamps.len() * 3
+            );
+        } else {
+            return timestamps
+                .iter()
+                .zip(outputs.chunks_exact(3))
+                .map(|(&time, triple)| ImportedKeyframe {
+                    time,
+                    in_tangent: triple[0].clone(),
+                    value: triple[1].clone(),
+                    out_tangent: triple[2].clone(),
+                })
+                .collect();
+        }
+    }
+    timestamps
+        .iter()
+        .zip(outputs.iter())
+        .map(|(&time, value)| ImportedKeyframe {
+            time,
+            value: value.clone(),
+            in_tangent: Vec::new(),
+            out_tangent: Vec::new(),
+        })
+        .collect()
+}
+
+/// `gltf::import`, read through the vfs. gltf's importer opens the file and
+/// everything it references with `std::fs`, so this does the same steps over
+/// the active file source (the disk, or the web's bundle): the document, its
+/// buffers (GLB blob, `data:` URI or a file next to it) and its images.
+/// `data:` URIs and buffer views never touch a file, so gltf decodes those.
+fn import_via_vfs(
+    path: &Path,
+) -> gltf::Result<(
+    gltf::Document,
+    Vec<gltf::buffer::Data>,
+    Vec<gltf::image::Data>,
+)> {
+    let base = path.parent().unwrap_or_else(|| Path::new("./"));
+    let bytes = vfs::read(path).map_err(gltf::Error::Io)?;
+    let gltf::Gltf { document, mut blob } = gltf::Gltf::from_slice(&bytes)?;
+
+    // As `gltf::import_buffers`: padded to 4 bytes, and no shorter than the
+    // length the document declares.
+    let mut buffers = Vec::new();
+    for buffer in document.buffers() {
+        let mut data = match buffer.source() {
+            gltf::buffer::Source::Bin => blob.take().ok_or(gltf::Error::MissingBlob)?,
+            gltf::buffer::Source::Uri(uri) if uri.starts_with("data:") => {
+                gltf::buffer::Data::from_source(buffer.source(), None)?.0
+            }
+            gltf::buffer::Source::Uri(uri) => read_uri(base, uri)?,
+        };
+        while data.len() % 4 != 0 {
+            data.push(0);
+        }
+        if data.len() < buffer.length() {
+            return Err(gltf::Error::BufferLength {
+                buffer: buffer.index(),
+                expected: buffer.length(),
+                actual: data.len(),
+            });
+        }
+        buffers.push(gltf::buffer::Data(data));
+    }
+
+    let mut images = Vec::new();
+    for img in document.images() {
+        let data = match img.source() {
+            gltf::image::Source::Uri { uri, mime_type } if !uri.starts_with("data:") => {
+                let encoded = read_uri(base, uri)?;
+                // The format the way gltf picks it: the MIME type, else the
+                // URI's extension. (gltf's byte sniffing is a feature Flint
+                // does not enable.)
+                let format = match mime_type {
+                    Some("image/png") => image::ImageFormat::Png,
+                    Some("image/jpeg") => image::ImageFormat::Jpeg,
+                    Some(_) => return Err(gltf::Error::UnsupportedImageEncoding),
+                    None => match uri.rsplit('.').next() {
+                        Some("png") => image::ImageFormat::Png,
+                        Some("jpg") | Some("jpeg") => image::ImageFormat::Jpeg,
+                        _ => return Err(gltf::Error::UnsupportedImageEncoding),
+                    },
+                };
+                let decoded = image::load_from_memory_with_format(&encoded, format)
+                    .map_err(gltf::Error::Image)?;
+                image_data(decoded)?
+            }
+            // A buffer view or a `data:` URI. gltf only resolves URIs when
+            // given a base; this one is never used.
+            source => gltf::image::Data::from_source(source, Some(Path::new("")), &buffers)?,
+        };
+        images.push(data);
+    }
+
+    Ok((document, buffers, images))
+}
+
+/// An external buffer or image URI, read through the vfs relative to the
+/// file's directory: `file:` paths as written, relative ones percent-decoded,
+/// any other scheme refused (gltf's rules).
+fn read_uri(base: &Path, uri: &str) -> gltf::Result<Vec<u8>> {
+    let path = if let Some(rest) = uri
+        .strip_prefix("file://")
+        .or_else(|| uri.strip_prefix("file:"))
+    {
+        PathBuf::from(rest)
+    } else if uri.contains(':') {
+        return Err(gltf::Error::UnsupportedScheme);
+    } else {
+        base.join(percent_decode(uri))
+    };
+    vfs::read(path).map_err(gltf::Error::Io)
+}
+
+/// `%XX` escapes decoded (`tire%20tread.png` -> `tire tread.png`), as gltf
+/// does to a relative URI before opening it. A `%` not followed by two hex
+/// digits stays as it is.
+fn percent_decode(uri: &str) -> String {
+    let bytes = uri.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let escape = bytes
+            .get(i + 1..i + 3)
+            .filter(|h| h.iter().all(u8::is_ascii_hexdigit));
+        match (bytes[i], escape) {
+            (b'%', Some(hex)) => {
+                let hex = std::str::from_utf8(hex).unwrap_or("00");
+                out.push(u8::from_str_radix(hex, 16).unwrap_or(0));
+                i += 3;
+            }
+            (byte, _) => {
+                out.push(byte);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// A decoded image as gltf hands it over (its own constructor is private):
+/// the pixel layout named by the variant, the raw bytes.
+fn image_data(decoded: image::DynamicImage) -> gltf::Result<gltf::image::Data> {
+    use gltf::image::Format;
+    let format = match decoded {
+        image::DynamicImage::ImageLuma8(_) => Format::R8,
+        image::DynamicImage::ImageLumaA8(_) => Format::R8G8,
+        image::DynamicImage::ImageRgb8(_) => Format::R8G8B8,
+        image::DynamicImage::ImageRgba8(_) => Format::R8G8B8A8,
+        image::DynamicImage::ImageLuma16(_) => Format::R16,
+        image::DynamicImage::ImageLumaA16(_) => Format::R16G16,
+        image::DynamicImage::ImageRgb16(_) => Format::R16G16B16,
+        image::DynamicImage::ImageRgba16(_) => Format::R16G16B16A16,
+        image::DynamicImage::ImageRgb32F(_) => Format::R32G32B32FLOAT,
+        image::DynamicImage::ImageRgba32F(_) => Format::R32G32B32A32FLOAT,
+        other => return Err(gltf::Error::UnsupportedImageFormat(other)),
+    };
+    let (width, height) = (decoded.width(), decoded.height());
+    Ok(gltf::image::Data {
+        pixels: decoded.into_bytes(),
+        format,
+        width,
+        height,
+    })
+}
+
+/// A texture's name for the cache: the glTF texture name, else its source
+/// image's name (Blender names images but not textures — e.g. `tire_normal`,
+/// which the texture cache also reads to pick a linear format for normal
+/// maps), else `texture_<index>`.
+fn texture_name(texture: gltf::Texture<'_>) -> String {
+    texture
+        .name()
+        .map(String::from)
+        .or_else(|| texture.source().name().map(String::from))
+        .unwrap_or_else(|| format!("texture_{}", texture.index()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A material with painted-on lights keeps its emissive map's name, the
+    /// same name the texture is imported under, so the renderer can find it.
+    #[test]
+    fn the_emissive_texture_is_read() {
+        // One 1x1 PNG, used as the emissive map of the only material.
+        let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        let gltf = format!(
+            r#"{{
+                "asset": {{ "version": "2.0" }},
+                "images": [{{ "uri": "data:image/png;base64,{png}", "name": "windows" }}],
+                "textures": [{{ "source": 0 }}],
+                "materials": [{{
+                    "name": "tower",
+                    "emissiveFactor": [1.0, 0.8, 0.5],
+                    "emissiveTexture": {{ "index": 0 }}
+                }}]
+            }}"#
+        );
+        let path = std::env::temp_dir().join(format!("flint-emissive-{}.gltf", std::process::id()));
+        std::fs::write(&path, gltf).unwrap();
+        let result = import_gltf(&path);
+        let _ = std::fs::remove_file(&path);
+        let result = result.unwrap();
+
+        let material = &result.materials[0];
+        assert_eq!(material.emissive, [1.0, 0.8, 0.5]);
+        assert_eq!(material.emissive_texture.as_deref(), Some("windows"));
+        assert_eq!(result.textures[0].name, "windows");
+        assert_eq!(material.base_color_texture, None);
+    }
+
+    /// A `.gltf` whose buffer and texture are separate files imports from a
+    /// memory bundle, with the URIs resolved next to the model and
+    /// percent-decoded, exactly as it would from disk.
+    #[test]
+    fn a_gltf_with_external_files_imports_from_a_memory_source() {
+        use flint_core::vfs::MemorySource;
+        use std::sync::Arc;
+
+        // One triangle: three f32 positions, 36 bytes.
+        let positions: [[f32; 3]; 3] = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+        let bin: Vec<u8> = positions
+            .iter()
+            .flatten()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
+        let mut png = Vec::new();
+        image::RgbaImage::from_pixel(2, 1, image::Rgba([255, 128, 0, 255]))
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        let gltf = r#"{
+            "asset": { "version": "2.0" },
+            "scene": 0,
+            "scenes": [{ "nodes": [0] }],
+            "nodes": [{ "name": "tri", "mesh": 0 }],
+            "meshes": [{ "primitives": [{ "attributes": { "POSITION": 0 } }] }],
+            "buffers": [{ "uri": "tri%20data.bin", "byteLength": 36 }],
+            "bufferViews": [{ "buffer": 0, "byteLength": 36 }],
+            "accessors": [{
+                "bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3",
+                "min": [0.0, 0.0, 0.0], "max": [1.0, 1.0, 0.0]
+            }],
+            "images": [{ "uri": "paint.png", "name": "paint" }],
+            "textures": [{ "source": 0 }]
+        }"#;
+
+        let mut bundle = MemorySource::new();
+        bundle.insert("models/tri.gltf", gltf);
+        bundle.insert("models/tri data.bin", bin);
+        bundle.insert("models/paint.png", png);
+        let result = vfs::scoped(Arc::new(bundle), || import_gltf("models/tri.gltf"));
+        let result = result.unwrap();
+
+        assert_eq!(result.meshes.len(), 1);
+        assert_eq!(result.meshes[0].positions, positions.to_vec());
+        assert_eq!(result.textures[0].name, "paint");
+        assert_eq!(
+            (result.textures[0].width, result.textures[0].height),
+            (2, 1)
+        );
+        assert_eq!(percent_decode("a%2fb%zz%"), "a/b%zz%");
+    }
+}

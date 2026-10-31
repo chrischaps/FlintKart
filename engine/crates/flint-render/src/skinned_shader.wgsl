@@ -21,9 +21,25 @@ struct MaterialUniforms {
     has_normal_map: u32,
     has_metallic_roughness_tex: u32,
     selection_highlight: u32,
-    _pad_sel0: u32,
-    _pad_sel1: u32,
-    _pad_sel2: u32,
+    opacity: f32,
+    alpha_cutoff: f32,
+    texture_scale: f32,
+    // Emission (ADR 0076): rgb = the material's own light, w = per-vertex
+    // emission scale (vertex alpha is then how much is surface).
+    emissive: vec4<f32>,
+    // 1 when `emissive_texture` holds the material's emissive map; its rgb
+    // multiplies `emissive.rgb` (glTF `emissiveTexture`).
+    has_emissive_tex: u32,
+    // 1 when vertex alpha is the surface share, not opacity (ADR 0090), so
+    // a strength of 0 leaves the light parts dark.
+    vertex_emission: u32,
+    // How much of a per-vertex light part is also lit surface (ADR 0096),
+    // with its light unchanged.
+    glow_surface: f32,
+    _pad_e2: u32,
+    // Multiplies the vertex colour, as surface and as per-vertex light
+    // (ADR 0102: the entity's `material.vertex_tint_*`). w is unused.
+    vertex_tint: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -34,24 +50,23 @@ var<uniform> material: MaterialUniforms;
 
 @group(1) @binding(1)
 var base_color_texture: texture_2d<f32>;
-@group(1) @binding(2)
-var base_color_sampler: sampler;
 
 @group(1) @binding(3)
 var normal_map_texture: texture_2d<f32>;
-@group(1) @binding(4)
-var normal_map_sampler: sampler;
 
 @group(1) @binding(5)
 var metallic_roughness_texture: texture_2d<f32>;
-@group(1) @binding(6)
-var metallic_roughness_sampler: sampler;
+
+@group(1) @binding(7)
+var emissive_texture: texture_2d<f32>;
 
 struct DirectionalLight {
     direction: vec3<f32>,
-    _pad0: f32,
+    volumetric_intensity: f32,
     color: vec3<f32>,
     intensity: f32,
+    volumetric_color: vec3<f32>,
+    _pad1: f32,
 };
 
 struct PointLight {
@@ -59,6 +74,13 @@ struct PointLight {
     radius: f32,
     color: vec3<f32>,
     intensity: f32,
+    // Physical source radius (world units); 0 = punctual (ADR 0056).
+    // Struct grew 32 -> 48 B — must match the Rust PointLight in all six
+    // LightUniforms mirrors (light_uniforms_layout test).
+    source_radius: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 };
 
 struct SpotLight {
@@ -84,6 +106,8 @@ struct LightUniforms {
     _pad: u32,
     ambient_sky: vec4<f32>,
     ambient_ground: vec4<f32>,
+    // rgb = sheen tint, w = strength; zero = off (must match LightUniforms in pipeline.rs)
+    sheen_color_strength: vec4<f32>,
 };
 
 @group(2) @binding(0)
@@ -97,10 +121,19 @@ var shadow_sampler: sampler_comparison;
 struct ShadowUniforms {
     cascade_view_proj: array<mat4x4<f32>, 3>,
     cascade_splits: vec4<f32>,
+    // PCSS (ADR 0057): xyz = per-cascade light-ortho depth range (world
+    // units), w = tan(sun angular size); w = 0 -> legacy 3x3 PCF verbatim.
+    pcss: vec4<f32>,
 };
 
 @group(2) @binding(3)
 var<uniform> shadow: ShadowUniforms;
+
+// Every material's textures share this one sampler (linear, repeating). It
+// lives here, bound once a frame, not in each material's group, so a material
+// bind group spends no DX12 sampler descriptors (Capitol #577).
+@group(2) @binding(4)
+var material_sampler: sampler;
 
 // Bind group 3: Bone matrices (storage buffer for arbitrary bone counts)
 @group(3) @binding(0)
@@ -192,8 +225,12 @@ fn perturb_normal(N: vec3<f32>, world_pos: vec3<f32>, uv: vec2<f32>, map_normal:
     let duv1 = dpdx(uv);
     let duv2 = dpdy(uv);
 
+    // Guard only against a truly degenerate UV parameterisation. The
+    // derivatives are per screen pixel, so a 1k texture magnified over a
+    // few hundred pixels yields det ~ 1e-5 to 1e-6; an absolute 1e-4
+    // threshold silently discarded every normal map on a close-up mesh.
     let det = duv1.x * duv2.y - duv1.y * duv2.x;
-    if (abs(det) < 0.0001) {
+    if (abs(det) < 1e-12) {
         return N;
     }
     let inv_det = 1.0 / det;
@@ -221,7 +258,9 @@ fn spot_cone_factor(light_to_frag: vec3<f32>, spot_dir: vec3<f32>, inner_angle: 
     return saturate((cos_angle - cos_outer) / max(cos_inner - cos_outer, 0.0001));
 }
 
-fn shadow_factor(world_pos: vec3<f32>, view_depth: f32) -> f32 {
+// N is the geometric surface normal, used for normal-offset receiver bias
+// (matches shader.wgsl — prevents acne at glancing angles on curved surfaces).
+fn shadow_factor(world_pos: vec3<f32>, view_depth: f32, N: vec3<f32>) -> f32 {
     // cascade_splits.z is the shadow far plane — fade out over the last 15%
     let shadow_far = shadow.cascade_splits.z;
     let fade_start = shadow_far * 0.75;
@@ -238,7 +277,20 @@ fn shadow_factor(world_pos: vec3<f32>, view_depth: f32) -> f32 {
         cascade = 2;
     }
 
-    let light_space = shadow.cascade_view_proj[cascade] * vec4<f32>(world_pos, 1.0);
+    // Texel size rides cascade_splits.w (0 = unset -> legacy 1/2048).
+    var texel_size = shadow.cascade_splits.w;
+    if (texel_size <= 0.0) {
+        texel_size = 1.0 / 2048.0;
+    }
+
+    // Normal-offset bias: push the receiver out along the surface normal by
+    // ~2 shadow texels (world units) before projecting.
+    let m = shadow.cascade_view_proj[cascade];
+    let row0_len = length(vec3<f32>(m[0].x, m[1].x, m[2].x));
+    let texel_world = 2.0 * texel_size / max(row0_len, 0.0001);
+    let biased_pos = world_pos + N * texel_world * 2.0;
+
+    let light_space = shadow.cascade_view_proj[cascade] * vec4<f32>(biased_pos, 1.0);
     let proj = light_space.xyz / light_space.w;
 
     let shadow_uv = proj.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5);
@@ -254,22 +306,74 @@ fn shadow_factor(world_pos: vec3<f32>, view_depth: f32) -> f32 {
 
     let depth = proj.z;
 
-    let texel_size = 1.0 / 2048.0;
-    var shadow_sum = 0.0;
-    for (var y = -1; y <= 1; y = y + 1) {
-        for (var x = -1; x <= 1; x = x + 1) {
-            let offset = vec2<f32>(f32(x), f32(y)) * texel_size;
-            shadow_sum += textureSampleCompareLevel(
-                shadow_maps,
-                shadow_sampler,
-                shadow_uv + offset,
-                cascade,
-                depth
-            );
+    var raw_shadow = 1.0;
+    if (shadow.pcss.w > 0.0) {
+        // === PCSS: penumbra grows with occluder distance (ADR 0057) ===
+        // Mirrors shader.wgsl's implementation — see there for the notes.
+        let tan_a = shadow.pcss.w;
+        let depth_range = shadow.pcss[cascade];
+        let uv_per_world = row0_len * 0.5;
+        let max_radius_uv = 8.0 * texel_size;
+        let resolution = 1.0 / texel_size;
+        let max_coord = i32(resolution) - 1;
+
+        let search_uv = clamp(tan_a * depth * depth_range * uv_per_world,
+            texel_size, max_radius_uv);
+        var blocker_sum = 0.0;
+        var blocker_count = 0.0;
+        for (var i = 0; i < 16; i = i + 1) {
+            let r = sqrt((f32(i) + 0.5) / 16.0);
+            let theta = f32(i) * 2.39996;
+            let tap_uv = shadow_uv + vec2<f32>(cos(theta), sin(theta)) * r * search_uv;
+            let coords = clamp(vec2<i32>(tap_uv * resolution),
+                vec2<i32>(0), vec2<i32>(max_coord));
+            let d = textureLoad(shadow_maps, coords, cascade, 0);
+            if (d < depth) {
+                blocker_sum += d;
+                blocker_count += 1.0;
+            }
         }
+
+        if (blocker_count > 0.0) {
+            let avg_blocker = blocker_sum / blocker_count;
+            let penumbra_world = tan_a * max(depth - avg_blocker, 0.0) * depth_range;
+            let filter_uv = clamp(penumbra_world * uv_per_world,
+                texel_size, max_radius_uv);
+
+            var shadow_sum = 0.0;
+            for (var i = 0; i < 16; i = i + 1) {
+                let r = sqrt((f32(i) + 0.5) / 16.0);
+                let theta = f32(i) * 2.39996;
+                let offset = vec2<f32>(cos(theta), sin(theta)) * r * filter_uv;
+                shadow_sum += textureSampleCompareLevel(
+                    shadow_maps,
+                    shadow_sampler,
+                    shadow_uv + offset,
+                    cascade,
+                    depth
+                );
+            }
+            raw_shadow = shadow_sum / 16.0;
+        }
+        // No blockers found -> fully lit (raw_shadow stays 1.0).
+    } else {
+        // Legacy 3x3 PCF — verbatim pre-PCSS path (pcss.w = 0 = lever off).
+        var shadow_sum = 0.0;
+        for (var y = -1; y <= 1; y = y + 1) {
+            for (var x = -1; x <= 1; x = x + 1) {
+                let offset = vec2<f32>(f32(x), f32(y)) * texel_size;
+                shadow_sum += textureSampleCompareLevel(
+                    shadow_maps,
+                    shadow_sampler,
+                    shadow_uv + offset,
+                    cascade,
+                    depth
+                );
+            }
+        }
+        raw_shadow = shadow_sum / 9.0;
     }
 
-    let raw_shadow = shadow_sum / 9.0;
     // Blend shadow toward 1.0 (lit) based on distance and edge fades
     return mix(1.0, raw_shadow, distance_fade * edge_fade);
 }
@@ -332,7 +436,7 @@ fn fs_skinned(in: VertexOutput) -> @location(0) vec4<f32> {
     if (dm == 4u) {
         var col: vec3<f32>;
         if (material.use_vertex_color == 1u) {
-            col = in.color.rgb;
+            col = in.color.rgb * material.vertex_tint.rgb;
         } else {
             col = material.base_color.rgb;
         }
@@ -343,18 +447,36 @@ fn fs_skinned(in: VertexOutput) -> @location(0) vec4<f32> {
         return vec4<f32>(material.metallic, material.roughness, 0.0, 1.0);
     }
 
+    // Scale UVs for texture tiling
+    let scaled_uv = in.uv * material.texture_scale;
+
     var albedo: vec3<f32>;
     var alpha: f32;
     if (material.use_vertex_color == 1u) {
-        albedo = in.color.rgb;
+        albedo = in.color.rgb * material.vertex_tint.rgb;
         alpha = in.color.a;
     } else {
         albedo = material.base_color.rgb;
         alpha = material.base_color.a;
     }
 
+    // Emission (ADR 0076). Per-vertex: alpha 1 is lit surface, 0 is pure
+    // light giving off its rgb; vertex alpha is no longer opacity.
+    // `glow_surface` (ADR 0096) lights the light part as surface too, and
+    // `vertex_tint` (ADR 0102) colours its light as it does the surface.
+    var emission = material.emissive.rgb;
+    if (material.has_emissive_tex == 1u) {
+        emission *= textureSample(emissive_texture, material_sampler, scaled_uv).rgb;
+    }
+    if (material.use_vertex_color == 1u && material.vertex_emission == 1u) {
+        let glow = clamp(1.0 - in.color.a, 0.0, 1.0);
+        emission += in.color.rgb * material.vertex_tint.rgb * glow * material.emissive.w;
+        albedo = albedo * (1.0 - glow * (1.0 - material.glow_surface));
+        alpha = 1.0;
+    }
+
     if (material.has_base_color_tex == 1u) {
-        let tex_color = textureSample(base_color_texture, base_color_sampler, in.uv);
+        let tex_color = textureSample(base_color_texture, material_sampler, scaled_uv);
         albedo = tex_color.rgb * albedo;
         alpha = tex_color.a * alpha;
     }
@@ -362,7 +484,7 @@ fn fs_skinned(in: VertexOutput) -> @location(0) vec4<f32> {
     var metallic = material.metallic;
     var roughness = material.roughness;
     if (material.has_metallic_roughness_tex == 1u) {
-        let mr = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv);
+        let mr = textureSample(metallic_roughness_texture, material_sampler, scaled_uv);
         roughness = mr.g * material.roughness;
         metallic = mr.b * material.metallic;
     }
@@ -370,9 +492,9 @@ fn fs_skinned(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var N = normalize(in.normal);
     if (material.has_normal_map == 1u) {
-        let map_sample = textureSample(normal_map_texture, normal_map_sampler, in.uv);
+        let map_sample = textureSample(normal_map_texture, material_sampler, scaled_uv);
         let map_normal = map_sample.rgb * 2.0 - 1.0;
-        N = perturb_normal(N, in.world_pos, in.uv, map_normal);
+        N = perturb_normal(N, in.world_pos, scaled_uv, map_normal);
     }
 
     let V = normalize(transform.camera_pos - in.world_pos);
@@ -388,7 +510,7 @@ fn fs_skinned(in: VertexOutput) -> @location(0) vec4<f32> {
         var contribution = evaluate_light(N, V, L, radiance, albedo, f0, metallic, roughness, n_dot_v);
 
         if (i == 0u) {
-            let sf = shadow_factor(in.world_pos, view_depth);
+            let sf = shadow_factor(in.world_pos, view_depth, normalize(in.normal));
             contribution = contribution * sf;
         }
 
@@ -421,13 +543,17 @@ fn fs_skinned(in: VertexOutput) -> @location(0) vec4<f32> {
     let hemisphere_mix = dot(N, vec3<f32>(0.0, 1.0, 0.0)) * 0.5 + 0.5;
     let ambient = mix(ground_color, sky_color, hemisphere_mix) * albedo;
 
-    var color = ambient + Lo;
+    // Emission goes on after lighting and before tonemapping, so it reads the
+    // same under any light and bloom picks it up.
+    var color = ambient + Lo + emission;
 
+    let final_alpha = alpha * material.opacity;
+
+    // Output stays LINEAR — the sRGB render target applies gamma encoding.
     if (material.enable_tonemapping == 1u) {
         let mapped = aces_filmic(color);
-        let corrected = linear_to_srgb(mapped);
-        return vec4<f32>(corrected, alpha);
+        return vec4<f32>(mapped, final_alpha);
     }
 
-    return vec4<f32>(color, alpha);
+    return vec4<f32>(color, final_alpha);
 }

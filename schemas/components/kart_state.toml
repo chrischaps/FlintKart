@@ -56,3 +56,22 @@ default = false
 [component.kart_state.fields.wall_impact]
 type = "float"
 default = 0.0
+
+[component.kart_state.fields.respawned]
+type = "bool"
+default = false
+
+[component.kart_state.fields.lateral_speed]
+type = "float"
+default = 0.0
+description = "Sideways slip along the travel direction's right vector, m/s"
+
+[component.kart_state.fields.surface]
+type = "string"
+default = "road"
+description = "\"road\", \"curb\", \"offroad\" or \"air\""
+
+[component.kart_state.fields.wall_contact]
+type = "bool"
+default = false
+description = "True while scraping a wall"

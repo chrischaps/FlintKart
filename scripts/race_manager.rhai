@@ -8,9 +8,9 @@
 let prev_countdown = "";
 
 // Music volume target levels
-let MUSIC_VOL_COUNTDOWN = 0.25;
-let MUSIC_VOL_RACING = 0.4;
-let MUSIC_VOL_FINISHED = 0.15;
+let MUSIC_VOL_COUNTDOWN = 0.3;
+let MUSIC_VOL_RACING = 0.45;
+let MUSIC_VOL_FINISHED = 0.35;
 
 fn on_init() {
     let me = this_entity();
@@ -32,9 +32,9 @@ fn on_update() {
         let display = get_field(me, "race_state", "countdown_display");
         if display != prev_countdown {
             if display == "3" || display == "2" || display == "1" {
-                play_sound("audio/countdown_beep.ogg", 0.8);
+                play_sound("audio/countdown_beep.ogg", 0.7);
             } else if display == "GO!" {
-                play_sound("audio/countdown_go.ogg", 1.0);
+                play_sound("audio/countdown_go.ogg", 0.85);
             }
             prev_countdown = display;
         }
@@ -211,6 +211,52 @@ fn rank_karts(karts) {
     }
 }
 
+fn find_closest_segment(track_id, kx, ky, kz) {
+    // Parse segment names from track_graph component
+    let names_str = get_field(track_id, "track_graph", "segment_names");
+    if names_str == () || names_str == "" { return (); }
+    let names = names_str.split(",");
+
+    let best_dist = 999999.0;
+    let best_seg = -1;
+    let best_t = 0.0;
+
+    let i = 0;
+    while i < names.len() {
+        let seg_eid = get_entity(names[i]);
+        if seg_eid >= 0 {
+            let closest = spline_closest_point(seg_eid, kx, ky, kz);
+            if closest != () && closest["dist_sq"] < best_dist {
+                best_dist = closest["dist_sq"];
+                best_seg = seg_eid;
+                best_t = closest["t"];
+            }
+        }
+        i += 1;
+    }
+
+    if best_seg < 0 { return (); }
+
+    // Compute canonical progress from segment_info
+    let ps = get_field(best_seg, "segment_info", "progress_start");
+    let pe = get_field(best_seg, "segment_info", "progress_end");
+    let canonical_progress = 0.0;
+    if pe >= ps {
+        canonical_progress = ps + (pe - ps) * best_t;
+    } else {
+        let range = (1.0 - ps) + pe;
+        canonical_progress = ps + range * best_t;
+        if canonical_progress >= 1.0 { canonical_progress = canonical_progress - 1.0; }
+    }
+
+    #{
+        segment_entity: best_seg,
+        local_t: best_t,
+        canonical_progress: canonical_progress,
+        dist_sq: best_dist
+    }
+}
+
 fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
     // Skip karts that already finished all laps
     let finish_time = get_field(kart_id, "race_progress", "finish_time");
@@ -231,12 +277,36 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
     let ky = kart_pos["y"];
     let kz = kart_pos["z"];
 
-    let closest = spline_closest_point(track_id, kx, ky, kz);
-    if closest == () { return; }
+    let best_t;
 
-    let best_t = closest["t"];
+    if has_component(track_id, "track_graph") {
+        // Branching track: find closest segment, compute canonical progress
+        let seg_result = find_closest_segment(track_id, kx, ky, kz);
+        if seg_result == () { return; }
+        best_t = seg_result["canonical_progress"];
+        set_field(kart_id, "race_progress", "current_segment",
+                  entity_name(seg_result["segment_entity"]));
+    } else {
+        // Traditional single spline
+        let closest = spline_closest_point(track_id, kx, ky, kz);
+        if closest == () { return; }
+        best_t = closest["t"];
+    }
 
     let prev_t = get_field(kart_id, "race_progress", "spline_t");
+
+    // Enforce monotonic progress: the closest-point search can snap backward
+    // when airborne, over gaps, or where two track sections pass close together.
+    // A respawn is allowed to jump anywhere (kart_controller sets kart_state.respawned).
+    let respawned = get_field(kart_id, "kart_state", "respawned");
+    if respawned == true {
+        set_field(kart_id, "kart_state", "respawned", false);
+    } else {
+        let delta_t = best_t - prev_t;
+        if delta_t > 0.5 { delta_t = delta_t - 1.0; }     // wrap-around forward
+        if delta_t < -0.5 { delta_t = delta_t + 1.0; }    // wrap-around backward
+        if delta_t < -0.05 { best_t = prev_t; }            // reject backward jumps >5%
+    }
     set_field(kart_id, "race_progress", "prev_spline_t", prev_t);
     set_field(kart_id, "race_progress", "spline_t", best_t);
 
@@ -290,7 +360,7 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
             if !has_component(kart_id, "ai_input") {
                 set_field(manager, "race_state", "state", "finished");
                 set_field(manager, "race_state", "finishing_timer", 30.0);
-                play_sound("audio/race_finish.ogg", 1.0);
+                play_sound("audio/race_finish.ogg", 0.85);
 
                 // Disable only the player's input — AI keeps racing
                 set_field(kart_id, "kart_state", "input_enabled", false);
@@ -418,7 +488,47 @@ fn restart_race(me) {
             set_field(kid, "drift_state", "hop_timer", 0.0);
         }
 
+        // Reset item holder
+        if has_component(kid, "item_holder") {
+            set_field(kid, "item_holder", "held_item", "none");
+            set_field(kid, "item_holder", "shield_active", false);
+            set_field(kid, "item_holder", "shield_timer", 0.0);
+            set_field(kid, "item_holder", "item_boost_active", false);
+            set_field(kid, "item_holder", "item_boost_timer", 0.0);
+            set_field(kid, "item_holder", "spinout_active", false);
+            set_field(kid, "item_holder", "spinout_timer", 0.0);
+            set_field(kid, "item_holder", "spinout_yaw_speed", 0.0);
+            set_field(kid, "item_holder", "collect_cooldown", 0.0);
+        }
+
         i += 1;
+    }
+
+    // Reset all projectiles
+    let projs = find_entities_with("item_projectile");
+    let pi = 0;
+    while pi < projs.len() {
+        set_field(projs[pi], "item_projectile", "active", false);
+        set_position(projs[pi], 0.0, -100.0, 0.0);
+        pi += 1;
+    }
+
+    // Reset all traps
+    let traps = find_entities_with("item_trap");
+    let ti = 0;
+    while ti < traps.len() {
+        set_field(traps[ti], "item_trap", "active", false);
+        set_position(traps[ti], 0.0, -100.0, 0.0);
+        ti += 1;
+    }
+
+    // Reactivate all item boxes
+    let boxes = find_entities_with("item_box");
+    let bxi = 0;
+    while bxi < boxes.len() {
+        set_field(boxes[bxi], "item_box", "active", true);
+        set_field(boxes[bxi], "item_box", "respawn_timer", 0.0);
+        bxi += 1;
     }
 
     set_field(me, "race_state", "state", "countdown");

@@ -1,0 +1,26 @@
+[spline]
+name = "seg_branch_shortcut"
+closed = false
+context_start = [20.0, 0.0, -80.0]
+context_end = [100.0, 0.0, 20.0]
+cap_start = false
+cap_end = false
+
+[sampling]
+spacing = 1.5
+
+[[control_points]]
+position = [60.0, 0.0, -100.0]
+twist = 0.0
+
+[[control_points]]
+position = [80.0, 3.0, -80.0]
+twist = 0.0
+
+[[control_points]]
+position = [110.0, 4.0, -50.0]
+twist = 0.0
+
+[[control_points]]
+position = [130.0, 0.0, 0.0]
+twist = 0.0

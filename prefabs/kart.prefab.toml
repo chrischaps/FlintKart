@@ -77,6 +77,17 @@ color_r = 0.9
 color_g = 0.9
 color_b = 0.9
 
+[entities.kart.item_holder]
+held_item = "none"
+shield_active = false
+shield_timer = 0.0
+item_boost_active = false
+item_boost_timer = 0.0
+spinout_active = false
+spinout_timer = 0.0
+spinout_yaw_speed = 0.0
+collect_cooldown = 0.0
+
 [entities.kart.drift_state]
 state = "none"
 drift_angle = 0.0

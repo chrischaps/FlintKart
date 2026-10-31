@@ -1,0 +1,26 @@
+[component.item_projectile]
+description = "Forward-fired projectile from item system"
+
+[component.item_projectile.fields.active]
+type = "bool"
+default = false
+
+[component.item_projectile.fields.owner_kart]
+type = "string"
+default = ""
+
+[component.item_projectile.fields.dir_x]
+type = "float"
+default = 0.0
+
+[component.item_projectile.fields.dir_z]
+type = "float"
+default = 0.0
+
+[component.item_projectile.fields.speed]
+type = "float"
+default = 40.0
+
+[component.item_projectile.fields.lifetime]
+type = "float"
+default = 5.0
