@@ -3,6 +3,12 @@
 // States: countdown → racing → finished
 // Tracks all karts (player + AI) along the track spline for lap detection.
 // Uses find_entities_with() to discover karts dynamically.
+//
+// Fires the glow-up contract's race events: race_start, lap_complete,
+// final_lap, race_finish. When the player crosses the line the finish plays
+// in slow motion (set_time_scale) while chase_camera swings round, and the
+// player's best lap and race time are kept per track (best_lap.<track>,
+// best_race.<track>) for the results screen.
 
 // Persistent state for audio event detection
 let prev_countdown = "";
@@ -11,6 +17,14 @@ let prev_countdown = "";
 let MUSIC_VOL_COUNTDOWN = 0.3;
 let MUSIC_VOL_RACING = 0.45;
 let MUSIC_VOL_FINISHED = 0.35;
+
+// Finish slow motion, in real seconds after the line: ease into SLOWMO_SCALE,
+// hold, then ease back to full speed by SLOWMO_END
+let SLOWMO_SCALE = 0.3;
+let SLOWMO_IN = 0.15;
+let SLOWMO_HOLD = 1.2;
+let SLOWMO_END = 2.0;
+let time_scale_now = 1.0;
 
 fn on_init() {
     let me = this_entity();
@@ -23,6 +37,29 @@ fn on_update() {
     let me = this_entity();
     let dt = delta_time();
     let state = get_field(me, "race_state", "state");
+
+    // ── Finish slow motion ── delta_time() is already scaled by the value
+    // set last frame, so dividing it back out gives wall-clock seconds
+    let scale = 1.0;
+    if state == "finished" {
+        let fe = get_field(me, "race_state", "finish_elapsed");
+        if fe != () && fe >= 0.0 {
+            fe = fe + dt / time_scale_now;
+            set_field(me, "race_state", "finish_elapsed", fe);
+            if fe < SLOWMO_IN {
+                scale = lerp(1.0, SLOWMO_SCALE, fe / SLOWMO_IN);
+            } else if fe < SLOWMO_HOLD {
+                scale = SLOWMO_SCALE;
+            } else if fe < SLOWMO_END {
+                let u = (fe - SLOWMO_HOLD) / (SLOWMO_END - SLOWMO_HOLD);
+                scale = lerp(SLOWMO_SCALE, 1.0, u * u * (3.0 - 2.0 * u));
+            }
+        }
+    }
+    if scale != time_scale_now {
+        set_time_scale(scale);
+        time_scale_now = scale;
+    }
 
     if state == "countdown" {
         update_countdown(me, dt);
@@ -96,6 +133,7 @@ fn update_countdown(me, dt) {
         // GO!
         set_field(me, "race_state", "countdown_display", "GO!");
         set_field(me, "race_state", "state", "racing");
+        fire_event_data("race_start", #{});
 
         // Enable input + reset progress for ALL karts
         let j = 0;
@@ -324,12 +362,19 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
         set_field(kart_id, "race_progress", "current_lap", current_lap);
 
         let best_lap = get_field(kart_id, "race_progress", "best_lap");
-        if lap_time < best_lap {
+        let lap_best = lap_time < best_lap;
+        if lap_best {
             set_field(kart_id, "race_progress", "best_lap", lap_time);
         }
 
         let name = entity_name(kart_id);
         log(name + " lap " + current_lap + ": " + format_time(lap_time));
+
+        let total_laps = get_field(kart_id, "race_progress", "total_laps");
+        fire_event_data("lap_complete", #{ kart: kart_id, lap: current_lap, lap_time: lap_time, best: lap_best });
+        if current_lap == total_laps - 1 && !has_component(kart_id, "ai_input") {
+            fire_event_data("final_lap", #{ kart: kart_id });
+        }
 
         // Lap complete sound + celebration burst (player kart only)
         if !has_component(kart_id, "ai_input") {
@@ -351,15 +396,28 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
         set_field(kart_id, "race_progress", "passed_start", false);
 
         // Record finish time when any kart completes all laps
-        let total_laps = get_field(kart_id, "race_progress", "total_laps");
         if current_lap >= total_laps {
             set_field(kart_id, "race_progress", "finish_time", race_time);
             log(name + " finished: " + format_time(race_time));
 
-            // Player kart triggers the results screen
+            // Finished karts rank by finish time, so this kart's place is
+            // the number of karts over the line, itself included
+            let karts = find_all_karts();
+            let position = 0;
+            let fk = 0;
+            while fk < karts.len() {
+                let ft = get_field(karts[fk], "race_progress", "finish_time");
+                if ft != () && ft > 0.0 { position += 1; }
+                fk += 1;
+            }
+            fire_event_data("race_finish", #{ kart: kart_id, position: position, time: race_time });
+
+            // Player kart triggers the finish camera, then the results screen
             if !has_component(kart_id, "ai_input") {
                 set_field(manager, "race_state", "state", "finished");
                 set_field(manager, "race_state", "finishing_timer", 30.0);
+                set_field(manager, "race_state", "finish_elapsed", 0.0);
+                save_records(manager, get_field(kart_id, "race_progress", "best_lap"), race_time);
                 play_sound("audio/race_finish.ogg", 0.85);
 
                 // Disable only the player's input — AI keeps racing
@@ -367,6 +425,48 @@ fn update_kart_progress(manager, kart_id, track_id, dt, total_karts) {
             }
         }
     }
+}
+
+// The scene file's stem ("scenes/oval_plus.scene.toml" -> "oval_plus"),
+// which names this track's records
+fn track_key() {
+    let path = current_scene();
+    path.replace("\\", "/");
+    let parts = path.split("/");
+    let file = parts[parts.len() - 1];
+    file.replace(".scene.toml", "");
+    file
+}
+
+// Compare the player's race with this track's records, keep any new ones,
+// and leave both (and whether they're new) on race_state for the results screen
+fn save_records(manager, best_lap, race_time) {
+    let track = track_key();
+    let lap_key = "best_lap." + track;
+    let race_key = "best_race." + track;
+
+    let old_lap = persist_get(lap_key);
+    let old_race = persist_get(race_key);
+    if type_of(old_lap) == "i64" { old_lap = old_lap.to_float(); }
+    if type_of(old_race) == "i64" { old_race = old_race.to_float(); }
+    if type_of(old_lap) != "f64" { old_lap = 0.0; }
+    if type_of(old_race) != "f64" { old_race = 0.0; }
+
+    let has_lap = best_lap > 0.0 && best_lap < 900.0;
+    let new_lap = has_lap && (old_lap <= 0.0 || best_lap < old_lap);
+    let new_race = race_time > 0.0 && (old_race <= 0.0 || race_time < old_race);
+
+    if new_lap { persist_set(lap_key, best_lap); }
+    if new_race { persist_set(race_key, race_time); }
+    if new_lap || new_race {
+        persist_save();
+        log("New record on " + track + ": lap " + new_lap + ", race " + new_race);
+    }
+
+    set_field(manager, "race_state", "record_lap", if new_lap { best_lap } else { old_lap });
+    set_field(manager, "race_state", "record_race", if new_race { race_time } else { old_race });
+    set_field(manager, "race_state", "new_lap_record", new_lap);
+    set_field(manager, "race_state", "new_race_record", new_race);
 }
 
 fn update_finished(me, dt) {
@@ -535,6 +635,9 @@ fn restart_race(me) {
     set_field(me, "race_state", "countdown_timer", 4.0);
     set_field(me, "race_state", "countdown_display", "");
     set_field(me, "race_state", "finishing_timer", 0.0);
+    set_field(me, "race_state", "finish_elapsed", -1.0);
+    set_field(me, "race_state", "new_lap_record", false);
+    set_field(me, "race_state", "new_race_record", false);
     set_field(me, "race_state", "music_volume", 0.0);
 
     log("Race restarted!");

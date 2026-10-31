@@ -806,6 +806,12 @@ impl PlayerApp {
             self.run_scripts(&config, &game_events);
         }
 
+        // set_time_scale: this frame's physics already has its accumulator,
+        // so the new scale starts with the next tick
+        if let Some(scale) = self.script.take_time_scale_request() {
+            self.clock.time_scale = scale;
+        }
+
         // Fixed-timestep physics + FPS camera/listener follow, against the
         // poses and joint targets the scripts just wrote
         self.tick_fixed_physics(&config, has_fps_player);
