@@ -30,10 +30,12 @@ the language players already know from the genre, in our palette.
 
 Each sub-issue (#3–#12) is its own Signal session and its own PR, in
 dependency order: #4 after #3, #10 after #6, #11 after #5. A close-out pass
-(`close-epic`) closes #2 once all ten have landed. Work targets
-`engine-catchup`, which has The Crossroads, touch controls and the current
-engine. `master` is February's game. A session that finds itself on `master`
-should branch from `origin/engine-catchup` before it starts.
+(`close-epic`) closes #2 once all ten have landed. Work targets `master`,
+which has The Crossroads, touch controls and the current engine. Every PR
+merges into `master`. GitHub only closes an issue from `Closes #N` when the PR
+lands on the default branch, and Signal starts a dependent ticket only once
+the ticket it waits on has closed. `engine-catchup` is retired. A session that
+finds itself on it should rebase onto `origin/master`.
 
 When a ticket below says "owns", that stream may edit those files freely.
 "May touch lightly" means a small, contained edit in another stream's file.
