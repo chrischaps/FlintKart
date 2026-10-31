@@ -164,6 +164,7 @@ fn on_update() {
                             set_field(box_id, "item_box", "active", false);
                             set_field(box_id, "item_box", "respawn_timer", get_field(box_id, "item_box", "respawn_duration"));
                             set_position(box_id, bpos["x"], -100.0, bpos["z"]);
+                            fire_event_data("item_pickup", #{ kart: kart_id, x: bpos["x"], y: bpos["y"], z: bpos["z"] });
 
                             // Play collect sound (only for player)
                             if !has_component(kart_id, "ai_input") {
@@ -343,6 +344,7 @@ fn on_update() {
 
                         if h_dist_sq < proj_radius * proj_radius {
                             // HIT!
+                            fire_event_data("item_hit", #{ kart: kart_id, item: "projectile", x: new_x, y: ppos["y"], z: new_z });
                             apply_hit(kart_id);
                             // Deactivate projectile
                             set_field(proj_id, "item_projectile", "active", false);
@@ -413,6 +415,7 @@ fn on_update() {
 
                         if t_dist_sq < trap_radius * trap_radius {
                             // TRIGGERED!
+                            fire_event_data("item_hit", #{ kart: kart_id, item: "trap", x: tpos["x"], y: tpos["y"], z: tpos["z"] });
                             apply_hit(kart_id);
                             set_field(trap_id, "item_trap", "active", false);
                             set_position(trap_id, 0.0, -100.0, 0.0);
@@ -430,6 +433,7 @@ fn on_update() {
 
 // ── Helper: activate an item for a kart ──
 fn activate_item(kart_id, item_type) {
+    fire_event_data("item_used", #{ kart: kart_id, item: item_type });
     if item_type == "boost" {
         // Instant speed boost
         set_field(kart_id, "item_holder", "item_boost_active", true);
@@ -520,6 +524,8 @@ fn apply_hit(kart_id) {
     if shield_on {
         set_field(kart_id, "item_holder", "shield_active", false);
         set_field(kart_id, "item_holder", "shield_timer", 0.0);
+        let kp = get_position(kart_id);
+        fire_event_data("shield_break", #{ kart: kart_id, x: kp["x"], y: kp["y"], z: kp["z"] });
         if !has_component(kart_id, "ai_input") {
             play_sound("audio/item_shield_break.ogg", 0.55);
         }
