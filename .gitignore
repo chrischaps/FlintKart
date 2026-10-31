@@ -26,3 +26,6 @@ renders/
 
 # Android build output
 build/
+
+# Saved game state (persist_* writes it while playing)
+save/

@@ -1,29 +1,40 @@
-// menu.rhai — Main menu with racing energy
+// menu.rhai — title, track select and paint select
 //
-// Four features layered for excitement:
-//   1. Drifting kart doing donuts with 3D particle trails + 2D sparks
-//   2. Bolder speed lines + floating background particles
-//   3. Animated card slide-in on track select
-//   4. Cinematic race launch sequence (rev -> burst -> fade)
+//   title   the logo bobs over a drifting kart, speed lines and confetti
+//   select  one sticker card per track in ui/tracks.toml, each with a tilted
+//           preview drawn from the track's own spline (height and all) and
+//           a little kart dot lapping it
+//   paint   pick the kart's paint from ui/paints.toml; the kart on screen
+//           wears it as you browse; the choice is saved as `player_paint`
+//           and hud.rhai paints the race kart with it
 //
-// UI layout: ui/main_menu.ui.toml + ui/main_menu.style.toml
-// Decorative effects (lines, 2D sparks, particles, flash, fade) are procedural.
+// Then the launch: rev -> burst -> fade into the race scene.
+// Drawn with scripts/lib/kit.rhai in the ui/theme.toml voice; the title's
+// logo and version line are ui/main_menu.ui.toml elements.
+
+import "kit" as kit;
 
 // ── Core state ──
-let screen = "title";
+let screen = "title";           // "title" | "select" | "paint"
 let orbit_angle = 0.0;
 let select_index = 0;
-let select_pulse = 0.0;
+let paint_index = 0;
 let prev_steer_dir = 0;
 let fade_alpha = 1.0;
 let scene_entered = true;
-let track_scenes = ["scenes/oval_plus.scene.toml", "scenes/mountain_switchback.scene.toml", "scenes/the_crossroads.scene.toml"];
 let menu_ui_handle = -1;
 let menu_ui_loaded = false;
 let prev_screen = "";
 let touch_active = false;       // latches on after first touch/tap detected
+let th = ();                    // kit::theme()
+let tracks = [];                // ui/tracks.toml
+let previews = [];              // per track: #{ main: [[x, y, h]...], extra: [[[x, y, h]...]...] }
+let paints = [];                // ui/paints.toml
+let screen_t = 0.0;             // since the current screen opened
+let sel_t = 9.0;                // since the highlighted thing changed
+let painted = -2;               // paint index last applied to the display kart
 
-// ── Feature 1: Drifting kart ──
+// ── Drifting kart ──
 let kart_id = -1;
 let wheel_fl_id = -1;
 let wheel_fr_id = -1;
@@ -46,23 +57,18 @@ let mode_blend = 0.0;          // 0 = donut, 1 = straight
 let skid_snd_id = -1;
 let entities_found = false;
 
-// ── Feature 1: 3D particle emitters ──
+// ── 3D particle emitters ──
 let dust_l_id = -1;
 let dust_r_id = -1;
 let sparks_l_id = -1;
 let sparks_r_id = -1;
 let emitters_started = false;
 
-// ── Feature 2: 2D sparks + floating particles ──
-let sparks = [];
-let spark_timer = 0.0;
+// ── Background: confetti + speed lines ──
 let particles = [];
 let line_rot_angle = 0.0;
 
-// ── Feature 3: Card entrance animation ──
-let card_anim_t = 1.0;  // 1.0 = complete, skip animation on first load
-
-// ── Feature 4: Launch sequence ──
+// ── Launch sequence ──
 let launch_state = "none";
 let launch_timer = 0.0;
 let selected_scene_path = "";
@@ -78,7 +84,6 @@ fn on_scene_enter() {
     let menu_screen = persist_get("menu_screen");
     if menu_screen == "select" {
         screen = "select";
-        card_anim_t = 1.0;
     }
     persist_remove("menu_screen");
 
@@ -87,8 +92,6 @@ fn on_scene_enter() {
     launch_state = "none";
     launch_timer = 0.0;
     line_burst = 1.0;
-    sparks = [];
-    spark_timer = 0.0;
     line_rot_angle = 0.0;
     entities_found = false;
     emitters_started = false;
@@ -98,73 +101,13 @@ fn on_scene_enter() {
     mode_timer = 0.0;
     mode_duration = 5.0;
     mode_blend = 0.0;
+    screen_t = 0.0;
+    painted = -2;
 
-    // Load UI
     menu_ui_handle = load_ui("ui/main_menu.ui.toml");
     menu_ui_loaded = menu_ui_handle >= 0;
     prev_screen = "";
-
-    // Reset confetti (lazy init in on_draw_ui will repopulate)
-    particles = [];
-    let pi = 0;
-    while pi < 55 {
-        let seed = pi * 1.0 + 0.5;
-        let rx = sin(seed * 12.9898) * 43758.5453;
-        rx = rx - floor(rx);
-        let ry = sin(seed * 78.233) * 23421.6312;
-        ry = ry - floor(ry);
-
-        // Festive palette: gold, red, blue, green, white
-        let cv = sin(seed * 37.719) * 54321.012;
-        cv = cv - floor(cv);
-        let pr = 1.0; let pg = 0.85; let pb = 0.2;  // gold
-        if cv > 0.20 && cv <= 0.40 {
-            pr = 1.0; pg = 0.25; pb = 0.25;  // red
-        } else if cv > 0.40 && cv <= 0.60 {
-            pr = 0.3; pg = 0.5; pb = 1.0;    // blue
-        } else if cv > 0.60 && cv <= 0.80 {
-            pr = 0.3; pg = 0.9; pb = 0.4;    // green
-        } else if cv > 0.80 {
-            pr = 1.0; pg = 1.0; pb = 1.0;    // white
-        }
-
-        // Tumble phase offset (unique per piece for desynchronized flipping)
-        let phase = sin(seed * 45.164) * 12345.6789;
-        phase = (phase - floor(phase)) * 6.2832;
-
-        // Tumble speed variation
-        let tspd = sin(seed * 93.989) * 98765.4321;
-        tspd = tspd - floor(tspd);
-        tspd = 2.5 + tspd * 3.0;
-
-        // Lateral sway amplitude
-        let sway = sin(seed * 127.1) * 4096.0;
-        sway = sway - floor(sway);
-        sway = 20.0 + sway * 40.0;
-
-        // Fall speed
-        let fall = sin(seed * 269.5) * 8192.0;
-        fall = fall - floor(fall);
-        fall = 30.0 + fall * 50.0;
-
-        // Piece dimensions
-        let pw = sin(seed * 51.73) * 7777.7;
-        pw = pw - floor(pw);
-
-        particles.push(#{
-            x: rx * 1920.0,
-            y: ry * 1080.0 - 200.0,
-            fall_speed: fall,
-            sway_amp: sway,
-            tumble_phase: phase,
-            tumble_speed: tspd,
-            w: 4.0 + pw * 5.0,
-            h: 5.0 + pw * 4.0,
-            alpha: 0.25 + (1.0 - pw) * 0.2,
-            r: pr, g: pg, b: pb
-        });
-        pi += 1;
-    }
+    particles = [];    // lazy init in on_draw_ui repopulates
 }
 
 fn on_init() {
@@ -428,7 +371,6 @@ fn on_update() {
         }
     }
 
-    select_pulse = select_pulse + dt;
 }
 
 fn on_draw_ui() {
@@ -436,75 +378,47 @@ fn on_draw_ui() {
     let sh = screen_height();
     let dt = delta_time();
     let time = total_time();
+    let k = kit::scale();
 
-    // ── Lazy confetti init (on_scene_enter doesn't fire on first load) ──
-    if particles.len() == 0 {
-        let pi = 0;
-        while pi < 55 {
-            let seed = pi * 1.0 + 0.5;
-            let rx = sin(seed * 12.9898) * 43758.5453;
-            rx = rx - floor(rx);
-            let ry = sin(seed * 78.233) * 23421.6312;
-            ry = ry - floor(ry);
-
-            let cv = sin(seed * 37.719) * 54321.012;
-            cv = cv - floor(cv);
-            let pr = 1.0; let pg = 0.85; let pb = 0.2;
-            if cv > 0.20 && cv <= 0.40 {
-                pr = 1.0; pg = 0.25; pb = 0.25;
-            } else if cv > 0.40 && cv <= 0.60 {
-                pr = 0.3; pg = 0.5; pb = 1.0;
-            } else if cv > 0.60 && cv <= 0.80 {
-                pr = 0.3; pg = 0.9; pb = 0.4;
-            } else if cv > 0.80 {
-                pr = 1.0; pg = 1.0; pb = 1.0;
-            }
-
-            let phase = sin(seed * 45.164) * 12345.6789;
-            phase = (phase - floor(phase)) * 6.2832;
-            let tspd = sin(seed * 93.989) * 98765.4321;
-            tspd = tspd - floor(tspd);
-            tspd = 2.5 + tspd * 3.0;
-            let sway = sin(seed * 127.1) * 4096.0;
-            sway = sway - floor(sway);
-            sway = 20.0 + sway * 40.0;
-            let fall = sin(seed * 269.5) * 8192.0;
-            fall = fall - floor(fall);
-            fall = 30.0 + fall * 50.0;
-            let pw = sin(seed * 51.73) * 7777.7;
-            pw = pw - floor(pw);
-
-            particles.push(#{
-                x: rx * sw,
-                y: ry * sh - 200.0,
-                fall_speed: fall,
-                sway_amp: sway,
-                tumble_phase: phase,
-                tumble_speed: tspd,
-                w: 4.0 + pw * 5.0,
-                h: 5.0 + pw * 4.0,
-                alpha: 0.25 + (1.0 - pw) * 0.2,
-                r: pr, g: pg, b: pb
-            });
-            pi += 1;
+    // ── Theme, tracks, previews and paints, once ──
+    if th == () {
+        if !menu_ui_loaded {
+            menu_ui_handle = load_ui("ui/main_menu.ui.toml");
+            menu_ui_loaded = menu_ui_handle >= 0;
         }
+        th = kit::theme();
+        if !th.ok { log_warn("menu: ui/theme.toml tokens missing; is ui/main_menu.ui.toml loaded?"); }
+        let td = load_data("ui/tracks.toml");
+        if td != () { tracks = td.tracks; }
+        previews = [];
+        for tr in tracks { previews.push(build_preview(tr)); }
+        let pd = load_data("ui/paints.toml");
+        if pd != () { paints = pd.paints; }
+        let saved = persist_get("player_paint");
+        if type_of(saved) == "i64" && saved >= 0 && saved < paints.len() { paint_index = saved; }
+        let saved_track = persist_get("selected_track");
+        let ti = 0;
+        while ti < tracks.len() {
+            if tracks[ti].scene == saved_track { select_index = ti; }
+            ti += 1;
+        }
+    }
+    if particles.len() == 0 {
+        particles = make_particles(th, sw, sh);
     }
 
     // ── Transition phases ──
     let phase = transition_phase();
-
     if phase == "exiting" {
         fade_alpha = transition_progress();
-        draw_rect(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, fade_alpha);
+        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, fade_alpha, 0.0, 30);
         if fade_alpha >= 1.0 { complete_transition(); }
         return;
     }
-
     if phase == "entering" {
         fade_alpha = 1.0 - transition_progress();
         if transition_progress() >= 1.0 { complete_transition(); }
     }
-
     if scene_entered && phase == "idle" {
         fade_alpha = fade_alpha - dt * 2.5;
         if fade_alpha <= 0.0 {
@@ -514,482 +428,516 @@ fn on_draw_ui() {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Feature 2a: Enhanced speed lines (procedural, layer 0)
+    //  Background: speed lines (layer 0) and confetti (layer 2)
     // ════════════════════════════════════════════════════════
-    let bg_cx = sw / 2.0;
-    let bg_cy = sh * 0.45;
-    let num_lines = 24;
-    let angle_step = 6.2832 / num_lines;
-
-    // Accumulated rotation for smooth speed transitions
     let rot_speed = 0.2;
     if launch_state == "rev" {
-        let lt = launch_timer / 0.8;
-        if lt > 1.0 { lt = 1.0; }
-        rot_speed = 0.2 * (1.0 + lt);
+        rot_speed = 0.2 * (1.0 + kit::clamp01(launch_timer / 0.8));
     } else if launch_state == "burst" || launch_state == "fade" {
         rot_speed = 0.4;
     }
     line_rot_angle = line_rot_angle + dt * rot_speed;
-
+    let bg_cx = sw / 2.0;
+    let bg_cy = sh * 0.45;
+    let num_lines = 24;
+    let half = if sw > sh { sw / 2.0 } else { sh / 2.0 };
     let li = 0;
     while li < num_lines {
-        let angle = li * angle_step + line_rot_angle;
-        let dx = cos(angle);
-        let dy = sin(angle);
-        let half = if sw > sh { sw / 2.0 } else { sh / 2.0 };
-        let inner = half * 0.3;
-        let outer = half * 0.95 * line_burst;
-        let x1 = bg_cx + dx * inner;
-        let y1 = bg_cy + dy * inner;
-        let x2 = bg_cx + dx * outer;
-        let y2 = bg_cy + dy * outer;
-        let alpha = 0.07 + sin(time * 0.5 + li * 0.7) * 0.03;
-        let thickness = if li % 2 == 0 { 1.5 } else { 1.0 };
-        if li % 2 == 0 {
-            draw_line(x1, y1, x2, y2, 1.0, 0.85, 0.3, alpha, thickness);
-        } else {
-            draw_line(x1, y1, x2, y2, 0.8, 0.85, 1.0, alpha, thickness);
-        }
+        let angle = li * (6.2832 / num_lines) + line_rot_angle;
+        let c = if li % 2 == 0 { th.c.sun } else { th.c.sky };
+        let alpha = 0.05 + sin(time * 0.5 + li * 0.7) * 0.02;
+        draw_line(bg_cx + cos(angle) * half * 0.3, bg_cy + sin(angle) * half * 0.3,
+                  bg_cx + cos(angle) * half * 0.95 * line_burst, bg_cy + sin(angle) * half * 0.95 * line_burst,
+                  c[0], c[1], c[2], alpha, if li % 2 == 0 { 2.0 * k } else { 1.2 * k });
         li += 1;
     }
 
-    // ════════════════════════════════════════════════════════
-    //  Feature 2b: Falling confetti
-    // ════════════════════════════════════════════════════════
     let pi = 0;
     while pi < particles.len() {
         let p = particles[pi];
-
-        // Fall + gentle lateral sway
-        let py = p.y + p.fall_speed * dt;
-        let sway_x = sin(time * 1.2 + p.tumble_phase) * p.sway_amp * dt;
-        let px = p.x + sway_x;
-
-        // Wrap: respawn above screen when falling below
-        if py > sh + 30.0 {
-            let edge_seed = time * 7.13 + pi * 3.71;
-            let ev = sin(edge_seed * 12.9898) * 43758.5453;
-            ev = ev - floor(ev);
-            px = ev * sw;
-            py = -20.0;
+        p.y += p.fall * dt * k;
+        p.x += sin(time * 1.2 + p.ph) * p.sway * dt * k;
+        if p.y > sh + 30.0 {
+            p.x = kit::hash01(time * 7.13 + pi * 3.71) * sw;
+            p.y = -20.0;
         }
-
-        p.x = px;
-        p.y = py;
         particles[pi] = p;
-
-        // Tumble: modulate width with sin to simulate flipping
-        let tumble = sin(time * p.tumble_speed + p.tumble_phase);
-        let vis_w = p.w * abs(tumble);
-        if vis_w < 1.0 { vis_w = 1.0; }  // keep visible at flip apex
-        let cx = px - vis_w / 2.0;
-
-        draw_rect_ex(cx, py, vis_w, p.h, p.r, p.g, p.b, p.alpha, 1.0, 2);
+        let vis_w = max(p.w * k * abs(sin(time * p.spin + p.ph)), 1.0);
+        kit::rect(p.x - vis_w / 2.0, p.y, vis_w, p.h * k, p.c, 1.0, 2);
         pi += 1;
     }
 
-    // ════════════════════════════════════════════════════════
-    //  Feature 1b: 2D drift sparks (screen-space overlay)
-    // ════════════════════════════════════════════════════════
-
-    // Project rear-wheel 3D position to screen space using camera math.
-    // Camera targets kart center, so kart is at screen center.
-    // We compute the offset of the rear wheels from kart center in camera space.
-    let kart_x = 3.0 * cos(donut_angle);
-    let kart_z = 3.0 * sin(donut_angle);
-    let body_yaw_rad = donut_angle + 1.5708 + 0.5236;
-
-    let cam_x = sin(orbit_angle) * 8.0;
-    let cam_z = cos(orbit_angle) * 8.0;
-
-    // Camera forward vector (from camera to kart)
-    let cf_x = kart_x - cam_x;
-    let cf_y = 0.5 - 3.5;  // = -3.0
-    let cf_z = kart_z - cam_z;
-    let cf_len = sqrt(cf_x * cf_x + cf_y * cf_y + cf_z * cf_z);
-    cf_x = cf_x / cf_len;
-    cf_y = cf_y / cf_len;
-    cf_z = cf_z / cf_len;
-
-    // Camera right = normalize(cross(forward, up)) where up = (0,1,0)
-    // cross(f, up) = (-fz, 0, fx)
-    let cr_x = -cf_z;
-    let cr_z = cf_x;
-    let cr_len = sqrt(cr_x * cr_x + cr_z * cr_z);
-    cr_x = cr_x / cr_len;
-    cr_z = cr_z / cr_len;
-
-    // Camera up = cross(right, forward)
-    // right = (cr_x, 0, cr_z), forward = (cf_x, cf_y, cf_z)
-    let cu_x = 0.0 * cf_z - cr_z * cf_y;   // -cr_z * cf_y
-    let cu_y = cr_z * cf_x - cr_x * cf_z;
-    let cu_z = cr_x * cf_y - 0.0 * cf_x;    // cr_x * cf_y
-
-    // Rear center offset from kart: local (0, 0.05, 0.85)
-    // local +Z in world = (sin(yaw), 0, cos(yaw))
-    let rear_dx = sin(body_yaw_rad) * 0.85;
-    let rear_dy = 0.05;
-    let rear_dz = cos(body_yaw_rad) * 0.85;
-
-    // Project offset onto camera right and up
-    let proj_right = rear_dx * cr_x + rear_dz * cr_z;
-    let proj_up = rear_dx * cu_x + rear_dy * cu_y + rear_dz * cu_z;
-
-    // Pixels per meter at ~8m distance with 50deg horizontal FOV
-    let fov_half_tan = sin(25.0 * 0.01745) / cos(25.0 * 0.01745);
-    let px_per_m = (sw / 2.0) / (cf_len * fov_half_tan);
-
-    let spark_base_x = sw / 2.0 + proj_right * px_per_m;
-    let spark_base_y = sh / 2.0 - proj_up * px_per_m;
-
-    // Spawn rate
-    let spawn_rate = 8.0;
-    if launch_state == "rev" { spawn_rate = 24.0; }
-    if launch_state == "burst" { spawn_rate = 35.0; }
-
-    spark_timer = spark_timer + dt;
-    let spawn_interval = 1.0 / spawn_rate;
-    let spawned = 0;
-    while spark_timer >= spawn_interval && spawned < 5 {
-        spark_timer = spark_timer - spawn_interval;
-        spawned += 1;
-
-        let seed = time * 100.0 + spawned * 17.3 + sparks.len() * 3.7;
-        let rx = sin(seed * 12.9898) * 43758.5453;
-        rx = (rx - floor(rx) - 0.5) * 24.0;
-        let ry = sin(seed * 78.233) * 23421.6312;
-        ry = (ry - floor(ry) - 0.5) * 18.0;
-
-        let cv = sin(seed * 45.164) * 12345.6789;
-        cv = cv - floor(cv);
-
-        // Velocity: spray outward from rear direction in screen space
-        let spray_dx = proj_right;
-        let spray_len = sqrt(spray_dx * spray_dx + 0.01);
-        let norm_dx = spray_dx / spray_len;
-
-        sparks.push(#{
-            x: spark_base_x + rx,
-            y: spark_base_y + ry,
-            vx: norm_dx * 60.0 + rx * 3.0,
-            vy: -40.0 + ry * 2.0,
-            life: 0.6,
-            r: 1.0,
-            g: 0.6 + cv * 0.3,
-            b: 0.1 + cv * 0.15
-        });
-    }
-
-    // Update, draw, and cull dead sparks
-    let live_sparks = [];
-    let si = 0;
-    while si < sparks.len() {
-        let s = sparks[si];
-        s.x = s.x + s.vx * dt;
-        s.y = s.y + s.vy * dt;
-        s.vy = s.vy + 120.0 * dt;  // gravity
-        s.life = s.life - dt;
-
-        if s.life > 0.0 {
-            let frac = s.life / 0.6;
-            let alpha = frac * 0.8;
-            let radius = 2.0 + frac * 2.0;
-            draw_circle(s.x, s.y, radius, s.r, s.g, s.b, alpha);
-            live_sparks.push(s);
+    // ── Screen bookkeeping ──
+    if screen != prev_screen {
+        if menu_ui_loaded {
+            if screen == "title" { ui_show("title_screen"); } else { ui_hide("title_screen"); }
         }
-        si += 1;
-    }
-    sparks = live_sparks;
-
-    // ── Screen visibility toggling ──
-    if screen != prev_screen && menu_ui_loaded {
-        if screen == "title" {
-            ui_show("title_screen");
-            ui_hide("select_screen");
-        } else {
-            ui_hide("title_screen");
-            ui_show("select_screen");
-        }
+        screen_t = 0.0;
+        sel_t = 9.0;
         prev_screen = screen;
     }
+    screen_t += dt;
+    sel_t += dt;
+
+    // The display kart wears the paint being looked at (or the saved one)
+    let want_paint = if screen == "paint" { paint_index } else {
+        let saved = persist_get("player_paint");
+        if type_of(saved) == "i64" { saved } else { -1 }
+    };
+    if want_paint != painted && kart_id >= 0 && want_paint >= 0 && want_paint < paints.len() {
+        let pc = paints[want_paint].color;
+        set_material_override(kart_id, "paint", pc[0], pc[1], pc[2], 1.0);
+        painted = want_paint;
+    }
+
+    let taps = [];
+    let tc = tap_count();
+    if tc > 0 || touch_count() > 0 { touch_active = true; }
+    let ti = 0;
+    while ti < tc {
+        taps.push([tap_x(ti) * sw, tap_y(ti) * sh]);
+        ti += 1;
+    }
+    let idle = launch_state == "none";
 
     // ════════════════════════════════════════════════════════
-    //  TITLE SCREEN
+    //  TITLE
     // ════════════════════════════════════════════════════════
     if screen == "title" && menu_ui_loaded {
         let pulse = 1.0 + sin(time * 2.5) * 0.04;
-        let logo_h = sh * 0.32 * pulse;
+        let logo_h = sh * 0.42 * pulse;
         let logo_w = logo_h * 1.5;
-        let logo_x = (sw - logo_w) / 2.0;
-        let logo_y = sh * 0.02 + sh * 0.32 * (1.0 - pulse) * 0.5;
-
-        ui_set_style("title_logo", "x", logo_x);
-        ui_set_style("title_logo", "y", logo_y);
+        ui_set_style("title_logo", "x", (sw - logo_w) / 2.0);
+        ui_set_style("title_logo", "y", sh * 0.02 + sh * 0.42 * (1.0 - pulse) * 0.5);
         ui_set_style("title_logo", "width", logo_w);
         ui_set_style("title_logo", "height", logo_h);
+        ui_set_style("version", "y", sh - 30.0 * k);
+        ui_set_style("version", "font_size", th.t.sm * k);
 
-        ui_set_style("prompt", "y", sh * 0.80);
-        ui_set_style("version", "y", sh - 30.0);
+        let label = if touch_active { "TAP TO START" } else { "PRESS ENTER" };
+        let sc = 1.0 + 0.05 * sin(time * 4.0);
+        let pw = 260.0 * k * sc;
+        let ph = 54.0 * k * sc;
+        kit::pill(th, (sw - pw) / 2.0, sh * 0.76 - ph / 2.0, pw, ph, th.c.sun, k, 1.0, 4);
+        kit::label(th, sw / 2.0, sh * 0.76 - th.t.lg * k * sc * 0.62, label, th.t.lg * k * sc, th.c.ink, "center", 5);
 
-        let prompt_alpha = 0.4 + sin(time * 3.0) * 0.4;
-        if prompt_alpha < 0.0 { prompt_alpha = 0.0; }
-        ui_set_color("prompt", 1.0, 1.0, 1.0, prompt_alpha);
-
-        // Input (blocked during launch)
-        if launch_state == "none" {
-            if is_action_just_pressed("menu_confirm") {
-                screen = "select";
-                card_anim_t = 0.0;
-                play_sound("audio/ui_select.ogg", 0.5);
-            }
-            // Touch: tap anywhere to continue
-            if tap_count() > 0 {
-                touch_active = true;
-                screen = "select";
-                card_anim_t = 0.0;
-                play_sound("audio/ui_select.ogg", 0.5);
-            }
-            if touch_count() > 0 { touch_active = true; }
+        if idle && (is_action_just_pressed("menu_confirm") || taps.len() > 0) {
+            screen = "select";
+            play_sound("audio/ui_select.ogg", 0.5);
         }
 
     // ════════════════════════════════════════════════════════
-    //  TRACK SELECT — cards with slide-in animation
+    //  TRACK SELECT
     // ════════════════════════════════════════════════════════
-    } else if screen == "select" && menu_ui_loaded {
-        let num_tracks = track_scenes.len();
+    } else if screen == "select" {
+        let n = tracks.len();
+        kit::shout_c(th, sw / 2.0, sh * 0.10, "PICK A TRACK", th.t.h2 * k, th.c.sun,
+                     kit::ease_out_back(screen_t / 0.4, th.m.overshoot), 1.0, 6);
 
-        // Feature 3: Card animation timer
-        if card_anim_t < 1.0 {
-            card_anim_t = card_anim_t + dt * 2.5;
-            if card_anim_t > 1.0 { card_anim_t = 1.0; }
-        }
-
-        // Ease-out-back for smooth card slide with overshoot
-        let eased_t = card_anim_t;
-        if eased_t < 1.0 {
-            let c1 = 1.70158;
-            let c3 = c1 + 1.0;
-            let tm1 = eased_t - 1.0;
-            eased_t = 1.0 + c3 * tm1 * tm1 * tm1 + c1 * tm1 * tm1;
-        }
-
-        // Header fades in with cards
-        ui_set_style("select_header", "y", sh * 0.10);
-        let header_alpha = card_anim_t;
-        if header_alpha > 1.0 { header_alpha = 1.0; }
-        ui_set_color("select_header", 1.0, 0.85, 0.2, header_alpha);
-
-        // Card layout
-        let card_w = 320.0;
-        let card_h = 220.0;
-        let gap = 40.0;
-        let total_w = num_tracks * card_w + (num_tracks - 1) * gap;
-        let start_x = (sw - total_w) / 2.0;
-        let card_y = sh * 0.30;
-
-        let card_rects = [];
+        let gap = 28.0 * k;
+        let cw = min(330.0 * k, (sw - 96.0 * k - (n - 1) * gap) / max(n, 1));
+        let ch = min(380.0 * k, sh * 0.6);
+        let x0 = (sw - (n * cw + (n - 1) * gap)) / 2.0;
+        let y0 = sh * 0.20;
+        let rects = [];
         let ci = 0;
-        while ci < num_tracks {
-            let final_x = start_x + ci * (card_w + gap);
+        while ci < n {
             let selected = ci == select_index;
-
-            // Feature 3: Slide-in from offscreen
-            let cx = final_x;
-            if card_anim_t < 1.0 {
-                let offscreen = if ci % 2 == 0 {
-                    -(final_x + card_w + 100.0)
-                } else {
-                    sw + 100.0 - final_x
-                };
-                cx = final_x + offscreen * (1.0 - eased_t);
-            }
-
-            // Selection pulse + enhanced expand when selected
-            let pulse_offset = 0.0;
-            if selected {
-                pulse_offset = sin(select_pulse * 3.0) * 2.0;
-                if card_anim_t >= 1.0 {
-                    pulse_offset = pulse_offset + 4.0;
-                }
-            }
-
-            let fx = cx - pulse_offset;
-            let fy = card_y - pulse_offset;
-            let fw = card_w + pulse_offset * 2.0;
-            let fh = card_h + pulse_offset * 2.0;
-
-            let n = ci + 1;
-            let border_id = "card_" + n + "_border";
-            let bg_id = "card_" + n + "_bg";
-            let num_id = "card_" + n + "_number";
-            let name_id = "card_" + n + "_name";
-            let len_id = "card_" + n + "_length";
-            let desc1_id = "card_" + n + "_desc1";
-            let desc2_id = "card_" + n + "_desc2";
-
-            let bg_alpha = if selected { 0.85 } else { 0.4 };
-            let border_r = if selected { 1.0 } else { 0.3 };
-            let border_g = if selected { 0.85 } else { 0.3 };
-            let border_b = if selected { 0.2 } else { 0.35 };
-            let border_alpha = if selected { 0.95 } else { bg_alpha };
-
-            ui_set_style(border_id, "x", fx - 2.0);
-            ui_set_style(border_id, "y", fy - 2.0);
-            ui_set_style(border_id, "width", fw + 4.0);
-            ui_set_style(border_id, "height", fh + 4.0);
-            ui_set_color(border_id, border_r, border_g, border_b, border_alpha);
-
-            ui_set_style(bg_id, "x", fx);
-            ui_set_style(bg_id, "y", fy);
-            ui_set_style(bg_id, "width", fw);
-            ui_set_style(bg_id, "height", fh);
-            ui_set_color(bg_id, 0.08, 0.08, 0.12, bg_alpha);
-
-            let num_alpha = if selected { 0.3 } else { 0.1 };
-            ui_set_style(num_id, "x", fx + 12.0);
-            ui_set_style(num_id, "y", fy + 8.0);
-            ui_set_color(num_id, 1.0, 1.0, 1.0, num_alpha);
-
-            let name_alpha = if selected { 1.0 } else { 0.6 };
-            ui_set_style(name_id, "x", fx);
-            ui_set_style(name_id, "y", fy + 60.0);
-            ui_set_style(name_id, "width", fw);
-            ui_set_color(name_id, 1.0, 1.0, 1.0, name_alpha);
-
-            let len_alpha = if selected { 0.7 } else { 0.4 };
-            ui_set_style(len_id, "x", fx);
-            ui_set_style(len_id, "y", fy + 95.0);
-            ui_set_style(len_id, "width", fw);
-            ui_set_color(len_id, 0.7, 0.7, 0.8, len_alpha);
-
-            let desc_alpha = if selected { 0.65 } else { 0.3 };
-            ui_set_style(desc1_id, "x", fx);
-            ui_set_style(desc1_id, "y", fy + 130.0);
-            ui_set_style(desc1_id, "width", fw);
-            ui_set_color(desc1_id, 0.75, 0.75, 0.8, desc_alpha);
-
-            ui_set_style(desc2_id, "x", fx);
-            ui_set_style(desc2_id, "y", fy + 148.0);
-            ui_set_style(desc2_id, "width", fw);
-            ui_set_color(desc2_id, 0.75, 0.75, 0.8, desc_alpha);
-
-            if selected {
-                let arr_alpha = 0.5 + sin(time * 4.0) * 0.3;
-                ui_set_style("arrow_left", "x", fx - 28.0);
-                ui_set_style("arrow_left", "y", fy + fh / 2.0 - 14.0);
-                ui_set_color("arrow_left", 1.0, 0.85, 0.2, arr_alpha);
-
-                ui_set_style("arrow_right", "x", fx + fw + 8.0);
-                ui_set_style("arrow_right", "y", fy + fh / 2.0 - 14.0);
-                ui_set_color("arrow_right", 1.0, 0.85, 0.2, arr_alpha);
-            }
-
-            card_rects.push(#{x: fx, y: fy, w: fw, h: fh});
+            let rise = kit::ease_out_back((screen_t - ci * 0.08) / 0.45, th.m.overshoot);
+            let lift = if selected { 14.0 * k + sin(time * th.m.wobble_hz * 2.0) * 3.0 * k } else { 0.0 };
+            let sc = if selected { kit::boing(sel_t, 0.05) } else { 0.95 };
+            let w = cw * sc;
+            let h = ch * sc;
+            let x = x0 + ci * (cw + gap) + (cw - w) / 2.0;
+            let y = y0 + (ch - h) / 2.0 - lift + (1.0 - rise) * sh;
+            draw_card(th, k, tracks[ci], previews[ci], x, y, w, h, selected, time, 4);
+            rects.push(#{ x: x, y: y, w: w, h: h });
             ci += 1;
         }
 
-        ui_set_style("select_hint", "y", sh * 0.82);
-        // A finger reads its own hint, not the keys'.
-        ui_set_text("select_hint", if touch_active {
-            "Tap a track to choose it  |  tap it again to race"
-        } else {
-            "A/D to browse  |  ENTER to race  |  BACKSPACE for title"
-        });
+        let hint = if touch_active { "Tap a track, then tap it again" } else { "A/D to browse  ·  ENTER to choose  ·  BACKSPACE for title" };
+        kit::hint(th, sw / 2.0, sh * 0.91, hint, k, 1.0, 6);
+        let back = if touch_active { draw_back_pill(th, k) } else { #{ x: -1.0, y: -1.0, w: 0.0, h: 0.0 } };
 
-        // ── Touch: back button (visible after touch detected) ──
-        if touch_active {
-            let back_x = 16.0;
-            let back_y = 16.0;
-            let back_w = 110.0;
-            let back_h = 44.0;
-            draw_rect_ex(back_x, back_y, back_w, back_h, 0.15, 0.15, 0.2, 0.5, 10.0, 5);
-            draw_text_ex(back_x + 14.0, back_y + 12.0, "< BACK", 18.0, 1.0, 1.0, 1.0, 0.7, 5);
-        }
-
-        // ── Input (blocked during launch and card animation) ──
-        if launch_state == "none" && card_anim_t >= 1.0 {
+        if idle && screen_t > 0.4 {
             if is_action_just_pressed("menu_back") {
                 screen = "title";
                 play_sound("audio/ui_back.ogg", 0.45);
             }
-
-            let steer = action_value("steering");
-            let steer_dir = 0;
-            if steer > 0.5 { steer_dir = 1; }
-            if steer < -0.5 { steer_dir = -1; }
-
-            if steer_dir != 0 && steer_dir != prev_steer_dir {
-                if steer_dir > 0 && select_index < num_tracks - 1 {
-                    select_index += 1;
-                    play_sound("audio/ui_hover.ogg", 0.45);
-                }
-                if steer_dir < 0 && select_index > 0 {
-                    select_index -= 1;
+            let raw = steer_dir();
+            let dir = if raw != prev_steer_dir { raw } else { 0 };
+            prev_steer_dir = raw;
+            if dir != 0 {
+                let ns = max(min(select_index + dir, n - 1), 0);
+                if ns != select_index {
+                    select_index = ns;
+                    sel_t = 0.0;
                     play_sound("audio/ui_hover.ogg", 0.45);
                 }
             }
-            prev_steer_dir = steer_dir;
+            let go_now = is_action_just_pressed("menu_confirm");
+            for tp in taps {
+                if in_rect(back, tp) {
+                    screen = "title";
+                    play_sound("audio/ui_back.ogg", 0.45);
+                } else {
+                    let ri = 0;
+                    while ri < rects.len() {
+                        if in_rect(rects[ri], tp) {
+                            if ri == select_index { go_now = true; } else {
+                                select_index = ri;
+                                sel_t = 0.0;
+                                play_sound("audio/ui_hover.ogg", 0.45);
+                            }
+                        }
+                        ri += 1;
+                    }
+                }
+            }
+            if go_now && n > 0 {
+                screen = "paint";
+                play_sound("audio/ui_select.ogg", 0.5);
+            }
+        }
 
-            // Confirm -> launch sequence
-            if is_action_just_pressed("menu_confirm") {
-                selected_scene_path = track_scenes[select_index];
+    // ════════════════════════════════════════════════════════
+    //  PAINT SELECT
+    // ════════════════════════════════════════════════════════
+    } else if screen == "paint" {
+        let n = paints.len();
+        let tr = tracks[select_index];
+        let accent = th.c[tr.accent];
+        kit::shout_c(th, sw / 2.0, sh * 0.10, "PICK YOUR PAINT", th.t.h2 * k, th.c.sun,
+                     kit::ease_out_back(screen_t / 0.4, th.m.overshoot), 1.0, 6);
+        let tw = kit::measure(tr.name, th.t.md * k, th.f.label).width + 40.0 * k;
+        kit::pill(th, (sw - tw) / 2.0, sh * 0.10 + 38.0 * k, tw, 30.0 * k, accent, k, 1.0, 5);
+        kit::label(th, sw / 2.0, sh * 0.10 + 41.0 * k, tr.name, th.t.md * k, th.c.ink, "center", 6);
+
+        // swatches
+        let r = 28.0 * k;
+        let step = 84.0 * k;
+        let sx0 = sw / 2.0 - (n - 1) * step / 2.0;
+        let sy = sh * 0.78;
+        let rects = [];
+        let pi2 = 0;
+        while pi2 < n {
+            let pc = paints[pi2].color;
+            let c = [pc[0], pc[1], pc[2], 1.0];
+            let pop = kit::ease_out_back((screen_t - pi2 * 0.05) / 0.35, th.m.overshoot);
+            let selected = pi2 == paint_index;
+            let rr = r * pop * (if selected { 1.3 * kit::boing(sel_t, 0.12) } else { 1.0 });
+            let cx = sx0 + pi2 * step;
+            if selected && pop > 0.5 {
+                kit::arc(cx, sy, rr + 12.0 * k, 7.0 * k, 0.0, 360.0, th.c.ink, 4);
+                kit::arc(cx, sy, rr + 12.0 * k, 4.0 * k, 0.0, 360.0, th.c.sun, 4);
+            }
+            if rr > 1.0 { kit::bubble(th, cx, sy, rr, c, k, 1.0, 5); }
+            rects.push(#{ x: cx - step / 2.0, y: sy - step / 2.0, w: step, h: step });
+            pi2 += 1;
+        }
+        if n > 0 {
+            let pc = paints[paint_index].color;
+            let wob = kit::boing(sel_t, 0.25);
+            kit::shout_c(th, sw / 2.0, sh * 0.665, paints[paint_index].name.to_upper(), th.t.xl * k,
+                         [pc[0], pc[1], pc[2], 1.0], wob, 1.0, 6);
+        }
+
+        // the go button
+        let gw = 200.0 * k;
+        let gh = 50.0 * k;
+        let gsc = 1.0 + 0.04 * sin(time * 5.0);
+        let go_r = #{ x: (sw - gw) / 2.0, y: sh * 0.875, w: gw, h: gh };
+        kit::pill(th, go_r.x - (gsc - 1.0) * gw / 2.0, go_r.y - (gsc - 1.0) * gh / 2.0, gw * gsc, gh * gsc, th.c.mint, k, 1.0, 5);
+        kit::shout_c(th, sw / 2.0, go_r.y + gh / 2.0 + 2.0 * k, "RACE!", th.t.lg * k * 1.2, th.c.cream, gsc, 1.0, 6);
+        let hint = if touch_active { "Tap a paint, then RACE!" } else { "A/D to choose  ·  ENTER to race  ·  BACKSPACE for tracks" };
+        kit::hint(th, sw / 2.0, sh * 0.10 + 76.0 * k, hint, k, 1.0, 6);
+        let back = if touch_active { draw_back_pill(th, k) } else { #{ x: -1.0, y: -1.0, w: 0.0, h: 0.0 } };
+
+        if idle && screen_t > 0.3 {
+            if is_action_just_pressed("menu_back") {
+                screen = "select";
+                play_sound("audio/ui_back.ogg", 0.45);
+            }
+            let raw = steer_dir();
+            let dir = if raw != prev_steer_dir { raw } else { 0 };
+            prev_steer_dir = raw;
+            if dir != 0 && n > 0 {
+                paint_index = (paint_index + dir + n) % n;
+                sel_t = 0.0;
+                play_sound("audio/ui_hover.ogg", 0.45);
+            }
+            let go_now = is_action_just_pressed("menu_confirm");
+            for tp in taps {
+                if in_rect(back, tp) {
+                    screen = "select";
+                    play_sound("audio/ui_back.ogg", 0.45);
+                } else if in_rect(go_r, tp) {
+                    go_now = true;
+                } else {
+                    let ri = 0;
+                    while ri < rects.len() {
+                        if in_rect(rects[ri], tp) {
+                            paint_index = ri;
+                            sel_t = 0.0;
+                            play_sound("audio/ui_hover.ogg", 0.45);
+                        }
+                        ri += 1;
+                    }
+                }
+            }
+            if go_now && screen == "paint" {
+                persist_set("player_paint", paint_index);
+                selected_scene_path = tr.scene;
                 persist_set("selected_track", selected_scene_path);
                 launch_state = "rev";
                 launch_timer = 0.0;
                 play_sound("audio/menu_launch.ogg", 0.5);
             }
-
-            // Touch: tap cards to select/launch, tap back button
-            let tc = tap_count();
-            if tc > 0 { touch_active = true; }
-            if touch_count() > 0 { touch_active = true; }
-            let ti = 0;
-            while ti < tc {
-                let tx = tap_x(ti) * sw;
-                let ty = tap_y(ti) * sh;
-
-                // Back button (top-left)
-                if tx < 130.0 && ty < 64.0 {
-                    screen = "title";
-                    play_sound("audio/ui_back.ogg", 0.45);
-                } else {
-                    // Check card taps
-                    let cci = 0;
-                    while cci < card_rects.len() {
-                        let cr = card_rects[cci];
-                        if tx >= cr.x && tx <= cr.x + cr.w && ty >= cr.y && ty <= cr.y + cr.h {
-                            if cci == select_index {
-                                // Tap selected card → launch
-                                selected_scene_path = track_scenes[select_index];
-                                persist_set("selected_track", selected_scene_path);
-                                launch_state = "rev";
-                                launch_timer = 0.0;
-                                play_sound("audio/menu_launch.ogg", 0.5);
-                            } else {
-                                // Tap unselected card → select it
-                                select_index = cci;
-                                play_sound("audio/ui_hover.ogg", 0.45);
-                            }
-                        }
-                        cci += 1;
-                    }
-                }
-                ti += 1;
-            }
         }
     }
 
-    // ── Launch burst flash overlay (layer 9, above UI but below fade) ──
+    // ── Launch burst flash (above the UI, below the fade) ──
     if launch_state == "burst" {
-        let bt = launch_timer / 0.3;
-        if bt > 1.0 { bt = 1.0; }
-        let flash_alpha = 0.5 * (1.0 - bt);
-        draw_rect_ex(0.0, 0.0, sw, sh, 1.0, 1.0, 1.0, flash_alpha, 0.0, 9);
+        let bt = kit::clamp01(launch_timer / 0.3);
+        let c = th.c.cream;
+        draw_rect_ex(0.0, 0.0, sw, sh, c[0], c[1], c[2], 0.5 * (1.0 - bt), 0.0, 29);
     }
 
-    // ── Fade overlay (always on top, layer 10) ──
     if fade_alpha > 0.01 {
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, fade_alpha, 0.0, 10);
+        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, fade_alpha, 0.0, 30);
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Helpers (no module state: everything arrives as a parameter)
+// ════════════════════════════════════════════════════════════════════════
+
+// -1 / 0 / +1 from the steering axis (A/D, arrows, stick).
+fn steer_dir() {
+    let s = action_value("steering");
+    if s > 0.5 { 1 } else if s < -0.5 { -1 } else { 0 }
+}
+
+fn in_rect(r, p) {
+    p[0] >= r.x && p[0] <= r.x + r.w && p[1] >= r.y && p[1] <= r.y + r.h
+}
+
+fn draw_back_pill(th, k) {
+    let r = #{ x: th.sp.safe * k, y: th.sp.safe * k, w: 110.0 * k, h: 42.0 * k };
+    kit::pill(th, r.x, r.y, r.w, r.h, th.c.panel, k, 1.0, 6);
+    kit::label(th, r.x + r.w / 2.0, r.y + 10.0 * k, "< BACK", th.t.md * k, th.c.cream, "center", 7);
+    r
+}
+
+// Confetti in the palette, one map per piece.
+fn make_particles(th, sw, sh) {
+    let cols = [th.c.sun, th.c.tomato, th.c.sky, th.c.grape, th.c.mint, th.c.cream];
+    let out = [];
+    let i = 0;
+    while i < 55 {
+        let s = i * 1.0 + 0.5;
+        out.push(#{
+            x: kit::hash01(s) * sw,
+            y: kit::hash01(s + 2.3) * sh - 200.0,
+            fall: 30.0 + kit::hash01(s + 4.1) * 50.0,
+            sway: 20.0 + kit::hash01(s + 5.7) * 40.0,
+            ph: kit::hash01(s + 6.9) * 6.2832,
+            spin: 2.5 + kit::hash01(s + 8.3) * 3.0,
+            w: 5.0 + kit::hash01(s + 9.1) * 5.0,
+            h: 6.0 + kit::hash01(s + 9.7) * 4.0,
+            c: kit::fade(cols[i % cols.len()], 0.55)
+        });
+        i += 1;
+    }
+    out
+}
+
+// ── Track previews ──
+
+// Sample a spline file's control points with Catmull-Rom: [[x, y, z]...].
+// `closed` loops back to the start; an open spline is extended by its
+// context_start / context_end points when it has them.
+fn sample_spline(path, per_seg) {
+    let d = load_data(path);
+    if d == () { return []; }
+    let cps = [];
+    if d.spline.contains("context_start") { cps.push(d.spline.context_start); }
+    for cp in d.control_points { cps.push(cp.position); }
+    if d.spline.contains("context_end") { cps.push(d.spline.context_end); }
+    let closed = d.spline.contains("closed") && d.spline.closed;
+    let n = cps.len();
+    if n < 2 { return []; }
+    let out = [];
+    let segs = if closed { n } else { n - 1 };
+    let i = 0;
+    while i < segs {
+        let p0 = cps[if closed { (i + n - 1) % n } else { max(i - 1, 0) }];
+        let p1 = cps[i % n];
+        let p2 = cps[(i + 1) % n];
+        let p3 = cps[if closed { (i + 2) % n } else { min(i + 2, n - 1) }];
+        let s = 0;
+        while s < per_seg {
+            let t = s / (per_seg * 1.0);
+            let t2 = t * t;
+            let t3 = t2 * t;
+            let pt = [];
+            let a = 0;
+            while a < 3 {
+                pt.push(0.5 * (2.0 * p1[a] + (-p0[a] + p2[a]) * t
+                    + (2.0 * p0[a] - 5.0 * p1[a] + 4.0 * p2[a] - p3[a]) * t2
+                    + (-p0[a] + 3.0 * p1[a] - 3.0 * p2[a] + p3[a]) * t3));
+                a += 1;
+            }
+            out.push(pt);
+            s += 1;
+        }
+        i += 1;
+    }
+    if !closed { out.push(cps[n - 1]); }
+    out
+}
+
+// Project a track for its card: a tilted look from the south with height
+// lifted, normalised so the larger side spans 1. Each point is
+// [x, y_road, y_ground].
+fn build_preview(tr) {
+    let tilt = 0.62;
+    let lift = 1.4;
+    let lines = [sample_spline(tr.spline, 8)];
+    if tr.contains("extra") {
+        for e in tr.extra { lines.push(sample_spline(e, 8)); }
+    }
+    let min_x = 1e9; let max_x = -1e9; let min_y = 1e9; let max_y = -1e9;
+    let proj = [];
+    for l in lines {
+        let pl = [];
+        for p in l {
+            let px = p[0];
+            let road = p[2] * tilt - p[1] * lift;
+            let ground = p[2] * tilt;
+            pl.push([px, road, ground]);
+            min_x = min(min_x, px); max_x = max(max_x, px);
+            min_y = min(min_y, min(road, ground)); max_y = max(max_y, max(road, ground));
+        }
+        proj.push(pl);
+    }
+    let span = max(max(max_x - min_x, max_y - min_y), 1.0);
+    let cx = (min_x + max_x) / 2.0;
+    let cy = (min_y + max_y) / 2.0;
+    let out = [];
+    for pl in proj {
+        let nl = [];
+        for p in pl { nl.push([(p[0] - cx) / span, (p[1] - cy) / span, (p[2] - cy) / span]); }
+        out.push(nl);
+    }
+    #{ lines: out, w: (max_x - min_x) / span, h: (max_y - min_y) / span }
+}
+
+// Draw a preview into a box: ground shadow, stilts where the road is high,
+// the road itself, a sun start mark and a kart dot lapping it.
+fn draw_preview(th, pv, x, y, w, h, accent, time, k, layer) {
+    if pv.lines.len() == 0 || pv.lines[0].len() < 2 { return; }
+    let s = min((w - 30.0 * k) / max(pv.w, 0.01), (h - 30.0 * k) / max(pv.h, 0.01));
+    let cx = x + w / 2.0;
+    let cy = y + h / 2.0;
+    let ink = th.c.ink;
+    let li = 0;
+    for l in pv.lines {
+        let closed = li == 0;
+        let road = [];
+        let ground = [];
+        for p in l {
+            road.push([cx + p[0] * s, cy + p[1] * s]);
+            ground.push([cx + p[0] * s, cy + p[2] * s]);
+        }
+        // ground shadow and stilts
+        draw_polygon_outline(ground, ink[0], ink[1], ink[2], 0.35, 7.0 * k, closed, layer);
+        let i = 0;
+        while i < l.len() {
+            if ground[i][1] - road[i][1] > 6.0 * k {
+                draw_line_ex(road[i][0], road[i][1], ground[i][0], ground[i][1], ink[0], ink[1], ink[2], 0.5, 2.0 * k, layer);
+            }
+            i += 4;
+        }
+        if closed {
+            draw_polygon_outline(road, ink[0], ink[1], ink[2], 1.0, 10.0 * k, true, layer);
+            let c = th.c.cream;
+            draw_polygon_outline(road, c[0], c[1], c[2], 1.0, 5.0 * k, true, layer);
+        } else {
+            draw_polygon_outline(road, ink[0], ink[1], ink[2], 1.0, 8.0 * k, false, layer);
+            // dashed shortcut in sun
+            let j = 0;
+            let c = th.c.sun;
+            while j + 1 < road.len() {
+                if (j / 2) % 2 == 0 {
+                    draw_line_ex(road[j][0], road[j][1], road[j + 1][0], road[j + 1][1], c[0], c[1], c[2], 1.0, 4.0 * k, layer);
+                }
+                j += 1;
+            }
+        }
+        if closed {
+            let n = road.len();
+            kit::circle(road[0][0], road[0][1], 5.0 * k, ink, layer);
+            kit::circle(road[0][0], road[0][1], 3.5 * k, th.c.sun, layer);
+            let f = time * 0.09;
+            let idx = floor((f - floor(f)) * n).to_int() % n;
+            kit::circle(road[idx][0], road[idx][1] - 1.0 * k, 7.0 * k, ink, layer);
+            kit::circle(road[idx][0], road[idx][1] - 1.0 * k, 5.0 * k, accent, layer);
+        }
+        li += 1;
+    }
+}
+
+// Split text into lines no wider than max_w.
+fn wrap(s, size, font, max_w) {
+    let lines = [];
+    let cur = "";
+    for word in s.split(" ") {
+        let tryl = if cur == "" { word } else { cur + " " + word };
+        if cur != "" && kit::measure(tryl, size, font).width > max_w {
+            lines.push(cur);
+            cur = word;
+        } else {
+            cur = tryl;
+        }
+    }
+    if cur != "" { lines.push(cur); }
+    lines
+}
+
+// One track card: cream sticker, a dark preview window, tag, name, length
+// and blurb. The selected card gets an accent halo.
+fn draw_card(th, k, tr, pv, x, y, w, h, selected, time, layer) {
+    let accent = th.c[tr.accent];
+    if selected {
+        kit::rect(x - 10.0 * k, y - 10.0 * k, w + 20.0 * k, h + 20.0 * k, kit::fade(accent, 0.9), th.s.radius * k + 10.0 * k, layer);
+    }
+    kit::sticker(th, x, y, w, h, th.c.cream, k, 1.0, layer);
+    let pad = 12.0 * k;
+    let ph = h * 0.54;
+    let wx = x + pad;
+    let wy = y + pad;
+    let ww = w - pad * 2.0;
+    let wr = th.s.radius_sm * k;
+    kit::rect(wx - 2.0 * k, wy - 2.0 * k, ww + 4.0 * k, ph + 4.0 * k, th.c.ink, wr + 2.0 * k, layer + 1);
+    kit::rect(wx, wy, ww, ph, th.c.panel, wr, layer + 1);
+    draw_preview(th, pv, x + pad, y + pad, w - pad * 2.0, ph, accent, time, k, layer + 2);
+
+    // tag sticker on the preview's corner
+    let tag_w = kit::measure(tr.tag, th.t.xs * k, th.f.label).width + 20.0 * k;
+    kit::pill(th, x + pad + 8.0 * k, y + pad + 8.0 * k, tag_w, 22.0 * k, accent, k, 1.0, layer + 3);
+    kit::label(th, x + pad + 8.0 * k + tag_w / 2.0, y + pad + 11.0 * k, tr.tag, th.t.xs * k, th.c.ink, "center", layer + 4);
+
+    // name, shrunk to fit
+    let name = tr.name.to_upper();
+    let size = th.t.lg * k * 1.15;
+    while size > 12.0 && kit::measure(name, size, th.f.display).width > w - 32.0 * k { size -= 1.0; }
+    let ny = y + pad + ph + 14.0 * k;
+    kit::shout(th, x + w / 2.0, ny, name, size, accent, "center", 1.0, layer + 3);
+    kit::label(th, x + w / 2.0, ny + size + 10.0 * k, tr.length, th.t.sm * k, th.c.quiet, "center", layer + 3);
+    let by = ny + size + 34.0 * k;
+    for line in wrap(tr.blurb, th.t.sm * k, th.f.label, w - 36.0 * k) {
+        kit::label(th, x + w / 2.0, by, line, th.t.sm * k, th.c.ink, "center", layer + 3);
+        by += th.t.sm * k * 1.35;
     }
 }

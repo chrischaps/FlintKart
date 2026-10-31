@@ -2,75 +2,15 @@
 name = "Race HUD"
 style = "ui/race_hud.style.toml"
 
-# ── Lap counter (top-left) ──
+# The race HUD, pause menu and results podium are drawn by scripts/hud.rhai
+# on scripts/lib/kit.rhai: their positions follow the screen size and their
+# motion follows race state, so they are procedural. This document's job is
+# to bring ui/theme.toml into the UI system (through its style's `tokens`),
+# which is where kit::theme() reads every colour, font, size and timing.
+#
+# Its one element is an empty full-screen panel that draws nothing.
 
-[elements.lap_panel]
+[elements.hud_root]
 type = "panel"
 anchor = "top-left"
-class = "hud-panel-lap"
-
-[elements.lap_label]
-type = "text"
-parent = "lap_panel"
-class = "lap-label"
-text = "LAP"
-
-[elements.lap_value]
-type = "text"
-parent = "lap_panel"
-class = "lap-value"
-
-# ── Race timer (top-right) ──
-
-[elements.timer_panel]
-type = "panel"
-anchor = "top-right"
-class = "hud-panel-timer"
-
-[elements.timer_label]
-type = "text"
-parent = "timer_panel"
-class = "timer-label"
-text = "TIME"
-
-[elements.timer_value]
-type = "text"
-parent = "timer_panel"
-class = "timer-value"
-
-# ── Best lap (below timer) ──
-
-[elements.best_panel]
-type = "panel"
-anchor = "top-right"
-class = "hud-panel-best"
-visible = false
-
-[elements.best_label]
-type = "text"
-parent = "best_panel"
-class = "best-label"
-text = "BEST"
-
-[elements.best_value]
-type = "text"
-parent = "best_panel"
-class = "best-value"
-
-# ── Speed indicator (bottom-right) ──
-
-[elements.speed_panel]
-type = "panel"
-anchor = "bottom-right"
-class = "hud-panel-speed"
-
-[elements.speed_num]
-type = "text"
-parent = "speed_panel"
-class = "speed-value"
-
-[elements.speed_unit]
-type = "text"
-parent = "speed_panel"
-class = "speed-unit"
-text = "km/h"
+class = "hud-root"
