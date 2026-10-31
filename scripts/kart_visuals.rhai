@@ -6,6 +6,8 @@
 //   - Exhaust smoke, tire dust, brake sparks (particle emitters)
 //   - Drift sparks with tier-colored progression (white → orange → blue)
 //   - Boost trail activation
+//   - Suspension: keeps the wheels on the ground while the body (the kart
+//     root, which kart_controller rolls, pitches and squashes) moves on them
 //
 // Supports configurable target via kart_visuals_config component.
 // Falls back to hardcoded "kart" + "kart_" prefix if no config.
@@ -31,6 +33,9 @@ let fx_skid_rl = -1;
 let fx_skid_rr = -1;
 
 let driver = -1;
+
+// Wheel rest positions (local to the kart body), read once in on_init
+let wheel_rest = [];
 
 // Track previous drift state for transition detection
 let prev_drift_state = "none";
@@ -64,6 +69,14 @@ fn on_init() {
     fx_skid_rr = get_entity("fx_skid_rr");
 
     driver = get_entity(prefix + "_driver");
+
+    // Remember where each wheel sits at rest: [id, x, y, z] per wheel
+    for w in [wheel_fl, wheel_fr, wheel_rl, wheel_rr] {
+        if w >= 0 {
+            let p = get_position(w);
+            wheel_rest.push([w, p["x"], p["y"], p["z"]]);
+        }
+    }
 
     // Start particle emitters for the player kart only (AI karts skip particles)
     let kart = get_entity(kart_name);
@@ -111,20 +124,47 @@ fn on_update() {
         boost_time_remaining = get_field(kart, "drift_state", "boost_time_remaining");
     }
 
+    // ── Body attitude (written by kart_controller) ──
+    let body_roll = get_field(kart, "kart_visual_state", "roll");
+    let body_pitch = get_field(kart, "kart_visual_state", "pitch");
+    let body_squash = get_field(kart, "kart_visual_state", "squash");
+    if body_roll == () { body_roll = 0.0; }
+    if body_pitch == () { body_pitch = 0.0; }
+    if body_squash == () { body_squash = 0.0; }
+
     // ── Wheels ──
+    // The wheels ride on the body, so they would tilt and lift with it.
+    // Undo that: each wheel slides along the body's up axis by however much
+    // the roll and pitch raised its corner, and by what the squash took off
+    // its radius, so the tyres stay on the road while the body leans and
+    // sits down over them. Each also turns back by the body's roll so it
+    // stays upright.
     let steer_angle = -steering * 25.0;
+    let sr = sin(deg_to_rad(body_roll));
+    let sp = sin(deg_to_rad(body_pitch));
+    let sy = 1.0 - body_squash * 0.14; // matches kart_controller's scale
+    let wheel_r = 0.275;
+
+    for wr in wheel_rest {
+        let w = wr[0];
+        let wx = wr[1];
+        let wy = wr[2];
+        let wz = wr[3];
+        let y = wheel_r + (wy - wheel_r) / sy + wx * sr + wz * sp;
+        set_position(w, wx, y, wz);
+    }
 
     if wheel_fl >= 0 {
-        set_rotation(wheel_fl, spin, steer_angle, 0.0);
+        set_rotation(wheel_fl, spin, steer_angle, body_roll);
     }
     if wheel_fr >= 0 {
-        set_rotation(wheel_fr, spin, steer_angle, 0.0);
+        set_rotation(wheel_fr, spin, steer_angle, body_roll);
     }
     if wheel_rl >= 0 {
-        set_rotation(wheel_rl, spin, 0.0, 0.0);
+        set_rotation(wheel_rl, spin, 0.0, body_roll);
     }
     if wheel_rr >= 0 {
-        set_rotation(wheel_rr, spin, 0.0, 0.0);
+        set_rotation(wheel_rr, spin, 0.0, body_roll);
     }
 
     // ── Shield Tint (pulsing green on kart body when shield active) ──
