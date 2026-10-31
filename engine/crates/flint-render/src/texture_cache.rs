@@ -117,7 +117,9 @@ impl TextureCache {
     /// `linear` is for data maps (normal, metallic-roughness): they're
     /// sampled as stored. Colour maps (base colour, emissive) are sRGB. The
     /// caller decides from how the material uses the texture, since a glTF
-    /// texture's name says nothing about it.
+    /// texture's name says nothing about it. The whole mip chain is built
+    /// (see [`mip_chain`]), so a model's painted texture seen from far off
+    /// (generated ground, signage) settles instead of shimmering.
     pub fn upload(
         &mut self,
         device: &wgpu::Device,
@@ -144,6 +146,9 @@ impl TextureCache {
             wgpu::TextureFormat::Rgba8UnormSrgb
         };
 
+        let (data, mip_level_count) =
+            mip_chain(&rgba_data, imported.width, imported.height, !linear);
+
         let texture = device.create_texture_with_data(
             queue,
             &wgpu::TextureDescriptor {
@@ -153,7 +158,7 @@ impl TextureCache {
                     height: imported.height,
                     depth_or_array_layers: 1,
                 },
-                mip_level_count: 1,
+                mip_level_count,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format,
@@ -161,7 +166,7 @@ impl TextureCache {
                 view_formats: &[],
             },
             wgpu::util::TextureDataOrder::LayerMajor,
-            &rgba_data,
+            &data,
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
