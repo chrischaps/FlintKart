@@ -2,6 +2,8 @@
 
 2026-10-31 and 2026-11-06. Epic #53. Feeds #55 (runtime quality settings),
 #56 (LODs and draw distance), #57 (tiers in the menu), #58 (auto quality).
+Presentation, with the heat curve and every lever charted:
+https://claude.ai/artifact/5TkLwKf6VHayBKLW3BHWVs
 
 ## The answer
 
