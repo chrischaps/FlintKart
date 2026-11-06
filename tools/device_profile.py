@@ -50,6 +50,11 @@ PROFILE_LEVERS = {
     "shadows_off": {"env": {"FLINT_SHADOWS": "0"}},
     "shadow_1024": {"env": {"FLINT_SHADOW_RES": "1024"}},
 }
+# Several levers at once: a scene lever and profile settings. A candidate
+# tier, priced as a whole (its heat matters as much as its milliseconds).
+COMBOS = {
+    "gpu_lite": ("ssao_off", {"render_scale": "0.75", "env": {"FLINT_SHADOW_RES": "1024"}}),
+}
 
 # ---------------------------------------------------------------- staging
 
@@ -333,8 +338,11 @@ def parse_perf(line):
 
 
 def run_case(track, lever, warmup, measure, rep=0):
-    scene_lever = lever if lever in SCENE_LEVERS else "base"
-    extra = PROFILE_LEVERS.get(lever, {})
+    if lever in COMBOS:
+        scene_lever, extra = COMBOS[lever]
+    else:
+        scene_lever = lever if lever in SCENE_LEVERS else "base"
+        extra = PROFILE_LEVERS.get(lever, {})
     scene = f"_prof_{track}_{scene_lever}.scene.toml"
     local = OUT / "dev_profile.toml"
     local.write_text(profile_toml(scene, extra), encoding="utf-8", newline="\n")

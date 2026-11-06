@@ -29,7 +29,10 @@ def load(since):
 
 
 def nearest_base(recs, r, n=2):
-    bases = [b for b in recs if b["track"] == r["track"] and b["lever"] == "base"]
+    # Same track, same day: a session's thermal state is its own, and the
+    # device ran hotter on some days than others.
+    bases = [b for b in recs if b["track"] == r["track"] and b["lever"] == "base"
+             and b["time"][:10] == r["time"][:10]]
     bases.sort(key=lambda b: abs(b["i"] - r["i"]))
     return bases[:n]
 
