@@ -1,0 +1,2 @@
+# Runs on an Android device's sh (tools/device_threads.sh): CRLF breaks it
+*.sh text eol=lf

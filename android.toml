@@ -7,3 +7,4 @@ orientation = "landscape"
 scene = "scenes/main_menu.scene.toml"
 version_name = "0.1.0"
 version_code = 1
+icon_dir = "android/icons"
