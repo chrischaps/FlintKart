@@ -56,6 +56,7 @@ The engine lives at `engine/` as a git subtree. Remote: `engine` → `https://gi
 - Race state machine in `race_manager.rhai`: countdown -> racing -> finished
 - `on_update()` is parameterless — use `delta_time()` API for frame delta
 - Scene TOML uses `asset = "name"` without .glb extension (engine appends it)
+- Graphics quality is runtime (#55): scripts call `set_quality(#{ render_scale, msaa, shadows, shadow_resolution, shadow_cascades, shadow_distance, post_process, bloom, ssao, ssao_samples, fog, volumetric })`, read `get_quality()` and `gpu_info().class`; `flint-player` and `flint render` take `--quality k=v,...` (the .bat files pass no extra flags). Post keys are caps on each scene's `[post_process]` and hold across track loads. Engine book: concepts/quality-settings.md
 
 ## Audio
 
