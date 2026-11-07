@@ -1,31 +1,56 @@
-# Temporary render outputs
-render_test*.png
-render_*.png
+# Rust build artifacts
+/target/
+**/*.rs.bk
 
-# Source music files (large, keep .ogg conversions in audio/)
-*.mp3
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# Blender backup files
-*.blend1
-models/backup/
+# Claude Code local settings
+.claude/*
 
-# Python cache
-__pycache__/
+# Worktrees and brainstorming artifacts
+.worktrees/
+.superpowers/
 
-# Accidental/temp files
-1
+# OS
+.DS_Store
+Thumbs.db
 
-# Windows artifact
+# Build
+*.pdb
+
+# Generated docs (rebuild with mdbook build / cargo doc)
+docs/book/book/
 nul
 
-# Claude Code local config
-.claude/
+# Test screenshots and render output
+screenshots/
 
-# Render evidence (flint-render skill)
-renders/
+# Raw/source assets (untracked)
+raw_assets/
 
-# Android build output
-build/
+# Android build artifacts
+android/app/build/
+android/build/
+android/.gradle/
+android/app/src/main/jniLibs/
+android/app/src/main/assets/
+android/app/src/main/res/mipmap-*/
+android/local.properties
 
-# Saved game state (persist_* writes it while playing)
-save/
+# Architecture analyzer output
+arch-data.json
+!.claude/settings.json
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/next-issue/
+!.claude/skills/close-epic/
+
+# trunk output for the web spike (crates/flint-player/index.html)
+/crates/flint-player/dist/
+
+# Procgen outputs kept between runs (#181); rebuilt on demand
+**/.flint/procgen-cache/

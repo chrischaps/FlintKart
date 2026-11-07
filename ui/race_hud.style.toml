@@ -1,8 +1,0 @@
-# Race HUD styles — tokens from ui/theme.toml, shared with the menus.
-# hud.rhai reads the same tokens through kit::theme() for everything it draws.
-tokens = "ui/theme.toml"
-
-[styles.hud-root]
-width_pct = 100
-height_pct = 100
-bg_color = [0.0, 0.0, 0.0, 0.0]
