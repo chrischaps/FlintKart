@@ -548,6 +548,13 @@ pub struct ScriptCallContext {
     /// `draw_distance_scale()`. The host sets them each frame.
     pub lod_scale: f32,
     pub draw_distance_scale: f32,
+    /// The quality settings as scripts see them (FlintKart#55): what the
+    /// host applied, with any `set_quality` this frame merged in.
+    pub quality: flint_core::quality::QualitySettings,
+    /// A `set_quality` call wants `quality` applied at the next frame.
+    pub quality_requested: bool,
+    /// What the GPU is, for `gpu_info()`. The host sets it once.
+    pub gpu_info: flint_core::quality::GpuInfo,
     /// Whether the cursor is captured now, for `is_cursor_captured()`
     /// (ADR 0110). The host sets it each frame.
     pub cursor_captured: bool,
@@ -655,6 +662,9 @@ impl ScriptCallContext {
             draw_distance_scale_request: None,
             lod_scale: 1.0,
             draw_distance_scale: 1.0,
+            quality: Default::default(),
+            quality_requested: false,
+            gpu_info: Default::default(),
             cursor_captured: false,
             state_machine: std::ptr::null_mut(),
             persistent_store: std::ptr::null_mut(),
