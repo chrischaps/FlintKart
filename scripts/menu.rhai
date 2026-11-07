@@ -83,7 +83,7 @@ let burst_rays = [];             // make_rays: the sunburst's fixed shape
 let line_rot_angle = 0.0;
 let reduce_motion = false;      // the settings toggle: a still burst, calmer confetti
 let qt = ();                    // quality::table(), config/quality.toml
-let gfx_tier = "";              // the Graphics tier in force
+let gfx_tier = "";              // the Graphics choice: "auto" or a tier
 let gfx_sel_t = 9.0;            // since it changed
 
 // ── Launch sequence ──
@@ -628,20 +628,22 @@ fn on_draw_ui() {
         kit::pill(th, (sw - pw) / 2.0, sh * 0.76 - ph / 2.0, pw, ph, th.c.sun, k, 1.0, 4);
         kit::label(th, sw / 2.0, sh * 0.76 - th.t.lg * k * sc * 0.62, label, th.t.lg * k * sc, th.c.ink, "center", 5);
 
-        // Graphics: LOW · MEDIUM · HIGH under the start pill
+        // Graphics: AUTO · LOW · MEDIUM · HIGH under the start pill
         let gh = 40.0 * k;
-        let gw = min(300.0 * k, sw - 200.0 * k);
+        let gw = min(380.0 * k, sw - 200.0 * k);
         let gy = sh * 0.84;
         let lw = kit::measure("GRAPHICS", th.t.sm * k, th.f.label).width;
         let gx = (sw - gw + lw + 14.0 * k) / 2.0;
         kit::label(th, gx - 14.0 * k, gy + gh / 2.0 - th.t.sm * k * 0.62, "GRAPHICS", th.t.sm * k, th.c.cream, "right", 5);
-        let segs = quality::draw_control(th, qt, gfx_tier, gx, gy, gw, gh, k, false, gfx_sel_t, 4);
+        let gfx_run = quality::running(qt, gfx_tier);
+        let segs = quality::draw_control(th, qt, gfx_tier, gfx_run, gx, gy, gw, gh, k, false, gfx_sel_t, 4);
         if !touch_active {
             let kw = kit::measure("A / D", th.t.sm * k, th.f.label).width + 28.0 * k;
             kit::hint(th, gx + gw + 14.0 * k + kw / 2.0, gy + gh / 2.0 - (th.t.sm + 12.0) * k / 2.0, "A / D", k, 1.0, 5);
         }
         gfx_sel_t += dt;
-        let blurb = if gfx_sel_t < 2.5 && qt.tiers.contains(gfx_tier) { qt.tiers[gfx_tier].blurb } else { "" };
+        let blurb = if gfx_sel_t < 2.5 { quality::blurb(qt, gfx_tier) } else { "" };
+        if blurb != "" && gfx_tier == "auto" { blurb += "  ·  now " + quality::label(qt, gfx_run); }
         if blurb != "" {
             let ba = kit::clamp01((2.5 - gfx_sel_t) / 0.4) * kit::clamp01(gfx_sel_t / 0.12);
             kit::hint(th, sw / 2.0, gy + gh + 10.0 * k, blurb, k, ba, 5);
@@ -653,13 +655,13 @@ fn on_draw_ui() {
         let pad = #{ x: gx - lw - 30.0 * k, y: gy - 12.0 * k, w: gw + lw + 60.0 * k, h: gh + 24.0 * k };
         for tp in taps {
             let si = quality::hit(segs, tp);
-            if si >= 0 { pick = qt.order[si]; }
+            if si >= 0 { pick = qt.choices[si]; }
             else if !in_rect(pad, tp) { start_taps += 1; }
         }
         let raw = steer_dir();
         let dir = if raw != prev_steer_dir { raw } else { 0 };
         prev_steer_dir = raw;
-        if idle && dir != 0 && qt.order.len() > 0 { pick = quality::step(qt, gfx_tier, dir); }
+        if idle && dir != 0 && qt.choices.len() > 0 { pick = quality::step(qt, gfx_tier, dir); }
         if idle && pick != "" && pick != gfx_tier {
             gfx_tier = pick;
             gfx_sel_t = 0.0;

@@ -57,7 +57,9 @@ PROFILE_LEVERS = {
 # Graphics tiers (#57): the race applies the tier saved in the app's
 # files/save/persist.toml (config/quality.toml holds the numbers). Every
 # other lever saves "engine", so the scripts leave the profile's settings be.
-TIER_LEVERS = {"tier_low": "low", "tier_medium": "medium", "tier_high": "high"}
+# `tier_auto` (#58) runs Auto as on a first launch: the tier the device picks,
+# then the governor's steps, which the run prints from its "[quality]" lines.
+TIER_LEVERS = {"tier_low": "low", "tier_medium": "medium", "tier_high": "high", "tier_auto": "auto"}
 
 # Several levers at once: a scene lever and profile settings. A candidate
 # tier, priced as a whole (its heat matters as much as its milliseconds).
@@ -349,7 +351,9 @@ def parse_perf(line):
 def set_tier(tier):
     """Save `graphics_tier` in the app's persist.toml, keeping its other keys."""
     old = run_as("cat files/save/persist.toml 2>/dev/null || true")
-    keep = [l for l in old.splitlines() if l.strip() and not l.startswith("graphics_tier")]
+    # Auto starts afresh: no tier, calm wait or queued step from a last run
+    drop = ("graphics_tier", "auto_tier", "auto_calm", "auto_raise")
+    keep = [l for l in old.splitlines() if l.strip() and not l.startswith(drop)]
     local = OUT / "persist.toml"
     local.write_text("\n".join(keep + [f'graphics_tier = "{tier}"']) + "\n", encoding="utf-8", newline="\n")
     adb("push", str(local), f"{TMP}/persist.toml")
@@ -399,6 +403,7 @@ def run_case(track, lever, warmup, measure, rep=0):
         "warmup": warmup, "measure": measure, "before": before, "after": after,
         "clocks": samples,
         "windows": windows, "kept": len(kept), "errors": errors,
+        "quality": [l for l in log.splitlines() if "[quality]" in l],
         "log": [l for l in log.splitlines() if "flint perf" not in l and "naga::" not in l and "present mode" not in l][-60:],
     }
     OUT.mkdir(parents=True, exist_ok=True)
@@ -411,6 +416,9 @@ def run_case(track, lever, warmup, measure, rep=0):
           f"x3 cap {samples[0].get('x3_cap_mhz') if samples else '-'}  "
           f"gpu MHz {','.join(str(c.get('gpu_mhz')) for c in samples)}"
           + (f"  ERR {errors[0][:100]}" if errors and not kept else ""), flush=True)
+    if lever == "tier_auto":
+        for line in rec["quality"]:
+            print("    " + line, flush=True)
     return rec
 
 
