@@ -54,6 +54,11 @@ PROFILE_LEVERS = {
     "lod_full": {"env": {"FLINT_LOD_SCALE": "1000"}},
     "lod_near": {"env": {"FLINT_LOD_SCALE": "0.6"}},
 }
+# Graphics tiers (#57): the race applies the tier saved in the app's
+# files/save/persist.toml (config/quality.toml holds the numbers). Every
+# other lever saves "engine", so the scripts leave the profile's settings be.
+TIER_LEVERS = {"tier_low": "low", "tier_medium": "medium", "tier_high": "high"}
+
 # Several levers at once: a scene lever and profile settings. A candidate
 # tier, priced as a whole (its heat matters as much as its milliseconds).
 COMBOS = {
@@ -341,6 +346,16 @@ def parse_perf(line):
     return d
 
 
+def set_tier(tier):
+    """Save `graphics_tier` in the app's persist.toml, keeping its other keys."""
+    old = run_as("cat files/save/persist.toml 2>/dev/null || true")
+    keep = [l for l in old.splitlines() if l.strip() and not l.startswith("graphics_tier")]
+    local = OUT / "persist.toml"
+    local.write_text("\n".join(keep + [f'graphics_tier = "{tier}"']) + "\n", encoding="utf-8", newline="\n")
+    adb("push", str(local), f"{TMP}/persist.toml")
+    run_as(f"mkdir -p files/save && cp {TMP}/persist.toml files/save/persist.toml")
+
+
 def run_case(track, lever, warmup, measure, rep=0):
     if lever in COMBOS:
         scene_lever, extra = COMBOS[lever]
@@ -351,6 +366,7 @@ def run_case(track, lever, warmup, measure, rep=0):
     local = OUT / "dev_profile.toml"
     local.write_text(profile_toml(scene, extra), encoding="utf-8", newline="\n")
     adb("shell", "am force-stop " + PACKAGE)
+    set_tier(TIER_LEVERS.get(lever, "engine"))
     adb("push", str(local), f"{TMP}/dev_profile.toml")
     run_as(f"cp {TMP}/dev_profile.toml files/dev_profile.toml")
     before = device_state()
@@ -481,7 +497,7 @@ def main():
     r.add_argument("--measure", type=int, default=31)
     s = sub.add_parser("sweep")
     s.add_argument("--tracks", nargs="+", default=TRACKS)
-    s.add_argument("--levers", nargs="+", default=SCENE_LEVERS + list(PROFILE_LEVERS))
+    s.add_argument("--levers", nargs="+", default=SCENE_LEVERS + list(PROFILE_LEVERS) + list(TIER_LEVERS))
     s.add_argument("--reps", type=int, default=1)
     s.add_argument("--warmup", type=int, default=25)
     s.add_argument("--measure", type=int, default=31)

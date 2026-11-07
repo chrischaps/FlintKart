@@ -8,12 +8,17 @@
 //           wears it as you browse; the choice is saved as `player_paint`
 //           and hud.rhai paints the race kart with it
 //
+// The title also holds the Graphics setting (#57): a Low / Medium / High
+// control under the start pill, changed with A/D (or the stick) or a tap,
+// applied the moment it changes (scripts/lib/quality.rhai, config/quality.toml).
+//
 // Then the launch: rev -> burst -> fade into the race scene.
 // Drawn with scripts/lib/kit.rhai in the ui/theme.toml voice; the title's
 // logo and version line are ui/main_menu.ui.toml elements.
 
 import "kit" as kit;
 import "menu_ground" as menu_ground;
+import "quality" as quality;
 
 // ── Core state ──
 let screen = "title";           // "title" | "select" | "paint"
@@ -77,6 +82,9 @@ let particles = [];
 let burst_rays = [];             // make_rays: the sunburst's fixed shape
 let line_rot_angle = 0.0;
 let reduce_motion = false;      // the settings toggle: a still burst, calmer confetti
+let qt = ();                    // quality::table(), config/quality.toml
+let gfx_tier = "";              // the Graphics tier in force
+let gfx_sel_t = 9.0;            // since it changed
 
 // ── Launch sequence ──
 let launch_state = "none";
@@ -119,10 +127,18 @@ fn on_scene_enter() {
     menu_ui_loaded = menu_ui_handle >= 0;
     prev_screen = "";
     particles = [];    // lazy init in on_draw_ui repopulates
+    // The saved Graphics tier (or the device's default), to the engine. The
+    // engine keeps it across scene loads; applying it again costs nothing.
+    if qt == () { qt = quality::table(); }
+    gfx_tier = quality::current(qt);
+    quality::apply(qt, gfx_tier);
 }
 
 fn on_init() {
     set_touch_controls(false);
+    if qt == () { qt = quality::table(); }
+    gfx_tier = quality::current(qt);
+    quality::apply(qt, gfx_tier);
     if !menu_ui_loaded {
         menu_ui_handle = load_ui("ui/main_menu.ui.toml");
         menu_ui_loaded = menu_ui_handle >= 0;
@@ -314,6 +330,10 @@ fn on_update() {
         dust_rate = 80.0;
         spark_rate = 80.0;
     }
+    // The Graphics tier thins the particles (config/quality.toml fx_density)
+    let fx_k = quality::fx_density();
+    dust_rate *= fx_k;
+    spark_rate *= fx_k;
 
     // Boost spark colors: golden in donut, blue in straight
     if sparks_l_id >= 0 {
@@ -608,7 +628,46 @@ fn on_draw_ui() {
         kit::pill(th, (sw - pw) / 2.0, sh * 0.76 - ph / 2.0, pw, ph, th.c.sun, k, 1.0, 4);
         kit::label(th, sw / 2.0, sh * 0.76 - th.t.lg * k * sc * 0.62, label, th.t.lg * k * sc, th.c.ink, "center", 5);
 
-        if idle && (is_action_just_pressed("menu_confirm") || taps.len() > 0) {
+        // Graphics: LOW · MEDIUM · HIGH under the start pill
+        let gh = 40.0 * k;
+        let gw = min(300.0 * k, sw - 200.0 * k);
+        let gy = sh * 0.84;
+        let lw = kit::measure("GRAPHICS", th.t.sm * k, th.f.label).width;
+        let gx = (sw - gw + lw + 14.0 * k) / 2.0;
+        kit::label(th, gx - 14.0 * k, gy + gh / 2.0 - th.t.sm * k * 0.62, "GRAPHICS", th.t.sm * k, th.c.cream, "right", 5);
+        let segs = quality::draw_control(th, qt, gfx_tier, gx, gy, gw, gh, k, false, gfx_sel_t, 4);
+        if !touch_active {
+            let kw = kit::measure("A / D", th.t.sm * k, th.f.label).width + 28.0 * k;
+            kit::hint(th, gx + gw + 14.0 * k + kw / 2.0, gy + gh / 2.0 - (th.t.sm + 12.0) * k / 2.0, "A / D", k, 1.0, 5);
+        }
+        gfx_sel_t += dt;
+        let blurb = if gfx_sel_t < 2.5 && qt.tiers.contains(gfx_tier) { qt.tiers[gfx_tier].blurb } else { "" };
+        if blurb != "" {
+            let ba = kit::clamp01((2.5 - gfx_sel_t) / 0.4) * kit::clamp01(gfx_sel_t / 0.12);
+            kit::hint(th, sw / 2.0, gy + gh + 10.0 * k, blurb, k, ba, 5);
+        }
+
+        // A tap on a segment picks that tier; a tap anywhere else starts
+        let pick = "";
+        let start_taps = 0;
+        let pad = #{ x: gx - lw - 30.0 * k, y: gy - 12.0 * k, w: gw + lw + 60.0 * k, h: gh + 24.0 * k };
+        for tp in taps {
+            let si = quality::hit(segs, tp);
+            if si >= 0 { pick = qt.order[si]; }
+            else if !in_rect(pad, tp) { start_taps += 1; }
+        }
+        let raw = steer_dir();
+        let dir = if raw != prev_steer_dir { raw } else { 0 };
+        prev_steer_dir = raw;
+        if idle && dir != 0 && qt.order.len() > 0 { pick = quality::step(qt, gfx_tier, dir); }
+        if idle && pick != "" && pick != gfx_tier {
+            gfx_tier = pick;
+            gfx_sel_t = 0.0;
+            quality::choose(qt, pick);
+            play_sound("audio/ui_hover.ogg", 0.5);
+        }
+
+        if idle && (is_action_just_pressed("menu_confirm") || start_taps > 0) {
             screen = "select";
             play_sound("audio/ui_select.ogg", 0.5);
         }

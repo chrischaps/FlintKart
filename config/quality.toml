@@ -1,0 +1,100 @@
+# Graphics tiers (#57): what the Graphics setting in the menu and the pause
+# card picks between. scripts/lib/quality.rhai reads this table, hands the
+# `[tiers.<name>.engine]` keys to the engine's set_quality() (#55, engine book
+# concepts/quality-settings.md) and keeps the rest for the game's scripts.
+# tools/device_profile.py and tools/quality_snapshots.py read it too, so a
+# number changed here changes what the phone is measured with.
+#
+# The numbers come from the Pixel 8 Pro spike (#54,
+# docs/spikes/pixel-8-pro-load-levers.md, "Proposed tiers"). The spike's four
+# tiers fold into three: High is its Ultra (the full look the game was tuned
+# at), Medium and Low are its Medium and Low.
+#
+#   SSAO is the heaviest GPU pass on every track; shadows are next, and their
+#   cost is in the cascades, not the map size; render scale 0.75 saved 3-12 ms
+#   of GPU on the phone; bloom 4-10 ms when hot. MSAA 4x cost nothing on the
+#   Mali, so every tier keeps it, and a tier change never rebuilds pipelines.
+#
+# Post keys are caps (a tier can turn an effect off or lower it, never add one
+# a scene's look didn't ask for).
+#
+# Game keys, outside `engine`:
+#   fx_density        scale on every particle emitter's rate and burst count
+#                     (kart_fx.rhai); 1 is the authored amount
+#   lod_scale         set_lod_scale(): under 1 swaps in the simpler levels of
+#                     the set dressing sooner (#56; skipped where the engine
+#                     doesn't have it yet)
+#   draw_distance     set_draw_distance_scale(): scales every draw distance
+#
+# A player's choice is saved as `graphics_tier`. With none saved the game
+# starts on `start_mobile` when gpu_info().class is "mobile", otherwise on
+# `start`. #58 (auto quality) will pick the start from the device instead.
+# A saved "engine" is a profiling hook: the scripts then leave the settings
+# --quality or dev_profile.toml launched with (tools/device_profile.py).
+
+order = ["low", "medium", "high"]
+start = "high"
+start_mobile = "medium"
+
+[tiers.low]
+label = "LOW"
+blurb = "Smoothest. For phones when hot and older laptops"
+fx_density = 0.5
+lod_scale = 0.5
+draw_distance = 0.6
+
+[tiers.low.engine]
+render_scale = 0.6
+msaa = 4
+shadows = true
+shadow_resolution = 2048
+shadow_cascades = 1
+shadow_distance = 60.0
+post_process = true
+bloom = false
+ssao = false
+ssao_samples = 16
+fog = true
+volumetric = false
+
+[tiers.medium]
+label = "MEDIUM"
+blurb = "Balanced. Where a phone starts"
+fx_density = 0.75
+lod_scale = 0.75
+draw_distance = 1.0
+
+[tiers.medium.engine]
+render_scale = 0.75
+msaa = 4
+shadows = true
+shadow_resolution = 2048
+shadow_cascades = 2
+shadow_distance = 120.0
+post_process = true
+bloom = true
+ssao = true
+ssao_samples = 16
+fog = true
+volumetric = true
+
+[tiers.high]
+label = "HIGH"
+blurb = "The full look"
+fx_density = 1.0
+lod_scale = 1.0
+draw_distance = 1.0
+
+[tiers.high.engine]
+render_scale = 1.0
+msaa = 4
+shadows = true
+shadow_resolution = 2048
+shadow_cascades = 3
+shadow_distance = 200.0
+post_process = true
+bloom = true
+ssao = true
+ssao_samples = 64
+fog = true
+volumetric = true

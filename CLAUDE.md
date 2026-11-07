@@ -57,6 +57,7 @@ The engine lives at `engine/` as a git subtree. Remote: `engine` → `https://gi
 - `on_update()` is parameterless — use `delta_time()` API for frame delta
 - Scene TOML uses `asset = "name"` without .glb extension (engine appends it)
 - Graphics quality is runtime (#55): scripts call `set_quality(#{ render_scale, msaa, shadows, shadow_resolution, shadow_cascades, shadow_distance, post_process, bloom, ssao, ssao_samples, fog, volumetric })`, read `get_quality()` and `gpu_info().class`; `flint-player` and `flint render` take `--quality k=v,...` (the .bat files pass no extra flags). Post keys are caps on each scene's `[post_process]` and hold across track loads. Engine book: concepts/quality-settings.md
+- Graphics tiers (#57): Low / Medium / High live in `config/quality.toml` (engine keys for `set_quality`, plus `fx_density` for particles and the #56 LOD dials). `scripts/lib/quality.rhai` applies them; the title screen (A/D or a tap) and the pause card's GRAPHICS row change them live. The choice is saved as `graphics_tier` (unset means the device default: Medium on mobile, High elsewhere); a saved `"engine"` makes the scripts leave `--quality` / `dev_profile.toml` alone, which `tools/device_profile.py` uses for every non-tier lever. `kart_fx.rhai` and the menu kart scale emission by `fx_density`. `python tools/quality_snapshots.py` renders every tier; device levers `tier_low` / `tier_medium` / `tier_high`
 
 ## Audio
 
