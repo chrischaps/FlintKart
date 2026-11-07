@@ -540,6 +540,14 @@ pub struct ScriptCallContext {
     pub cursor_captured_override: Option<bool>,
     /// `set_touch_controls(enabled)` this frame (#134).
     pub touch_controls_override: Option<bool>,
+    /// `set_lod_scale(scale)` / `set_draw_distance_scale(scale)` this frame
+    /// (#56); the host hands them to the renderer.
+    pub lod_scale_request: Option<f32>,
+    pub draw_distance_scale_request: Option<f32>,
+    /// The renderer's scales now, for `lod_scale()` and
+    /// `draw_distance_scale()`. The host sets them each frame.
+    pub lod_scale: f32,
+    pub draw_distance_scale: f32,
     /// Whether the cursor is captured now, for `is_cursor_captured()`
     /// (ADR 0110). The host sets it each frame.
     pub cursor_captured: bool,
@@ -643,6 +651,10 @@ impl ScriptCallContext {
             time_scale_request: None,
             cursor_captured_override: None,
             touch_controls_override: None,
+            lod_scale_request: None,
+            draw_distance_scale_request: None,
+            lod_scale: 1.0,
+            draw_distance_scale: 1.0,
             cursor_captured: false,
             state_machine: std::ptr::null_mut(),
             persistent_store: std::ptr::null_mut(),

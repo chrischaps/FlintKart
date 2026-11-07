@@ -179,9 +179,13 @@ def write_ground():
     xs = np.unique(np.round(V[:, 0], 3))
     zs = np.unique(np.round(V[:, 2], 3))
     step = float(np.median(np.diff(xs)))
-    H = np.full((len(zs), len(xs)), np.nan)
-    H[np.searchsorted(zs, np.round(V[:, 2], 3)),
-      np.searchsorted(xs, np.round(V[:, 0], 3))] = V[:, 1]
+    H = np.full((len(zs), len(xs)), -np.inf)
+    # The model holds every level of detail of each tile, and each tile's
+    # skirt hangs below its edge: all sit on the full level's grid points and
+    # never above it, so the highest vertex at a point is the full surface.
+    np.maximum.at(H, (np.searchsorted(zs, np.round(V[:, 2], 3)),
+                      np.searchsorted(xs, np.round(V[:, 0], 3))), V[:, 1])
+    H[np.isinf(H)] = np.nan
     ci = np.where(np.abs(xs) <= GROUND_REACH + step)[0]
     ri = np.where(np.abs(zs) <= GROUND_REACH + step)[0]
     H = H[ri[0]:ri[-1] + 1, ci[0]:ci[-1] + 1]
