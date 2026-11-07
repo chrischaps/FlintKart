@@ -764,6 +764,13 @@ position = [0, 0, 0]
 [entities.hud.script]
 source = "hud.rhai"
 
+# Auto quality (#58): moves the Graphics tier with the frame time while the
+# choice is Auto (scripts/quality_governor.rhai, config/quality.toml [auto])
+[entities.quality_governor]
+
+[entities.quality_governor.script]
+source = "quality_governor.rhai"
+
 
 # ============================================================
 #  START/FINISH LINE — checkered marker at spline origin

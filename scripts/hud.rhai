@@ -95,7 +95,7 @@ let pause_steer = 0;        // last steering direction on the pause card (edge d
 let pause_options = ["RESUME", "GRAPHICS", "RESTART RACE", "TRACK SELECT", "MAIN MENU"];
 let PAUSE_GRAPHICS = 1;     // the Graphics row: A/D or a tap on a segment changes the tier
 let qt = ();                // quality::table(), config/quality.toml (#57)
-let gfx_tier = "";          // the Graphics tier in force
+let gfx_tier = "";          // the Graphics choice: "auto" or a tier
 let gfx_sel_t = 9.0;        // since it changed
 
 // Results
@@ -253,10 +253,10 @@ fn on_draw_ui() {
                 picked = pause_selection;
             }
             // Graphics: A/D steps the tier on its row; ENTER goes round them
-            if pause_selection == PAUSE_GRAPHICS && qt.order.len() > 0 {
+            if pause_selection == PAUSE_GRAPHICS && qt.choices.len() > 0 {
                 if is_action_just_pressed("menu_confirm") {
                     let nx = quality::step(qt, gfx_tier, 1);
-                    gfx_pick = if nx == gfx_tier { qt.order[0] } else { nx };
+                    gfx_pick = if nx == gfx_tier { qt.choices[0] } else { nx };
                 }
                 let raw = if action_value("steering") > 0.5 { 1 } else if action_value("steering") < -0.5 { -1 } else { 0 };
                 if raw != pause_steer && raw != 0 { gfx_pick = quality::step(qt, gfx_tier, raw); }
@@ -271,7 +271,7 @@ fn on_draw_ui() {
                 let si = quality::hit(action.segs, tp);
                 if si >= 0 {
                     pause_selection = PAUSE_GRAPHICS;
-                    gfx_pick = qt.order[si];
+                    gfx_pick = qt.choices[si];
                 } else {
                     let hit = hit_row(action.rows, tp[0], tp[1]);
                     if hit >= 0 { pause_selection = hit; picked = hit; }
@@ -1175,7 +1175,7 @@ fn draw_lap_banner(th, k, sw, sh, text, sub, final_lap, new_best, t, reduce_moti
 // segments' rects, for tap testing.
 fn draw_pause(th, k, sw, sh, options, sel, t, sel_t, track_name, kart_id, touch_ui, qt, gfx_tier, gfx_sel_t) {
     kit::rect(0.0, 0.0, sw, sh, kit::fade(th.c.wash, kit::clamp01(t / 0.15)), 0.0, 20);
-    let cw = 440.0 * k;
+    let cw = 480.0 * k;
     let row_h = th.sp.row_menu * k;
     let ch = 96.0 * k + options.len() * row_h;
     let drop = kit::ease_out_back(t / 0.4, th.m.overshoot);
@@ -1209,13 +1209,13 @@ fn draw_pause(th, k, sw, sh, options, sel, t, sel_t, track_name, kart_id, touch_
         let face = if selected { th.c.sun } else { th.c.panel };
         let tc = if selected { th.c.ink } else { th.c.cream };
         kit::pill(th, x, y, w, h, face, k, 1.0, 22);
-        if options[i] == "GRAPHICS" && qt != () && qt.order.len() > 0 {
-            // GRAPHICS on the left, the Low / Medium / High control on the right
-            let gw = 210.0 * k * sc;
+        if options[i] == "GRAPHICS" && qt != () && qt.choices.len() > 0 {
+            // GRAPHICS on the left, the Auto / Low / Medium / High control on the right
+            let gw = 250.0 * k * sc;
             let gh = h - 12.0 * k;
             let gx = x + w - gw - 8.0 * k;
             kit::label(th, x + 38.0 * k, y + h / 2.0 - th.t.md * k * 0.62, "GRAPHICS", th.t.md * k, tc, "left", 23);
-            segs = quality::draw_control(th, qt, gfx_tier, gx, y + 6.0 * k, gw, gh, k, false, gfx_sel_t, 23);
+            segs = quality::draw_control(th, qt, gfx_tier, quality::running(qt, gfx_tier), gx, y + 6.0 * k, gw, gh, k, false, gfx_sel_t, 23);
         } else {
             kit::label(th, cx + cw / 2.0, y + h / 2.0 - th.t.lg * k * 0.62, options[i], th.t.lg * k, tc, "center", 23);
         }

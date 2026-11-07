@@ -26,15 +26,68 @@
 #                     doesn't have it yet)
 #   draw_distance     set_draw_distance_scale(): scales every draw distance
 #
-# A player's choice is saved as `graphics_tier`. With none saved the game
-# starts on `start_mobile` when gpu_info().class is "mobile", otherwise on
-# `start`. #58 (auto quality) will pick the start from the device instead.
-# A saved "engine" is a profiling hook: the scripts then leave the settings
-# --quality or dev_profile.toml launched with (tools/device_profile.py).
+# A player's choice is saved as `graphics_tier`: "auto" or a tier. With none
+# saved the game runs on Auto (#58), below. A saved "engine" is a profiling
+# hook: the scripts then leave the settings --quality or dev_profile.toml
+# launched with (tools/device_profile.py), and Auto is off.
 
 order = ["low", "medium", "high"]
-start = "high"
-start_mobile = "medium"
+
+# ── Auto (#58) ──
+# Most players never open a settings menu, so Auto is where the game starts.
+# It picks a first tier from gpu_info() (class, then platform), and
+# scripts/quality_governor.rhai moves it while racing: it judges 2 s windows
+# by their median frame time, steps a tier down after `over_windows` windows
+# over budget (the target frame time and a fifth), and queues a step up after
+# `first_calm` seconds of calm (at or under the target and `calm_margin`).
+# A queued step up waits for the pause card or the next grid, never a race in
+# motion. A step up that is over budget within two windows is taken back at
+# once and the next calm wait doubles, up to `max_calm`, so a device on the
+# edge (a phone getting hot) settles instead of flapping.
+#
+# Tables keyed by gpu_info().class: "desktop", "integrated", "mobile",
+# "unknown" (a browser that won't say), "software"; `other` is the rest.
+# `start_platform` (keyed by gpu_info().platform: "web", "android", ...)
+# overrides the class's start; a page often can't see its GPU.
+#
+# The tier Auto runs at is saved as `auto_tier`; picking a tier by hand turns
+# the governor off and leaves `auto_tier` for when Auto comes back.
+
+[auto]
+label = "AUTO"
+blurb = "Finds the smoothest look this device holds"
+window = 2.0
+over = 1.2
+calm_margin = 1.05
+over_windows = 2
+first_calm = 20.0
+max_calm = 160.0
+settle = 1.0
+stall = 0.25
+
+[auto.fps]
+mobile = 30
+unknown = 30
+software = 30
+other = 60
+
+[auto.start]
+desktop = "high"
+integrated = "medium"
+mobile = "medium"
+unknown = "medium"
+software = "low"
+other = "medium"
+
+[auto.start_platform]
+web = "medium"
+
+[auto.floor]
+other = "low"
+
+[auto.ceiling]
+mobile = "medium"
+other = "high"
 
 [tiers.low]
 label = "LOW"
