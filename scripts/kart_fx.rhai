@@ -20,8 +20,15 @@
 // The player's instance also draws speed lines at the edge of the screen
 // near top speed and while boosting, unless the reduce_motion setting is on.
 //
+// The Graphics tier (#57) thins all of it: every emission scale and burst
+// count is multiplied by its fx_density (config/quality.toml), read each frame
+// so a change from the pause card shows at once. Skid marks are the exception:
+// they are laid by distance, and thinning them would break the line.
+//
 // Effect assets come from tools/generate_fx.py. kart_state.forward points
 // out of the kart's nose (the model's -Z); the tail lights sit at +Z.
+
+import "quality" as quality;
 
 let kart_name = "player_kart";
 let prefix = "player";
@@ -62,6 +69,9 @@ let line_r = 1.0;
 let line_g = 0.97;
 let line_b = 0.90;
 
+// The Graphics tier's particle density (quality::fx_density)
+let fx_k = 1.0;
+
 // Last emission_scale written to each effect (see fx_set), in call order
 let shown = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0];
 
@@ -87,6 +97,7 @@ fn on_init() {
 
 fn on_update() {
     let dt = delta_time();
+    fx_k = quality::fx_density();
     if kart < 0 {
         kart = get_entity(kart_name);
         if kart < 0 { return; }
@@ -157,7 +168,7 @@ fn on_update() {
         smoke = max_f(smoke, 0.6);
         skid = true;
     }
-    shown[0] = fx_set(fx_smoke, smoke, shown[0]);
+    shown[0] = fx_set(fx_smoke, smoke * fx_k, shown[0]);
     shown[1] = fx_set(fx_skids, if skid && paved && !jumped { 1.0 } else { 0.0 }, shown[1]);
 
     // ── Off-road dust, curb grit ──
@@ -168,7 +179,7 @@ fn on_update() {
     } else if surface == "curb" && speed > 8.0 {
         dust = 0.3;
     }
-    shown[2] = fx_set(fx_dust, dust, shown[2]);
+    shown[2] = fx_set(fx_dust, dust * fx_k, shown[2]);
 
     // ── Exhaust (the flames take over while boosting) ──
     let boosting = drift == "boost" || item_boost;
@@ -176,7 +187,7 @@ fn on_update() {
     if !boosting {
         exhaust = if speed > 0.3 || throttle > 0.05 { 0.25 + 0.75 * throttle } else { 0.12 };
     }
-    shown[3] = fx_set(fx_exhaust, exhaust, shown[3]);
+    shown[3] = fx_set(fx_exhaust, exhaust * fx_k, shown[3]);
 
     // ── Drift sparks: the charge, in tier colour ──
     let s1 = 0.0;
@@ -188,9 +199,9 @@ fn on_update() {
         else if tier == 1 { s1 = 1.0; }
         else if drift == "drifting" { s1 = 0.3; } // still charging
     }
-    shown[4] = fx_set(fx_sparks_1, s1, shown[4]);
-    shown[5] = fx_set(fx_sparks_2, s2, shown[5]);
-    shown[6] = fx_set(fx_sparks_3, s3, shown[6]);
+    shown[4] = fx_set(fx_sparks_1, s1 * fx_k, shown[4]);
+    shown[5] = fx_set(fx_sparks_2, s2 * fx_k, shown[5]);
+    shown[6] = fx_set(fx_sparks_3, s3 * fx_k, shown[6]);
 
     // ── Boost flames ──
     let b1 = 0.0;
@@ -200,10 +211,10 @@ fn on_update() {
         let b = 0.55 + 0.45 * clamp(boost_left / 0.5, 0.0, 1.0);
         if boost_tier >= 3 { b3 = b; } else if boost_tier == 2 { b2 = b; } else { b1 = b; }
     }
-    shown[7] = fx_set(fx_boost_1, b1, shown[7]);
-    shown[8] = fx_set(fx_boost_2, b2, shown[8]);
-    shown[9] = fx_set(fx_boost_3, b3, shown[9]);
-    shown[10] = fx_set(fx_boost_item, if item_boost { 1.0 } else { 0.0 }, shown[10]);
+    shown[7] = fx_set(fx_boost_1, b1 * fx_k, shown[7]);
+    shown[8] = fx_set(fx_boost_2, b2 * fx_k, shown[8]);
+    shown[9] = fx_set(fx_boost_3, b3 * fx_k, shown[9]);
+    shown[10] = fx_set(fx_boost_item, (if item_boost { 1.0 } else { 0.0 }) * fx_k, shown[10]);
 
     // ── Wall scrape: sparks where the wall touches, while it does ──
     if wall_contact && wall_known && speed > 5.0 {
@@ -284,15 +295,15 @@ fn on_event(name, data) {
             set_effect_param(h, "scale", 0.6 + 0.6 * data.strength);
         }
     } else if name == "drift_start" {
-        if fx_smoke >= 0 { emit_burst(fx_smoke, 4); }
+        if fx_smoke >= 0 { emit_burst(fx_smoke, burst_n(4, fx_k)); }
     } else if name == "drift_tier" {
         let r = along_kart(kart, -1.1, 0.3);   // over the rear tyres
         play_effect("drift_pop_" + data.tier, r["x"], r["y"], r["z"]);
     } else if name == "drift_boost" {
-        if data.tier >= 3 && fx_boost_3 >= 0 { emit_burst(fx_boost_3, 8); }
-        else if data.tier == 2 && fx_boost_2 >= 0 { emit_burst(fx_boost_2, 7); }
-        else if data.tier == 1 && fx_boost_1 >= 0 { emit_burst(fx_boost_1, 6); }
-        if fx_smoke >= 0 { emit_burst(fx_smoke, if data.tier > 0 { 5 } else { 2 }); }
+        if data.tier >= 3 && fx_boost_3 >= 0 { emit_burst(fx_boost_3, burst_n(8, fx_k)); }
+        else if data.tier == 2 && fx_boost_2 >= 0 { emit_burst(fx_boost_2, burst_n(7, fx_k)); }
+        else if data.tier == 1 && fx_boost_1 >= 0 { emit_burst(fx_boost_1, burst_n(6, fx_k)); }
+        if fx_smoke >= 0 { emit_burst(fx_smoke, burst_n(if data.tier > 0 { 5 } else { 2 }, fx_k)); }
     } else if name == "item_pickup" {
         play_effect("item_pickup", data.x, data.y + 0.5, data.z);
     } else if name == "item_used" {
@@ -306,7 +317,7 @@ fn on_event(name, data) {
             let r = along_kart(kart, 2.5, 0.3);    // where item_manager drops it
             play_effect("item_fire", r["x"], r["y"], r["z"]);
         } else if data.item == "boost" && fx_boost_item >= 0 {
-            emit_burst(fx_boost_item, 10);
+            emit_burst(fx_boost_item, burst_n(10, fx_k));
         }
     } else if name == "item_hit" {
         play_effect("item_hit", data.x, data.y, data.z);
@@ -364,6 +375,12 @@ fn fx_set(id, scale, shown) {
         set_field(id, "particle_effect", "emission_scale", q);
     }
     q
+}
+
+// A burst's count thinned by the tier's density, never below one particle.
+fn burst_n(n, k) {
+    let c = (n.to_float() * k + 0.5).to_int();
+    if c < 1 { 1 } else { c }
 }
 
 fn max_f(a, b) {
