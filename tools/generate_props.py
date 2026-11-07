@@ -174,6 +174,8 @@ class Prop:
             if np.linalg.det(xform[:3, :3]) < 0:
                 f = np.asarray(f)[:, ::-1]
         assert color in PALETTE or color in GLOW, color
+        if DETAIL and len(v) and float((v.max(axis=0) - v.min(axis=0)).max()) < LOD_MIN_PART[DETAIL]:
+            return self     # a far level leaves out what it can't show
         self.parts.append((v, np.asarray(f, dtype=np.int64), color))
         return self
 
@@ -205,13 +207,60 @@ def blob(r, subdiv=1, rng=None, jitter=0.0):
     v = m.vertices.copy()
     if rng is not None and jitter > 0:
         v *= (1.0 + rng.uniform(-jitter, jitter, size=(len(v), 1)))
+    coarse = max(0, subdiv - DETAIL)
+    if coarse < subdiv:
+        # The far levels' gem keeps the near one's corners: an icosphere's
+        # first vertices are its coarser parent's, so the jittered shape (and
+        # every random draw after it) is the same at every detail.
+        c = trimesh.creation.icosphere(subdivisions=coarse, radius=r)
+        return v[:len(c.vertices)], c.faces
     return v, m.faces
+
+
+# ── Levels of detail ────────────────────────────────────────────────────
+# A prop is built at a detail level: 0 is the full prop, 1 and 2 are its
+# distant copies (fewer sides on every round part, coarser blobs, the smallest
+# parts left out). The same seed builds the same shape at every level, so a
+# level hands over to the next without the prop moving. dress_track.py merges
+# each level of a region into one mesh and the engine picks one by distance.
+
+DETAIL = 0
+# lathe sections kept at each level (a fraction, and a floor), and the size
+# under which a part is left out
+LOD_SECTIONS = {0: (1.0, 3), 1: (0.5, 4), 2: (0.34, 3)}
+LOD_MIN_PART = {0: 0.0, 1: 0.18, 2: 0.45}
+
+
+class Lodded:
+    """A prop that can be built at any detail level: `make()` is called with
+    DETAIL set, and each level is built once."""
+
+    def __init__(self, make):
+        self.make = make
+        self.levels = {}
+
+    def at(self, level=0):
+        global DETAIL
+        if level not in self.levels:
+            old, DETAIL = DETAIL, level
+            try:
+                self.levels[level] = self.make()
+            finally:
+                DETAIL = old
+        return self.levels[level]
+
+
+def lodded(name, seed=0):
+    """PROPS[name](seed) at every level."""
+    return Lodded(lambda: PROPS[name](seed))
 
 
 def lathe(profile, sections=12, a0=0.0, a1=360.0, phase=0.0):
     """Revolve (r, y) points about +Y. Trace the profile from the axis at the
     bottom, outward, up, and back to the axis at the top so faces point out.
     A partial sweep (a0..a1 degrees) leaves the cut sides open."""
+    frac, floor = LOD_SECTIONS[DETAIL]
+    sections = max(min(sections, floor), int(math.ceil(sections * frac)))
     full = abs((a1 - a0) - 360.0) < 1e-6
     steps = sections if full else max(1, int(round(sections * (a1 - a0) / 360.0)))
     angles = [math.radians(a0 + phase + (a1 - a0) * k / steps) for k in range(steps + (0 if full else 1))]
@@ -323,10 +372,13 @@ def palm(seed=0):
         leaf = Prop()
         cx = 0.0
         cy = 0.0
-        for j in range(4):
-            a = math.radians(droop + j * 14)
-            seg = 0.95
-            leaf.add(box(seg, 0.06, 0.62 - j * 0.12), "palm_leaf" if j % 2 == 0 else "leaf_dark",
+        # far levels draw each frond in two segments along the same curve
+        n = 4 if DETAIL == 0 else 2
+        for j in range(n):
+            a = math.radians(droop + (j * 4 / n + (4 / n - 1) / 2) * 14)
+            seg = 0.95 * 4 / n
+            w = 0.62 - (j * 4 / n + (4 / n - 1) / 2) * 0.12
+            leaf.add(box(seg, 0.06, w), "palm_leaf" if j % 2 == 0 else "leaf_dark",
                      chain(T(cx + math.cos(a) * seg / 2, cy - math.sin(a) * seg / 2, 0), Rz(-math.degrees(a))))
             cx += math.cos(a) * seg
             cy -= math.sin(a) * seg
@@ -890,6 +942,92 @@ def to_scene(prop, textured=()):
 def write_glb(scene, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     data = scene.export(file_type="glb", include_normals=True)
+    with open(path, "wb") as f:
+        f.write(data)
+    return len(data)
+
+
+def lod_extras(near=0.0, far=None, ref=None, draw_distance=None):
+    """The `flint_lod` extras of one level (engine: flint_import::LodBand).
+    `ref` is the (lo, hi) box every level of the group measures to."""
+    band = {"near": round(float(near), 2)}
+    if far is not None:
+        band["far"] = round(float(far), 2)
+    if draw_distance is not None:
+        band["draw_distance"] = round(float(draw_distance), 2)
+    if ref is not None:
+        band["ref_min"] = [round(float(x), 3) for x in ref[0]]
+        band["ref_max"] = [round(float(x), 3) for x in ref[1]]
+    return {"flint_lod": band}
+
+
+def single_mesh_glb(data):
+    """Fold every mesh of a GLB into the primitives of one mesh on one node,
+    carrying each mesh's extras onto its primitives. The engine gives a model
+    with several mesh nodes a child entity per node, each extracted every
+    frame; one node keeps a region's levels on one entity. Meshes must sit
+    at the origin (no node transforms), as dress_track.py writes them."""
+    import json
+    import struct
+    magic, version, _ = struct.unpack_from("<III", data, 0)
+    assert magic == 0x46546C67, "not a GLB"
+    jlen, jtype = struct.unpack_from("<II", data, 12)
+    assert jtype == 0x4E4F534A
+    doc = json.loads(data[20:20 + jlen])
+    rest = data[20 + jlen:]
+    prims = []
+    for node in doc.get("nodes", []):
+        assert "matrix" not in node and "translation" not in node, "node transforms aren't folded"
+    for mesh in doc["meshes"]:
+        for p in mesh["primitives"]:
+            if mesh.get("extras"):
+                p["extras"] = {**mesh["extras"], **p.get("extras", {})}
+            prims.append(p)
+    doc["meshes"] = [{"name": doc["meshes"][0].get("name", "lods"), "primitives": prims}]
+    doc["nodes"] = [{"name": "lods", "mesh": 0}]
+    doc["scenes"] = [{"nodes": [0]}]
+    doc["scene"] = 0
+    js = json.dumps(doc, separators=(",", ":")).encode()
+    js += b" " * (-len(js) % 4)
+    body = struct.pack("<II", len(js), 0x4E4F534A) + js + rest
+    return struct.pack("<III", magic, version, 12 + len(body)) + body
+
+
+def write_glb_scene_single(scene, path):
+    """Write a scene whose geometries carry `flint_lod` metadata as one mesh
+    (see single_mesh_glb). Returns (bytes, triangles per level)."""
+    tris = {}
+    for name, g in scene.geometry.items():
+        level = name.rsplit("_l", 1)[-1]
+        tris[level] = tris.get(level, 0) + len(g.faces)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    data = single_mesh_glb(scene.export(file_type="glb", include_normals=True))
+    with open(path, "wb") as f:
+        f.write(data)
+    return len(data), [tris[k] for k in sorted(tris)]
+
+
+def write_lod_glb(levels, path, textured=()):
+    """One GLB holding several levels of a region as primitives of one mesh:
+    `levels` is [(prop, extras)], each prop's palette and glow parts tagged
+    with its level's `flint_lod` extras. Empty levels are skipped."""
+    pal, glow = palette_materials()
+    scene = trimesh.Scene()
+    for k, (prop, extras) in enumerate(levels):
+        plain = [p for p in prop.parts if p[2] in PALETTE]
+        lit = [p for p in prop.parts if p[2] in GLOW]
+        for name, parts, table, index, mat in (("palette", plain, PALETTE, PAL_INDEX, pal),
+                                               ("glow", lit, GLOW, GLOW_INDEX, glow)):
+            if not parts:
+                continue
+            m = _mesh(*_flat(parts, table, index), mat)
+            m.metadata = dict(extras)
+            scene.add_geometry(m, geom_name=f"{name}_l{k}")
+    for k, (m, extras) in enumerate(textured):
+        m.metadata = dict(extras)
+        scene.add_geometry(m, geom_name=f"textured_{k}")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    data = single_mesh_glb(scene.export(file_type="glb", include_normals=True))
     with open(path, "wb") as f:
         f.write(data)
     return len(data)

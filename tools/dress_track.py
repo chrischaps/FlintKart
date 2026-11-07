@@ -13,6 +13,10 @@ what grows around them. From it this writes:
 - `models/dress_<track>_<n>.glb`: every scattered and placed prop, merged by
   region. Props share one palette texture (tools/generate_props.py), so a
   chunk is one draw call, plus one more if anything in it glows.
+- Levels of detail in both (#56): the terrain in tiles, each at three grid
+  densities, and each chunk at three prop details, as primitives of one mesh
+  tagged with `extras.flint_lod` so the engine draws one level by distance.
+  The recipe's `[lod]` table moves the switch distances (see lod_config).
 - A block in the scene between `# >>> set dressing` and `# <<< set dressing`
   holding those models, the standalone props (signs, the gantry, the blimp)
   and point lights. Everything outside the block is left alone.
@@ -302,26 +306,88 @@ class Terrain:
         keep = smoothstep(self.corr + 30, self.corr + 55, d)[..., None]
         return img * (1 - keep) + out * keep
 
-    def mesh(self, texture):
-        nx, nz = self.nx, self.nz
-        V = np.c_[self.X.ravel(), self.H.ravel(), self.Z.ravel()]
-        UV = np.c_[(self.X.ravel() - self.x0) / (self.x1 - self.x0),
-                   1.0 - (self.Z.ravel() - self.z0) / (self.z1 - self.z0)]
-        ii, jj = np.meshgrid(np.arange(nx - 1), np.arange(nz - 1))
-        a = (jj * nx + ii).ravel()
-        b = a + nx       # +z
-        c = a + 1        # +x
-        dd = b + 1
-        F = np.vstack([np.c_[a, b, c], np.c_[c, b, dd]])
+    LOD_STEPS = (1, 2, 4)      # grid points kept per level: every one, every 2nd, every 4th
+    SKIRT = 2.5                # metres a tile's edge hangs down, to hide cracks between levels
+
+    def mesh(self, texture, lod):
+        """The ground as tiles, each at three levels of detail (#56). A tile's
+        levels measure to its full level's bounds, so the camera's own tile
+        and its neighbours stay full. Coarser levels skip grid points; where
+        two levels meet, a skirt hanging from each tile's inner edges fills
+        the crack. Normals come from the full grid, so a level shades like
+        the full one, and in the road corridor a coarse level takes the
+        lowest ground round each point so it never pokes through the road."""
         import trimesh
+        from scipy.ndimage import minimum_filter
         from trimesh.visual.material import PBRMaterial
-        m = trimesh.Trimesh(vertices=V, faces=F, process=False)
-        m.visual = trimesh.visual.TextureVisuals(
-            uv=UV, material=PBRMaterial(name="ground", baseColorTexture=texture,
-                                        metallicFactor=0.0, roughnessFactor=0.95))
-        s = trimesh.Scene()
-        s.add_geometry(m, geom_name="ground")
-        return s
+        nx, nz = self.nx, self.nz
+        H = self.H
+        gz, gx = np.gradient(H, self.spacing)
+        N = np.dstack([-gx, np.ones_like(H), -gz])
+        N /= np.linalg.norm(N, axis=2, keepdims=True)
+        d, _ = self.roads.nearest(self.X, self.Z)
+        corridor = d < self.corr + 4.0
+        heights = {s: H if s == 1 else np.where(corridor, minimum_filter(H, size=2 * s + 1, mode="nearest"), H)
+                   for s in self.LOD_STEPS}
+        U = (self.X - self.x0) / (self.x1 - self.x0)
+        Vt = 1.0 - (self.Z - self.z0) / (self.z1 - self.z0)
+        mat = PBRMaterial(name="ground", baseColorTexture=texture, metallicFactor=0.0, roughnessFactor=0.95)
+        bands = [(0.0, lod["terrain_near"]), (lod["terrain_near"], lod["terrain_far"]), (lod["terrain_far"], None)]
+
+        def cuts(n):
+            tiles = max(1, int(math.ceil((n - 1) / lod["terrain_tile"])))
+            return np.linspace(0, n - 1, tiles + 1).round().astype(int)
+
+        scene = trimesh.Scene()
+        xs, zs = cuts(nx), cuts(nz)
+        for tj in range(len(zs) - 1):
+            for ti in range(len(xs) - 1):
+                i0, i1, j0, j1 = xs[ti], xs[ti + 1], zs[tj], zs[tj + 1]
+                block = H[j0:j1 + 1, i0:i1 + 1]
+                ref = ([self.X[0, i0], float(block.min()), self.Z[j0, 0]],
+                       [self.X[0, i1], float(block.max()), self.Z[j1, 0]])
+                # an edge on the world's rim has no neighbour to crack against
+                inner = {"x0": ti > 0, "x1": ti < len(xs) - 2, "z0": tj > 0, "z1": tj < len(zs) - 2}
+                for level, (step, (near, far)) in enumerate(zip(self.LOD_STEPS, bands)):
+                    ii = np.r_[np.arange(i0, i1, step), i1]
+                    jj = np.r_[np.arange(j0, j1, step), j1]
+                    m = self._tile(ii, jj, heights[step], N, U, Vt, inner)
+                    m.visual = trimesh.visual.TextureVisuals(uv=m.metadata.pop("uv"), material=mat)
+                    m.metadata = gp.lod_extras(near, far, ref)
+                    scene.add_geometry(m, geom_name=f"ground_{ti}_{tj}_l{level}")
+        return scene
+
+    def _tile(self, ii, jj, Hs, N, U, Vt, inner):
+        """One tile at one level: the grid points (jj x ii), two triangles a
+        cell, and a skirt down from each inner edge (both faces, since the
+        crack it fills can be seen from either side)."""
+        import trimesh
+        J, I = np.meshgrid(jj, ii, indexing="ij")
+        nxl, nzl = len(ii), len(jj)
+        V = [np.c_[self.X[J, I].ravel(), Hs[J, I].ravel(), self.Z[J, I].ravel()]]
+        NN = [N[J, I].reshape(-1, 3)]
+        UV = [np.c_[U[J, I].ravel(), Vt[J, I].ravel()]]
+        ci, cj = np.meshgrid(np.arange(nxl - 1), np.arange(nzl - 1))
+        a = (cj * nxl + ci).ravel()
+        b, c = a + nxl, a + 1          # +z, +x
+        F = [np.c_[a, b, c], np.c_[c, b, b + 1]]
+        grid = np.arange(nxl * nzl).reshape(nzl, nxl)
+        edges = {"z0": grid[0, :], "z1": grid[-1, :], "x0": grid[:, 0], "x1": grid[:, -1]}
+        base = nxl * nzl
+        for side, ring in edges.items():
+            if not inner[side]:
+                continue
+            top = V[0][ring]
+            V.append(top - [0.0, self.SKIRT, 0.0])
+            NN.append(NN[0][ring])
+            UV.append(UV[0][ring])
+            low = base + np.arange(len(ring))
+            p, q, pl, ql = ring[:-1], ring[1:], low[:-1], low[1:]
+            F += [np.c_[p, q, ql], np.c_[p, ql, pl], np.c_[p, ql, q], np.c_[p, pl, ql]]
+            base += len(ring)
+        m = trimesh.Trimesh(vertices=np.vstack(V), faces=np.vstack(F), vertex_normals=np.vstack(NN), process=False)
+        m.metadata["uv"] = np.vstack(UV)
+        return m
 
 
 # ── Placement ───────────────────────────────────────────────────────────
@@ -370,6 +436,7 @@ class Dresser:
         return True
 
     def put(self, prop, x, y, z, yaw, scale=1.0, foot=0.0, sink=0.15):
+        """Place a gp.Lodded prop (every detail level from one seed)."""
         xf = gp.chain(gp.T(x, y - sink * scale, z), gp.Ry(yaw), gp.S(scale))
         self.placed.append((prop, xf))
         if foot > 0:
@@ -377,8 +444,8 @@ class Dresser:
 
     def run_place(self):
         for spec in self.recipe.get("place", []):
-            prop = gp.PROPS[spec["prop"]](spec.get("seed", 0))
-            lo, hi = prop.bounds()
+            prop = gp.lodded(spec["prop"], spec.get("seed", 0))
+            lo, hi = prop.at(0).bounds()
             foot = spec.get("foot", 0.5 * max(hi[0] - lo[0], hi[2] - lo[2]))
             count = spec.get("count", 1)
             for k in range(count):
@@ -408,7 +475,7 @@ class Dresser:
                 for j, side in enumerate(sides):
                     if spec.get("alternate") and (k + j) % 2:
                         continue
-                    prop = gp.PROPS[spec["prop"]](spec.get("seed", k))
+                    prop = gp.lodded(spec["prop"], spec.get("seed", k))
                     pos, fwd, right, _ = self.along(t, side, spec.get("offset", 0.0), side == 0 or spec.get("on_road", False),
                                                     spec.get("spline", 0))
                     # A roadside prop within `clear` metres of another road's
@@ -447,7 +514,7 @@ class Dresser:
         for spec in self.recipe.get("scatter", []):
             want = spec["count"]
             near, far = spec.get("near", 16.0), spec.get("far", 140.0)
-            variants = [gp.PROPS[spec["prop"]](v) for v in range(spec.get("variants", 3))]
+            variants = [gp.lodded(spec["prop"], v) for v in range(spec.get("variants", 3))]
             radius = spec.get("radius", 2.0)
             got, tries = 0, 0
             centres = []
@@ -525,7 +592,8 @@ class Dresser:
                     near = roads.tree.query_ball_point([q[0], q[2]], half + 2.0)
                     if any(roads.P[j, 1] < top - 2.0 for j in near):
                         continue
-                    self.put(gp.pillar(top - g + 0.6), q[0], g - 0.6, q[2], yaw_facing(fl[0], fl[2]), sink=0.0)
+                    self.put(gp.Lodded(lambda h=top - g + 0.6: gp.pillar(h)), q[0], g - 0.6, q[2],
+                             yaw_facing(fl[0], fl[2]), sink=0.0)
                     n += 1
         print(f"  pillars: {n}")
 
@@ -548,6 +616,8 @@ class Dresser:
         for prop, xf in self.placed + self.standalone:
             if math.hypot(xf[0, 3] - c[0], xf[2, 3] - c[2]) > reach + 20.0:
                 continue
+            if isinstance(prop, gp.Lodded):
+                prop = prop.at(0)
             scale = float(np.linalg.norm(xf[:3, 0]))
             cos, sin = xf[0, 0] / scale, xf[0, 2] / scale
             for lo, hi in prop.blockers():
@@ -585,29 +655,60 @@ class Dresser:
             "ground = [" + ", ".join(f2(v) for v in ground.ravel()) + "]",
             ""])
 
+    def lod_config(self):
+        """The recipe's `[lod]` table over the defaults. Distances are metres
+        from the camera to the nearest point of a region (or terrain tile),
+        so every prop in it is at least that far: nothing near the road
+        changes level. Props shorter than `keep_height` are left out of the
+        last level (a pumpkin at 160 m is a few pixels)."""
+        cfg = {"near": 70.0, "far": 160.0, "keep_height": 2.2,
+               "terrain_tile": 64, "terrain_near": 90.0, "terrain_far": 200.0}
+        cfg.update(self.recipe.get("lod", {}))
+        return cfg
+
+    def region_levels(self, placed, lod):
+        """[(Prop, extras)] for one region: everything at full detail near,
+        everything simplified in the middle distance, the tall things
+        simplified far. All three measure to the full level's bounds."""
+        full, mid, far = gp.Prop(), gp.Prop(), gp.Prop()
+        for prop, xf in placed:
+            full.extend(prop.at(0), xf)
+            mid.extend(prop.at(1), xf)
+            lo, hi = prop.at(0).bounds()
+            if (hi[1] - lo[1]) * float(np.linalg.norm(xf[:3, 1])) >= lod["keep_height"]:
+                far.extend(prop.at(2), xf)
+        ref = full.bounds()
+        levels = [(full, gp.lod_extras(0.0, lod["near"], ref)),
+                  (mid, gp.lod_extras(lod["near"], lod["far"], ref)),
+                  (far, gp.lod_extras(lod["far"], None, ref))]
+        return [(p, e) for p, e in levels if p.parts] or levels[:1]
+
     def write(self):
         models = os.path.join(ROOT, "models")
         for f in os.listdir(models):
             if re.fullmatch(rf"dress_{self.name}_(\d+|terrain)\.glb", f):
                 os.remove(os.path.join(models, f))
+        lod = self.lod_config()
         tex = self.terrain.paint(self.recipe["terrain"].get("texture_size", 2048))
-        n = gp.write_glb(self.terrain.mesh(tex), os.path.join(models, f"dress_{self.name}_terrain.glb"))
-        print(f"  terrain glb: {n / 1e6:.1f} MB")
+        n, tri_levels = gp.write_glb_scene_single(self.terrain.mesh(tex, lod),
+                                                  os.path.join(models, f"dress_{self.name}_terrain.glb"))
+        print(f"  terrain glb: {n / 1e6:.1f} MB, triangles by level {tri_levels}")
         blocks = [entity_block(f"dress_terrain", f"dress_{self.name}_terrain", [0, 0, 0], 0.0)]
-        # merge by region
+        # merge by region; each region holds its levels of detail
         size = self.recipe.get("chunk", 180.0)
         cells = {}
         for prop, xf in self.placed:
             key = (int(math.floor(xf[0, 3] / size)), int(math.floor(xf[2, 3] / size)))
-            cells.setdefault(key, gp.Prop()).extend(prop, xf)
-        tris = 0
+            cells.setdefault(key, []).append((prop, xf))
+        tris = [0, 0, 0]
         for k, key in enumerate(sorted(cells)):
-            chunk = cells[key]
-            tris += chunk.triangles()
+            levels = self.region_levels(cells[key], lod)
+            for i, (chunk, _) in enumerate(levels):
+                tris[i] += chunk.triangles()
             asset = f"dress_{self.name}_{k}"
-            gp.write_glb(gp.to_scene(chunk), os.path.join(models, asset + ".glb"))
+            gp.write_lod_glb(levels, os.path.join(models, asset + ".glb"))
             blocks.append(entity_block(f"dress_chunk_{k}", asset, [0, 0, 0], 0.0))
-        print(f"  {len(self.placed)} props in {len(cells)} chunks, {tris} triangles")
+        print(f"  {len(self.placed)} props in {len(cells)} chunks, triangles by level {tris}")
         blocks += self.entities
         blocks.append(self.camera_stage())
         for k, (p, lo) in enumerate(self.lights):

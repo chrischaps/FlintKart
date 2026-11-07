@@ -49,6 +49,10 @@ PROFILE_LEVERS = {
     "msaa_4": {"msaa": 4},
     "shadows_off": {"env": {"FLINT_SHADOWS": "0"}},
     "shadow_1024": {"env": {"FLINT_SHADOW_RES": "1024"}},
+    # distance LODs (#56): `base` runs them as authored; these hold every
+    # model at full detail (the before) and pull the switches in (Low tier)
+    "lod_full": {"env": {"FLINT_LOD_SCALE": "1000"}},
+    "lod_near": {"env": {"FLINT_LOD_SCALE": "0.6"}},
 }
 # Several levers at once: a scene lever and profile settings. A candidate
 # tier, priced as a whole (its heat matters as much as its milliseconds).
