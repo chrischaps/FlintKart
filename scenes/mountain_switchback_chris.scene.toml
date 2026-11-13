@@ -355,9 +355,6 @@ pitch = 1.0
 [entities.chase_camera.transform]
 position = [0, 5, 10]
 
-[entities.chase_camera.audio_listener]
-active = true
-
 [entities.chase_camera.script]
 source = "chase_camera.rhai"
 
