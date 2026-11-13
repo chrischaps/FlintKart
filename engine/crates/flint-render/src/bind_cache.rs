@@ -29,15 +29,96 @@ pub(crate) fn gpu_id() -> u64 {
     NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
+/// Who vouches for the depth view a frame's passes bind (#379).
+///
+/// wgpu 23 gives a `TextureView` no identity, so a bind group over the
+/// caller's depth buffer could only be kept when the caller says how long
+/// that view lives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DepthKey {
+    /// The chain's own (the render-scale path's scaled depth), which lives
+    /// as long as the cache.
+    Owned,
+    /// The caller's, under an id it changes whenever it makes a new depth
+    /// texture ([`new_depth_id`]; `RenderContext::depth_id`).
+    Caller(u64),
+    /// The caller's, with no id: bind groups over it last one frame.
+    Frame,
+}
+
+impl DepthKey {
+    /// The key for the caller's view under `id` (`None`: no id).
+    pub fn caller(id: Option<u64>) -> Self {
+        id.map_or(DepthKey::Frame, DepthKey::Caller)
+    }
+}
+
+/// A fresh id for a depth texture a host hands the renderer
+/// ([`DepthKey::Caller`]): take a new one each time the texture is made.
+pub fn new_depth_id() -> u64 {
+    gpu_id()
+}
+
+/// The depth buffer a host hands [`SceneRenderer::encode_to`], with the id
+/// that lets the renderer keep bind groups over it (#379). A bare
+/// `&TextureView` converts to one with no id, whose bind groups are made
+/// every frame; `RenderContext::depth_target` carries its id.
+///
+/// [`SceneRenderer::encode_to`]: crate::SceneRenderer::encode_to
+#[derive(Clone, Copy)]
+pub struct DepthTarget<'a> {
+    pub view: &'a wgpu::TextureView,
+    /// A [`new_depth_id`] taken when the view's texture was made, changed
+    /// whenever it is made again. Reusing one for a new texture would bind
+    /// the old texture.
+    pub id: Option<u64>,
+}
+
+impl<'a> DepthTarget<'a> {
+    pub fn new(view: &'a wgpu::TextureView, id: u64) -> Self {
+        Self { view, id: Some(id) }
+    }
+}
+
+impl<'a> From<&'a wgpu::TextureView> for DepthTarget<'a> {
+    fn from(view: &'a wgpu::TextureView) -> Self {
+        Self { view, id: None }
+    }
+}
+
+type CallerGroups = (u64, HashMap<(&'static str, u64), Arc<wgpu::BindGroup>>);
+
 /// Bind groups by a name and a variant (which views were chosen, whose
 /// objects they bind), made on first use; see the module docs.
-#[derive(Default)]
 pub struct BindCache {
     groups: Mutex<HashMap<(&'static str, u64), Arc<wgpu::BindGroup>>>,
-    /// Uniforms whose contents last as long as the cache (texel sizes),
-    /// written once.
-    written: Mutex<Vec<&'static str>>,
+    /// Groups over the caller's depth view, and the depth id they were
+    /// made for (0: none yet; ids start at 1).
+    caller: Mutex<CallerGroups>,
+    /// Bind groups made through it, kept or not: what a frame costs the
+    /// web in `createBindGroup`s, for tests.
+    made: AtomicU64,
+    /// Who this cache is to [`first_write`](Self::first_write): a
+    /// [`gpu_id`], a new one on [`clear`](Self::clear).
+    writer: AtomicU64,
 }
+
+impl Default for BindCache {
+    fn default() -> Self {
+        Self {
+            groups: Default::default(),
+            caller: Default::default(),
+            made: AtomicU64::new(0),
+            writer: AtomicU64::new(gpu_id()),
+        }
+    }
+}
+
+/// The cache that last wrote each write-once uniform (#880). The buffer is
+/// the pipeline's, shared by every cache that draws through it: the
+/// window's chain and each comic panel's. Process-wide, since a name is one
+/// buffer per renderer and another renderer's write only costs a rewrite.
+static LAST_WRITER: Mutex<Option<HashMap<&'static str, u64>>> = Mutex::new(None);
 
 impl BindCache {
     /// The bind group `name` in `variant`, made with `make` the first time.
@@ -50,42 +131,80 @@ impl BindCache {
         let mut groups = self.groups.lock().unwrap_or_else(|e| e.into_inner());
         groups
             .entry((name, variant))
-            .or_insert_with(|| Arc::new(make()))
+            .or_insert_with(|| self.make(make))
             .clone()
     }
 
-    /// [`get`](Self::get) when `keep`, else a bind group for this frame
-    /// only: for one over a view the cache can't vouch for, such as the
-    /// caller's depth buffer.
-    pub fn get_if(
+    /// The bind group `name` in `variant` over the frame's depth view,
+    /// kept as long as `depth` says the view lives (#379): with the cache
+    /// when the chain owns it, until the id changes when it's the caller's
+    /// (the caller's groups are dropped then, so an old depth texture isn't
+    /// held alive), and for this frame only when nothing vouches for it.
+    pub fn get_over(
         &self,
-        keep: bool,
+        depth: DepthKey,
         name: &'static str,
         variant: u64,
         make: impl FnOnce() -> wgpu::BindGroup,
     ) -> Arc<wgpu::BindGroup> {
-        if keep {
-            self.get(name, variant, make)
-        } else {
-            Arc::new(make())
+        match depth {
+            DepthKey::Owned => self.get(name, variant, make),
+            DepthKey::Caller(id) => {
+                let mut caller = self.caller.lock().unwrap_or_else(|e| e.into_inner());
+                if caller.0 != id {
+                    caller.0 = id;
+                    caller.1.clear();
+                }
+                caller
+                    .1
+                    .entry((name, variant))
+                    .or_insert_with(|| self.make(make))
+                    .clone()
+            }
+            DepthKey::Frame => self.make(make),
         }
     }
 
-    /// True the first time it's asked about `name`: for an upload whose
-    /// data doesn't change while the cache lives.
+    fn make(&self, make: impl FnOnce() -> wgpu::BindGroup) -> Arc<wgpu::BindGroup> {
+        self.made.fetch_add(1, Ordering::Relaxed);
+        Arc::new(make())
+    }
+
+    /// How many bind groups it has made, kept or for one frame.
+    pub fn made(&self) -> u64 {
+        self.made.load(Ordering::Relaxed)
+    }
+
+    /// True when `name`'s upload is due: the first time this cache asks,
+    /// and again whenever another cache asked since. For an upload whose
+    /// data doesn't change while the cache lives (a texel size) into a
+    /// buffer the pipeline shares, so a comic panel's chain, which writes
+    /// its own size there, doesn't leave it for the window's (#880).
     pub fn first_write(&self, name: &'static str) -> bool {
-        let mut written = self.written.lock().unwrap_or_else(|e| e.into_inner());
-        if written.contains(&name) {
-            false
-        } else {
-            written.push(name);
-            true
-        }
+        let me = self.writer.load(Ordering::Relaxed);
+        let mut last = LAST_WRITER.lock().unwrap_or_else(|e| e.into_inner());
+        last.get_or_insert_with(HashMap::new).insert(name, me) != Some(me)
+    }
+
+    /// Forget every group and every first write, as a new cache would
+    /// (the count of groups made goes on): for when what they bind was
+    /// made again (a style rebuilt from a changed shader, #418).
+    pub fn clear(&self) {
+        self.groups
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        let mut caller = self.caller.lock().unwrap_or_else(|e| e.into_inner());
+        caller.0 = 0;
+        caller.1.clear();
+        drop(caller);
+        // A new writer: every first write is due again
+        self.writer.store(gpu_id(), Ordering::Relaxed);
     }
 
     /// How many bind groups it holds.
     pub fn len(&self) -> usize {
-        self.groups.lock().map_or(0, |g| g.len())
+        self.groups.lock().map_or(0, |g| g.len()) + self.caller.lock().map_or(0, |c| c.1.len())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -170,11 +289,16 @@ impl TransformArena {
 
     /// Put `bytes` in `slot`, to go up with its page at [`upload`](Self::upload).
     pub fn stage(&mut self, slot: ArenaSlot, bytes: &[u8]) {
-        debug_assert!(bytes.len() as u64 <= SLOT_STRIDE);
+        self.stage_at(slot, 0, bytes);
+    }
+
+    /// Put `bytes` in `slot`, `offset` bytes in.
+    pub fn stage_at(&mut self, slot: ArenaSlot, offset: usize, bytes: &[u8]) {
+        debug_assert!((offset + bytes.len()) as u64 <= SLOT_STRIDE);
         let Some(page) = self.pages.get_mut(slot.page as usize) else {
             return;
         };
-        let at = slot.offset() as usize;
+        let at = slot.offset() as usize + offset;
         page.staging[at..at + bytes.len()].copy_from_slice(bytes);
         page.dirty = Some(match page.dirty {
             Some((a, b)) => (a.min(slot.index), b.max(slot.index + 1)),
@@ -252,7 +376,7 @@ mod tests {
     #[test]
     fn the_arena_pages_its_slots_and_uploads_them_together() {
         let Some((device, queue)) = device() else {
-            eprintln!("no GPU adapter: skipped");
+            crate::gpu_select::skip_without_gpu("no GPU adapter");
             return;
         };
         let mut arena = TransformArena::default();

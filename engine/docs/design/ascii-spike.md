@@ -18,9 +18,14 @@ code, so the choice could be made by eye:
 
 Since #265 the `=` is required: bare `--ascii` is the shipped full-screen style.
 
-The code is `crates/flint-render/src/ascii_spike.rs` and its two shaders.
-It is off by default and adds nothing to a frame unless `--ascii` is set.
-`flint render` also gained `--render-scale` and `--gpu-time <frames>`.
+The code was `crates/flint-render/src/ascii_spike.rs` and its shaders.
+#293 removed it, with the `--ascii=<mode>`, `--ascii-entities` and
+`--ascii-scene-background` flags, once the shipped style (#265, #266,
+#267) covered every variant: `--ascii` is full screen, an `ascii_style`
+or `style_mask` component is per entity, and `grid = "object"` is the
+object grid. The flags below are kept for the record; they no longer run.
+`flint render` also gained `--render-scale` and `--gpu-time <frames>`,
+which stay.
 
 ## How the prototypes work
 
@@ -41,8 +46,8 @@ It is off by default and adds nothing to a frame unless `--ascii` is set.
 
 ## Scenes
 
-`demo/phase4_runtime` (the tavern), `demo/mesh_meadow` (barrel, bench,
-lantern), `demo/campfire` (stones, with particles) and `demo/pbr_test`.
+`examples/phase4_runtime` (the tavern), `examples/mesh_meadow` (barrel, bench,
+lantern), `examples/campfire` (stones, with particles) and `examples/pbr_test`.
 Woozy Grove (#217) isn't on main yet, so the meadow stands in for it.
 
 ## Findings

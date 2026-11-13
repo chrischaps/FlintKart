@@ -764,8 +764,6 @@ def generate_scene(track_data, track_name, track_name_slug, nodes, segments,
     lines.append(f'[entities.chase_camera]')
     lines.append(f'[entities.chase_camera.transform]')
     lines.append(f'position = [0, 5, 10]')
-    lines.append(f'[entities.chase_camera.audio_listener]')
-    lines.append(f'active = true')
     lines.append(f'[entities.chase_camera.script]')
     lines.append(f'source = "chase_camera.rhai"')
     lines.append(f'')

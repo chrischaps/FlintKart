@@ -82,4 +82,78 @@ impl StyleTargets {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// What it holds: how many textures, their bytes, and how many of them
+    /// are `width` x `height` in `format` (the display stage's full-size
+    /// textures, #302). Textures stay until a resize, so this is everything
+    /// any configuration since then has asked for.
+    pub fn summary(&self, format: wgpu::TextureFormat, width: u32, height: u32) -> TargetSummary {
+        let Ok(textures) = self.textures.lock() else {
+            return TargetSummary::default();
+        };
+        let mut summary = TargetSummary::default();
+        for ((_, f), t) in textures.iter() {
+            summary.count += 1;
+            let texel = f.block_copy_size(None).unwrap_or(4);
+            summary.bytes += u64::from(t.width) * u64::from(t.height) * u64::from(texel);
+            if (*f, t.width, t.height) == (format, width, height) {
+                summary.full_size += 1;
+            }
+        }
+        summary
+    }
+
+    /// Every texture it holds, by name (#412): what each costs, for
+    /// `--gpu-time` and the F3 panel.
+    pub fn entries(&self) -> Vec<TargetEntry> {
+        let Ok(textures) = self.textures.lock() else {
+            return Vec::new();
+        };
+        let mut entries: Vec<TargetEntry> = textures
+            .iter()
+            .map(|((name, format), t)| TargetEntry {
+                name,
+                format: *format,
+                width: t.width,
+                height: t.height,
+                bytes: u64::from(t.width)
+                    * u64::from(t.height)
+                    * u64::from(format.block_copy_size(None).unwrap_or(4)),
+            })
+            .collect();
+        entries.sort_by(|a, b| a.name.cmp(b.name));
+        entries
+    }
+}
+
+/// One texture of [`StyleTargets::entries`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TargetEntry {
+    pub name: &'static str,
+    pub format: wgpu::TextureFormat,
+    pub width: u32,
+    pub height: u32,
+    pub bytes: u64,
+}
+
+impl TargetEntry {
+    /// `name  WxH  format  1.2 MB`, for a report.
+    pub fn line(&self) -> String {
+        format!(
+            "{}  {}x{}  {:?}  {:.2} MB",
+            self.name,
+            self.width,
+            self.height,
+            self.format,
+            self.bytes as f64 / (1024.0 * 1024.0)
+        )
+    }
+}
+
+/// [`StyleTargets::summary`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TargetSummary {
+    pub count: u32,
+    pub bytes: u64,
+    pub full_size: u32,
 }

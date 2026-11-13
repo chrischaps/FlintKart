@@ -23,28 +23,21 @@
 //! resolution order is tested without a GPU; [`GpuSink`] is the real one.
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use flint_core::components as comp;
+use flint_core::project::Project;
 use flint_core::toml_util::toml_vec3;
-use flint_core::vfs;
+use flint_core::EntityId;
 use flint_ecs::FlintWorld;
 use flint_procgen::{
-    AssetKind, ChannelSemantics, CompletedAsset, FailedAsset, GeneratorOutput, ImageData, MeshData,
-    ProcGenResolver,
+    AssetKind, ChannelSemantics, CompletedAsset, FailedAsset, GeneratorOutput, ImageData,
+    LivingRig, MeshData, ProcGenResolver,
 };
 use flint_render::model_loader::{self, ModelLoadConfig};
 use flint_render::SceneRenderer;
 
-/// When the player generates a scene's procgen assets.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ProcGenMode {
-    /// Generate during scene load; the first frame shows the real assets.
-    #[default]
-    Immediate,
-    /// Show placeholders at once and generate on the frame-budgeted queue.
-    Deferred,
-}
+pub use super::state::ProcGenMode;
 
 /// The magenta of "this asset is missing or still coming", in linear RGB.
 pub const PLACEHOLDER_RGBA: [f32; 4] = [0.85, 0.05, 0.7, 1.0];
@@ -80,8 +73,19 @@ pub trait AssetSink {
     fn has_mesh(&self, name: &str) -> bool;
     /// The file loader would find a file for `name`.
     fn has_file(&self, name: &str, kind: AssetKind) -> bool;
+    /// When `name` has no file: the not-found text, with every path tried.
+    /// `None` when there is a file, or the sink can't say where it looked.
+    fn missing_file(&self, _name: &str, _kind: AssetKind) -> Option<String> {
+        None
+    }
     /// Upload (or replace) the mesh `name`.
     fn upload_mesh(&mut self, name: &str, mesh: &MeshData);
+    /// Upload (or replace) a living lineage's skinned rest mesh as `name`.
+    #[cfg_attr(not(feature = "living"), allow(dead_code))]
+    fn upload_living(&mut self, name: &str, rig: &LivingRig);
+    /// Write one entity's own bone buffer, drawing the skinned mesh `name`.
+    #[cfg_attr(not(feature = "living"), allow(dead_code))]
+    fn upload_bones(&mut self, entity: EntityId, name: &str, palette: &[[[f32; 4]; 4]]);
     /// Upload (or replace) the texture `name`.
     fn upload_image(&mut self, name: &str, image: &ImageData);
     /// Upload (or replace) the placeholder for `name`.
@@ -90,25 +94,27 @@ pub trait AssetSink {
     fn load_file(&mut self, name: &str, kind: AssetKind) -> bool;
 }
 
-/// The directories searched for `*.procgen.toml`, least specific first: the
-/// resolver lets later directories override earlier ones, so a spec beside
-/// the scene beats a game-wide one of the same name.
-pub fn spec_dirs(scene_path: &str) -> Vec<PathBuf> {
-    let scene_dir = Path::new(scene_path).parent().unwrap_or(Path::new("."));
-    let mut dirs = Vec::new();
-    if let Some(parent) = scene_dir.parent() {
-        dirs.push(parent.join("specs"));
+/// Index the specs the scene can see into `resolver`: every
+/// `*.procgen.toml` the project's one search lists (`AssetKind::Specs`:
+/// `specs/` and `models/`, with their subfolders, beside the scene, in each
+/// directory above it up to the project root, then in the engine), each
+/// under its `[meta] name`, the nearest of a name winning.
+pub fn discover_specs(resolver: &mut ProcGenResolver, project: &Project, scene_path: &str) {
+    let scene_dir = Path::new(scene_path)
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    for listed in project.list(flint_core::project::AssetKind::Specs, scene_dir) {
+        // The list holds one file a name, the nearest, so none overwrites
+        // another. A spec that doesn't parse is skipped, as it always was.
+        match flint_procgen::ProcGenSpec::from_file(&listed.path) {
+            Ok(spec) => resolver.index_spec(spec),
+            Err(e) => tracing::debug!(
+                "procgen spec {} skipped: {e}",
+                flint_core::project::shown(&listed.path)
+            ),
+        }
     }
-    dirs.push(scene_dir.join("specs"));
-    dirs.push(scene_dir.join("models"));
-    dirs.into_iter().filter(|d| vfs::is_dir(d)).collect()
-}
-
-/// Index the scene's specs into `resolver`.
-pub fn discover_specs(resolver: &mut ProcGenResolver, scene_path: &str) {
-    let dirs = spec_dirs(scene_path);
-    let refs: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
-    resolver.discover_and_index(&refs);
 }
 
 /// The names in `world` that procgen should provide: those with a spec, not
@@ -218,6 +224,11 @@ fn fall_through(req: &AssetRequest, reason: String, sink: &mut dyn AssetSink) ->
     if sink.has_file(&req.name, req.kind) {
         Outcome::FileFallback(reason)
     } else {
+        // Both were tried: the outcome's line says why the spec gave
+        // nothing, and this one where the file was looked for.
+        if let Some(missing) = sink.missing_file(&req.name, req.kind) {
+            tracing::warn!("{missing}\n  and before the files: its procgen spec, which failed");
+        }
         sink.upload_placeholder(&req.name, req.kind);
         Outcome::Placeholder(reason)
     }
@@ -274,6 +285,11 @@ pub fn upload_output(
             Some(mesh) => sink.upload_mesh(name, mesh),
             None => return Err("it produced no LODs".into()),
         },
+        // Nothing here moves its bones, so it draws as the still mesh it is:
+        // a `living_prop` is what asks for the skinned path and a pose ring.
+        (GeneratorOutput::SkinnedMesh(skinned), AssetKind::Model) => {
+            sink.upload_mesh(name, &skinned.rest_mesh())
+        }
         (GeneratorOutput::Image(image), _) => sink.upload_image(name, image),
         (GeneratorOutput::ImageSet(images), _) if !images.is_empty() => {
             for (i, image) in images.iter().enumerate() {
@@ -365,9 +381,18 @@ impl AssetSink for GpuSink<'_> {
 
     fn has_file(&self, name: &str, kind: AssetKind) -> bool {
         match kind {
-            AssetKind::Model => model_loader::resolve_model_path(self.config, name).is_some(),
-            AssetKind::Texture => model_loader::resolve_texture_path(self.config, name).is_some(),
+            AssetKind::Model => model_loader::resolve_model_path(self.config, name).is_ok(),
+            AssetKind::Texture => model_loader::resolve_texture_path(self.config, name).is_ok(),
         }
+    }
+
+    fn missing_file(&self, name: &str, kind: AssetKind) -> Option<String> {
+        match kind {
+            AssetKind::Model => model_loader::resolve_model_path(self.config, name),
+            AssetKind::Texture => model_loader::resolve_texture_path(self.config, name),
+        }
+        .err()
+        .map(|missing| missing.to_string())
     }
 
     fn upload_mesh(&mut self, name: &str, mesh: &MeshData) {
@@ -421,6 +446,26 @@ impl AssetSink for GpuSink<'_> {
         }
         self.renderer
             .load_procedural_mesh_parts(self.device, name, parts);
+    }
+
+    fn upload_living(&mut self, name: &str, rig: &LivingRig) {
+        // A placeholder may be standing under this name.
+        self.renderer.remove_mesh(name);
+        // Only living props make rigs, and a build without them (#754)
+        // never asks for one.
+        #[cfg(feature = "living")]
+        {
+            let import = super::living_props::import_of(name, rig);
+            self.renderer
+                .load_skinned_model(self.device, self.queue, name, &import);
+        }
+        #[cfg(not(feature = "living"))]
+        let _ = rig;
+    }
+
+    fn upload_bones(&mut self, entity: EntityId, name: &str, palette: &[[[f32; 4]; 4]]) {
+        self.renderer
+            .update_bone_matrices(self.device, self.queue, entity, name, palette);
     }
 
     fn upload_image(&mut self, name: &str, image: &ImageData) {
@@ -478,7 +523,7 @@ impl AssetSink for GpuSink<'_> {
     fn load_file(&mut self, name: &str, kind: AssetKind) -> bool {
         match kind {
             AssetKind::Model => {
-                let Some(path) = model_loader::resolve_model_path(self.config, name) else {
+                let Ok(path) = model_loader::resolve_model_path(self.config, name) else {
                     return false;
                 };
                 match flint_import::import_gltf(&path) {
@@ -499,7 +544,7 @@ impl AssetSink for GpuSink<'_> {
                 }
             }
             AssetKind::Texture => {
-                let Some(path) = model_loader::resolve_texture_path(self.config, name) else {
+                let Ok(path) = model_loader::resolve_texture_path(self.config, name) else {
                     return false;
                 };
                 self.renderer.remove_texture(name);
@@ -511,18 +556,21 @@ impl AssetSink for GpuSink<'_> {
     }
 }
 
-/// Resolve the scene's procgen assets into the renderer: discover specs,
-/// then catalog > procgen > file > placeholder for each name. Runs before
-/// the model loader, which then skips every name this uploaded.
+/// Resolve the scene's procgen assets into the renderer: discover specs, turn
+/// `living_prop` entities into living props, then catalog > procgen > file >
+/// placeholder for each other name. Runs before the model loader, which then
+/// skips every name this uploaded.
 pub fn resolve_scene(
     scene_path: &str,
-    world: &FlintWorld,
+    world: &mut FlintWorld,
     resolver: &mut ProcGenResolver,
     mode: ProcGenMode,
     mut sink: GpuSink<'_>,
 ) {
     let started = web_time::Instant::now();
-    discover_specs(resolver, scene_path);
+    discover_specs(resolver, &sink.config.project, scene_path);
+    #[cfg(feature = "living")]
+    super::living_props::resolve(world, sink.config, resolver, &mut sink, mode);
     let requests = collect_requests(world, sink.config, resolver, &sink);
     if requests.is_empty() {
         return;
@@ -533,7 +581,7 @@ pub fn resolve_scene(
     // One line a load: how long procgen held the scene up, and where the
     // assets came from (#181: the disk tier is what makes a relaunch fast).
     // Deferred assets are queued, so they appear in none of the three.
-    println!(
+    eprintln!(
         "[procgen] {} asset(s) in {:.0} ms: {} generated, {} from disk, {} from memory",
         requests.len(),
         started.elapsed().as_secs_f64() * 1e3,
@@ -554,4 +602,4 @@ pub fn resolve_scene(
 
 #[cfg(test)]
 #[path = "procgen_assets_tests.rs"]
-mod tests;
+pub(super) mod tests;
