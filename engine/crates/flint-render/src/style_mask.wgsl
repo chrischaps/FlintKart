@@ -7,6 +7,15 @@
 // render scale), with a tolerance of its own depth slope. The vertex
 // stages repeat shader.wgsl's and skinned_shader.wgsl's products in the
 // same order, so the depths match wherever the rasterisers agree.
+//
+// A transparent or a particle in front of a styled entity (glass, fire)
+// unmasks it by its coverage (#290): the veil pass drew that coverage just
+// before, and the blend written here is the entity's times what's left.
+//
+// An entity whose style has `blend_source = "tear"` (#397) is drawn at its
+// blend times the reality tear's mask at the pixel (tear_mask.wgsl, which
+// Rust prepends to this file, as it does to the composite's), so its
+// style shows only where reality tears.
 
 struct TransformUniforms {
     view_proj: mat4x4<f32>,
@@ -21,12 +30,36 @@ struct MaskDraw {
     // How far behind the scene's depth a fragment may be, in depth slopes
     slope_tolerance: f32,
     blend: u32,
-    _pad: f32,
+    // 1: the blend follows the tear (#397); 0: the entity's own
+    torn: u32,
+    // The composite's tear, this frame: mode_params, then mix, post time
+    // and the mask target's size in pixels
+    tear_params: vec4<f32>,
+    tear_mix: f32,
+    tear_time: f32,
+    size: vec2<f32>,
 };
+
+// The blend to write at pixel `frag_xy`: the draw's, scaled by what the
+// veil leaves (`covered`) and, for a torn draw, by the tear there. The
+// mask's pixel centres give the same uv as the composite's at any render
+// scale, so the tear lands where the composite draws it.
+fn written_blend(frag_xy: vec2<f32>, covered: f32) -> u32 {
+    var blend = f32(draw.blend) * (1.0 - covered);
+    if draw.torn != 0u {
+        let uv = frag_xy / draw.size;
+        blend *= tear_mask_at(uv, draw.size.x / draw.size.y, draw.tear_mix, draw.tear_params, draw.tear_time);
+    }
+    return u32(round(blend));
+}
 
 @group(0) @binding(0) var<uniform> transform: TransformUniforms;
 @group(1) @binding(0) var<uniform> draw: MaskDraw;
 @group(1) @binding(1) var scene_depth: texture_depth_2d;
+// The style veil (#290): how much of each pixel transparents and particles
+// in front of the scene cover, 0..1. That share of the pixel is theirs, not
+// the styled entity's, so the entity's blend is scaled down by it.
+@group(1) @binding(2) var veil: texture_2d<f32>;
 // Only the skinned entry point reads it; the static layout leaves it out
 @group(2) @binding(0) var<storage, read> bone_matrices: array<mat4x4<f32>>;
 
@@ -71,5 +104,47 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec2<u32> {
     if frag.z > scene + slope * draw.slope_tolerance + 1e-6 {
         discard;
     }
-    return vec2<u32>(draw.id, draw.blend);
+    let covered = clamp(textureLoad(veil, vec2<i32>(frag.xy), 0).r, 0.0, 1.0);
+    return vec2<u32>(draw.id, written_blend(frag.xy, covered));
+}
+
+// Under MSAA (#306) the mask is drawn 4x, into a target with the scene's
+// sample pattern, and each covered sample tests itself against that
+// sample of the scene's own multisampled depth. One invocation a pixel:
+// the rasteriser's coverage (`covered`) says which samples the triangle
+// reaches, and the output mask keeps the ones that pass. `frag.z` is the
+// pixel centre's depth, at most half a slope from any sample's, which
+// the tolerance absorbs. style_mask_resolve.wgsl then folds the samples
+// into the single-sample mask the styles read. The veil (binding 2) stays
+// single-sample: every sample of a pixel is scaled by the same coverage.
+@group(1) @binding(3) var scene_depth_ms: texture_depth_multisampled_2d;
+
+struct MsaaOut {
+    @location(0) value: vec2<u32>,
+    @builtin(sample_mask) samples: u32,
+};
+
+@fragment
+fn fs_msaa(
+    @builtin(position) frag: vec4<f32>,
+    @builtin(sample_mask) covered: u32,
+) -> MsaaOut {
+    let slope = fwidth(frag.z);
+    let px = vec2<i32>(frag.xy);
+    let limit = frag.z - slope * draw.slope_tolerance - 1e-6;
+    var keep = 0u;
+    for (var i = 0u; i < 4u; i++) {
+        let bit = 1u << i;
+        if (covered & bit) != 0u && textureLoad(scene_depth_ms, px, i32(i)) >= limit {
+            keep |= bit;
+        }
+    }
+    if keep == 0u {
+        discard;
+    }
+    let veiled = clamp(textureLoad(veil, px, 0).r, 0.0, 1.0);
+    var out: MsaaOut;
+    out.value = vec2<u32>(draw.id, written_blend(frag.xy, veiled));
+    out.samples = keep;
+    return out;
 }

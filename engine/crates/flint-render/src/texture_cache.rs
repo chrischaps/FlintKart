@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use wgpu::util::DeviceExt;
 
+pub use flint_pixels::{memoize_mip_chains, mip_chain};
+
 /// Open and decode an image file through the file layer: `image::open`, but
 /// the bytes come from [`vfs::read`] so a memory source works too. The format
 /// comes from the path's extension, as `image::open` does, falling back to
@@ -133,7 +135,7 @@ impl TextureCache {
         }
 
         // Convert to RGBA8 if needed
-        let rgba_data = Self::ensure_rgba(
+        let rgba_data = flint_pixels::to_rgba8(
             &imported.data,
             &imported.format,
             imported.width,
@@ -458,166 +460,5 @@ impl TextureCache {
     /// Clear all user-loaded textures (preserves built-in defaults)
     pub fn clear_user_textures(&mut self) {
         self.textures.clear();
-    }
-
-    /// Convert imported texture data to RGBA8 format
-    fn ensure_rgba(data: &[u8], format: &str, width: u32, height: u32) -> Vec<u8> {
-        let pixel_count = (width * height) as usize;
-        match format {
-            "rgba8" => data.to_vec(),
-            "rgb8" => {
-                let mut rgba = Vec::with_capacity(pixel_count * 4);
-                for chunk in data.chunks_exact(3) {
-                    rgba.push(chunk[0]);
-                    rgba.push(chunk[1]);
-                    rgba.push(chunk[2]);
-                    rgba.push(255);
-                }
-                rgba
-            }
-            "rg8" => {
-                let mut rgba = Vec::with_capacity(pixel_count * 4);
-                for chunk in data.chunks_exact(2) {
-                    rgba.push(chunk[0]);
-                    rgba.push(chunk[1]);
-                    rgba.push(0);
-                    rgba.push(255);
-                }
-                rgba
-            }
-            "r8" => {
-                let mut rgba = Vec::with_capacity(pixel_count * 4);
-                for &byte in data {
-                    rgba.push(byte);
-                    rgba.push(byte);
-                    rgba.push(byte);
-                    rgba.push(255);
-                }
-                rgba
-            }
-            _ => {
-                // For unsupported formats, return white pixels
-                vec![255u8; pixel_count * 4]
-            }
-        }
-    }
-}
-
-/// Number of mip levels down to 1x1 for a `width` x `height` image.
-pub fn mip_level_count(width: u32, height: u32) -> u32 {
-    32 - width.max(height).max(1).leading_zeros()
-}
-
-/// A full mip chain for RGBA8 pixels: level 0 (the input) first, then each
-/// half-size level, all concatenated in the order
-/// `create_texture_with_data` expects. Each level is a 2x2 box filter of the
-/// one above (an odd edge repeats its last texel). With `srgb` the colour
-/// channels are averaged in linear light, so thin bright paint fades into
-/// the ground at a distance instead of darkening it; alpha is always linear.
-/// Returns the bytes and the level count.
-pub fn mip_chain(rgba: &[u8], width: u32, height: u32, srgb: bool) -> (Vec<u8>, u32) {
-    let levels = mip_level_count(width, height);
-    let to_linear: Vec<f32> = (0..256)
-        .map(|i| {
-            let c = i as f32 / 255.0;
-            if !srgb {
-                c
-            } else if c <= 0.04045 {
-                c / 12.92
-            } else {
-                ((c + 0.055) / 1.055).powf(2.4)
-            }
-        })
-        .collect();
-    let to_byte = |v: f32, colour: bool| -> u8 {
-        let v = v.clamp(0.0, 1.0);
-        let e = if colour && srgb {
-            if v <= 0.003_130_8 {
-                v * 12.92
-            } else {
-                1.055 * v.powf(1.0 / 2.4) - 0.055
-            }
-        } else {
-            v
-        };
-        (e * 255.0 + 0.5) as u8
-    };
-
-    let mut out = rgba.to_vec();
-    let mut cur: Vec<f32> = rgba
-        .chunks_exact(4)
-        .flat_map(|p| {
-            [
-                to_linear[p[0] as usize],
-                to_linear[p[1] as usize],
-                to_linear[p[2] as usize],
-                p[3] as f32 / 255.0,
-            ]
-        })
-        .collect();
-    let (mut w, mut h) = (width as usize, height as usize);
-    for _ in 1..levels {
-        let (nw, nh) = ((w / 2).max(1), (h / 2).max(1));
-        let mut next = vec![0.0f32; nw * nh * 4];
-        for y in 0..nh {
-            let (y0, y1) = ((2 * y).min(h - 1), (2 * y + 1).min(h - 1));
-            for x in 0..nw {
-                let (x0, x1) = ((2 * x).min(w - 1), (2 * x + 1).min(w - 1));
-                for c in 0..4 {
-                    next[(y * nw + x) * 4 + c] = 0.25
-                        * (cur[(y0 * w + x0) * 4 + c]
-                            + cur[(y0 * w + x1) * 4 + c]
-                            + cur[(y1 * w + x0) * 4 + c]
-                            + cur[(y1 * w + x1) * 4 + c]);
-                }
-            }
-        }
-        out.extend(next.chunks_exact(4).flat_map(|p| {
-            [
-                to_byte(p[0], true),
-                to_byte(p[1], true),
-                to_byte(p[2], true),
-                to_byte(p[3], false),
-            ]
-        }));
-        cur = next;
-        w = nw;
-        h = nh;
-    }
-    (out, levels)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn level_counts() {
-        assert_eq!(mip_level_count(1, 1), 1);
-        assert_eq!(mip_level_count(1024, 1024), 11);
-        assert_eq!(mip_level_count(1024, 256), 11);
-        assert_eq!(mip_level_count(5, 3), 3);
-    }
-
-    #[test]
-    fn chain_sizes_add_up() {
-        let (w, h) = (6u32, 3u32);
-        let (data, levels) = mip_chain(&vec![200u8; (w * h * 4) as usize], w, h, true);
-        // 6x3, 3x1, 1x1
-        assert_eq!(levels, 3);
-        assert_eq!(data.len(), (18 + 3 + 1) * 4);
-        // a flat colour stays the same colour all the way down
-        assert!(data.iter().all(|&b| b == 200));
-    }
-
-    #[test]
-    fn srgb_average_is_in_linear_light() {
-        // black and white average to linear 0.5, which is sRGB 188
-        let px = [0, 0, 0, 255, 255, 255, 255, 255];
-        let (data, _) = mip_chain(&px, 2, 1, true);
-        assert_eq!(&data[8..11], &[188, 188, 188]);
-        assert_eq!(data[11], 255);
-        let (data, _) = mip_chain(&px, 2, 1, false);
-        assert_eq!(data[8], 128);
     }
 }
