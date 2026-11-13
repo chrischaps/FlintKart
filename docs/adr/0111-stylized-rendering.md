@@ -100,7 +100,8 @@ Per-entity styles read an `R16Uint` id per pixel (#263). It is drawn after
 the scene pass by redrawing each styled entity's opaque static, box and
 skinned draws with their cached transform (and bone) bind groups. It is
 depth-tested in the shader against the frame's single-sample depth, with a
-slope tolerance. It is drawn only while a `uses_mask` style is on.
+slope tolerance. It is drawn only while a style whose `uses_mask` asks for it is on (a
+constant, or per frame from the config and ids since #350).
 
 We did not add an extra colour attachment to every scene pipeline. The
 redraw cost under 0.1 ms in the spike (about 0.02 ms for six entities at
@@ -146,15 +147,17 @@ with the same settings share an id.
 - A per-entity variant is drawn per pixel on its own grid and keeps no
   temporal history yet, so a styled prop can still shimmer in motion
   (#277 covers the whole frame only).
-- Limits as shipped: one glyph set a frame (#335), and 63 variants among
+- Limits as shipped: one glyph set a frame (since #335: up to 8, stacked
+  in one atlas, each variant its own), and 63 variants among
   mask ids below 256 (#336). A whole-frame ASCII pass costs 2-3x once any
   entity has an `ascii_style` (#337).
 - Kuwahara keeps its legacy `kuwahara_*` fields beside the style table
-  (#298). Styles run in registration order within a stage, not in an
-  authored order (#299).
+  (#298). Styles run in registration order within a stage unless a
+  table's `order` key places them (#299).
 - The spike's code (`ascii_spike.rs`, `--ascii=full|entity|entity-object`)
-  stays only until #293 removes it. The goldens `ascii-entity` and
-  `ascii-entity-object` still pin it.
+  is gone (#293); `docs/design/ascii-spike.md` keeps its findings, and
+  the per-entity goldens (`ascii-style-entities`, `-screen`, `-object`)
+  pin the shipped style.
 
 ## Measured
 

@@ -28,6 +28,7 @@ nul
 
 # Test screenshots and render output
 screenshots/
+renders/
 
 # Raw/source assets (untracked)
 raw_assets/
@@ -51,6 +52,11 @@ arch-data.json
 
 # trunk output for the web spike (crates/flint-player/index.html)
 /crates/flint-player/dist/
+# `flint export web examples/` (#106) and `flint bundle demo` write here
+/examples/dist/
 
 # Procgen outputs kept between runs (#181); rebuilt on demand
 **/.flint/procgen-cache/
+
+# Python bytecode (tools/showcase)
+__pycache__/

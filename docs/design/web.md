@@ -50,12 +50,14 @@ the query string instead of clap:
 | `scene=<url>` | `<scene>` | with `bundle`: a scene inside it instead of the manifest's. Without: a scene TOML fetched relative to the page. Default `scenes/web_first_light.scene.toml`, copied from `web/scenes/` by trunk |
 | `msaa=1\|4` | `--msaa` | scene-pass MSAA |
 | `scale=<f>\|auto` | `--render-scale` | the 3D scene's render scale ([Render scale](#render-scale-122)). By default a page draws the scene at no more than DPR 1.5 and the HUD at the full DPR; a number from 0.25 to 1 draws at that scale whatever the DPR (`scale=1` is native); `auto` keeps the cap and steps under it to hold 60 fps |
+| `style=<word>` | `--style` | a registered style over the scene's post-processing (#328), e.g. `style=ascii:cell=12`; repeat the key for more (`style=ascii&style=invert`). Kept through scene transitions; a bad word is a console warning, not a page that won't start |
 | `width=&height=` | `--width --height` | fix the canvas to that many CSS pixels; otherwise it fills the page |
 | `frame_step=<s>` | `--frame-step` | step game time exactly s seconds a frame |
 | `hold_at=<s>` | (`--screenshot-at`) | stop game time at s seconds (`PlayerApp::hold_at`), so a page holds an exact moment for a screenshot |
 | `perf=1\|cpu` | `--perf` | the perf readout in a corner (#120): frame times, each phase's CPU time, the slowest scripts and each pass's GPU time ([The perf readout](#the-perf-readout-120)) |
 | `mix=old` | | the mix as before #138, to compare: placed sounds on kira spatial tracks, and every sound mixed whether anyone can hear it or not ([A cheaper mix](#a-cheaper-mix-138)) |
 | `fps=30\|60\|auto\|native` | | which refreshes are drawn ([Frame rate on phones](#frame-rate-on-phones-140)). A rate is a whole number of refreshes (30 is every other at 60 Hz, every fourth at 120); `auto` draws every refresh while the frames hold it and drops to a rate they hold when they don't; `native` is every refresh, unpaced. Default `auto` where the primary pointer is a finger (`pointer: coarse`), `native` elsewhere |
+| `begin=auto` | | lift the Begin gate as soon as it is ready, with no click (#381), for a measuring driver (`tools/web-perf/run.mjs`). With no gesture the browser refuses the pointer lock, sound starts only where autoplay is allowed, and the full-screen switch, which rides on a real click, stays off |
 | `loop=poll` | | winit's flat-out `ControlFlow::Poll`, as before #121, to compare against the default of one frame per `requestAnimationFrame` ([Firefox's cadence](#firefoxs-cadence-121)) |
 
 The engine schemas are compiled in (`build.rs` embeds `schemas/components`
@@ -202,12 +204,14 @@ to `main` that touches the player, and on a manual run:
 
 1. `trunk build --release --cargo-profile web-release` in
    `crates/flint-player`, the player page (the profile is under Size);
-2. `cargo build -p flint-cli`, for `flint bundle`;
+2. `cargo build -p flint-cli`, for `flint export web`;
 3. `python tools/play-site/build.py`, which fetches each game in
-   `games.toml` at its pinned commit (a GitHub tarball; nothing to clone),
-   packs it with `flint bundle --name <id>` into `games/<id>/`, and writes
-   `games.json` (what the page shows) and `built-from.txt` (the Flint
-   commit and each game's);
+   `games.toml` at its pinned commit (a GitHub tarball; nothing to clone)
+   and runs `flint export web <game> --out site --player <dist> --name <id>
+   --meta ...` on it ([#106](#flint-export-web-106)): the player into the
+   site root, the bundles into `games/<id>/`, the game's entry into
+   `games.json` (what the page shows). It then writes `built-from.txt` (the
+   Flint commit and each game's);
 4. `actions/upload-pages-artifact` and `actions/deploy-pages`. This repo's
    Pages site serves the result, with `play.chaps.dev` as its custom domain.
 
@@ -227,7 +231,9 @@ means changing its `ref`. Float is pinned to its `engine-catchup` branch
 `index.html` decides whether this visit can play:
 
 - no `?game=` (or `bundle`/`scene`) and a `games.json` beside the page:
-  the chooser, a card per game with its poster;
+  the chooser, a card per game with its poster. A `games.json` of one game
+  (a `flint export web` folder) plays that game instead: the doorway writes
+  its `?game=` into the address before it opens;
 - a `?game=` the site doesn't have: the chooser, saying so;
 - no `navigator.gpu`, or no adapter from `requestAdapter()`: the game's
   film from chaps.dev, full-bleed and muted, with the reason and the
@@ -284,6 +290,32 @@ stood in for by Firefox on Windows with WebGPU turned off, which takes the
 same path. A threaded AudioWorklet build would need cross-origin isolation
 headers, which GitHub Pages can't set (the issue's second risk). #136 mixes
 in an AudioWorklet without them, in a second wasm (see Sound).
+
+## flint export web (#106)
+
+`flint export web <game> [--out dir]` runs the site's steps for any one
+game: it copies the player (or builds it with trunk from the CLI's own
+tree, so packer and player agree on `bundle::FORMAT_VERSION`), packs
+`games/<id>/` with the game's `bundle.toml`, and merges the game's entry
+into `games.json`. Several exports into one folder make one site, which is
+what `build.py` now does for play.chaps.dev. A folder of one game plays it
+at its bare address, and `?scene=` picks another scene from its bundle.
+`bundle.toml` gained `[web]` (the `games.json` keys) and `[mount]` (a
+folder outside the game packed inside it); a game with no `engine/schemas`
+packs the engine's. Book: guides/publishing-to-the-web.md.
+
+**Checked locally** (2026-11-09, Windows 11, Chrome 156 headed over CDP,
+`python -m http.server`):
+
+| Run | Result |
+|---|---|
+| `flint export web examples/`, no `--player` | trunk built the player in 5 m 54 s (cold `web-release`); `demo.flintpack` 228 files 106.12 MB, `demo.audio.flintpack` 14 files 1.84 MB |
+| `/` | the address became `/?game=demo`; the gate read "Flint demos"; the tavern loaded (49 entities), its scripts started, the late audio bundle arrived |
+| `/?scene=pencil_sketch.scene.toml` | `&game=demo` added; Pencil Sketch (11 entities) drawn from the same bundle |
+| `build.py` (Float `3e0b75f`, FlintKart `bd910be`) through export | float 16.03 MB in 3 bundles, kart 91.88 MB in 2 plus its film and poster; `games.json` holds the keys and values the old script wrote |
+
+The demo bundle is large because the tavern's `wooden_bench.glb` (31 MB) and
+`wood_planks.png` (27 MB) are. The packer doesn't drop files no scene reads.
 
 ## Flint Kart (#104)
 
@@ -535,7 +567,12 @@ the page's `#perf` panel):
   running totals in `window.flintGpuCalls`; each readout divides what moved
   by the frames since the last.
 
-**Copy line** puts the whole readout on one line for an issue:
+**Copy line** puts the whole readout on one line for an issue. The panel
+lies over the canvas's top right, where a game puts its menu button, so
+Copy is the only part of it that takes a pointer (#660): every other click
+and touch goes through to the game. On a small screen the readout is cut at
+36 % of the height rather than scrolled, since a scroller would take the
+game's touches; Copy still takes all of it.
 
 ```
 flint perf · float · t=34s | Chrome 156 · nvidia lovelace | 1280x720 DPR 1 | frame p50 16.7 p99 16.8 max 16.8 ms (600 frames/10s) | cpu 9.07 ms: … | gpu 2.71 ms: Shadows 1.40, Scene 0.29, SSAO 0.69, Bloom 0.30, … | 71 draws 50.4K tris | audio 0/948 late
@@ -707,7 +744,7 @@ The ASCII style (#265, per entity since #266, temporal since #277) adds
 two things to a frame: the entity style mask (`Style mask`, a redraw of
 the styled entities' ids after the scene pass) and the glyph style itself
 (`ASCII`, a cell pass and a glyph pass at the display stage). Measured on
-`demo/ascii_entities.scene.toml` (six styled props, meadow, SSAO, bloom),
+`examples/ascii_entities.scene.toml` (six styled props, meadow, SSAO, bloom),
 RTX 4070 laptop, release build, 1920x1080 output, `flint render
 --gpu-time 240`, best of five processes since other jobs shared the GPU:
 
@@ -721,6 +758,29 @@ RTX 4070 laptop, release build, 1920x1080 output, `flint render
 | per entity at `--render-scale 0.75`, Vulkan / DX12 | 0.020 / 0.012 | 0.048 / 0.043 | |
 | per entity at `--render-scale 0.5`, Vulkan / DX12 | 0.018 / 0.012 | 0.047 / 0.043 | |
 | full screen at `--pixels-per-point 2` (16 px cells) | | 0.043 / 0.040 | |
+
+Re-measured for #337 after edges (#267) and tone normalisation (#289)
+were on by default and in the demo. Same machine, Vulkan, `--ascii-scope
+screen`, best of 3 alternated with main:
+
+| | main (b9aabc3) | #337 |
+|---|---|---|
+| edges on (default), no styled entities | 0.39--0.43 | 0.43 ms |
+| edges on, over the demo's props | 0.518 | 0.447 ms |
+| `--ascii-edges 0`, no styled entities | 0.049 | 0.048 ms |
+| `--ascii-edges 0`, over the props (barrel normalised) | 0.150 | 0.094 ms |
+| `--ascii-edges 0`, over the props, no `normalize` | 0.075 | 0.074 ms |
+
+Most of the gap was the statistics: one fragment a lattice row walked
+320 samples, 180 threads in all, latency-bound. Summed in runs of 20,
+then rows, then each slot, they cost 0.02 ms (half of it the three
+passes' fixed cost) instead of 0.075. Edges-off still runs about 2x the
+plain case: the mask read on every pixel (~0.008 ms) and the styled
+props' own pixels (~0.018 ms for 3% of the frame). That's in the
+follow-up, #507.
+Re-checked after merging main at 980676a (#351): edges off over the
+props 0.193 ms on main against 0.102 ms, pixels identical; the edges-on
+pair was inside the shared GPU's noise that day (0.41--0.48 ms both).
 
 That is under 0.1 ms of a 16.7 ms frame: SSAO (0.9 ms) costs ten times
 as much. The browser, Chrome 156 over CDP on the same machine, read from
@@ -744,7 +804,43 @@ another job, not the mask. The style adds three render passes (mask,
 cell, glyph) and two `writeBuffer`s a frame, and at scale 1 one bind
 group a frame: the mask's draw group over the caller's depth view, which
 wgpu 23 can't key (the same reason the base chain makes two there). Under
-a render scale the chain owns its depth and all of them are kept.
+a render scale the chain owns its depth and all of them are kept. Since
+#379 the player passes its depth view with an id
+(`RenderContext::depth_target()`, a fresh `new_depth_id()` whenever the
+context makes the texture again) and those groups are kept at scale 1
+too (measured below the table, "Bind groups over the caller's depth").
+
+**Re-read with `tools/web-perf/run.mjs` (#381, 2026-11-12).** The table
+above is now one command over a `flint export web` folder of the same three
+scenes (`tools/web-perf/README.md`), Chrome 157, same machine, three runs of
+two 10 s windows each:
+
+| page | scene | Style mask | ASCII | bind groups a frame | passes |
+|---|---|---|---|---|---|
+| DPR 1, no style | 1920x1080 | | | 0 | 17 |
+| DPR 1, per entity | 1920x1080 | 0.03--0.04 | 0.34--0.60 | 0 | 26 |
+| DPR 1, full screen | 1920x1080 | 0.02--0.19 | 0.52--1.17 | 0 | 26 |
+| DPR 2 (cap 1.5), no style | 1440x810 | | | 0 | 18 |
+| DPR 2, per entity | 1440x810 | 0.02--0.04 | 0.28--1.00 | 0 | 27 |
+| DPR 2, full screen | 1440x810 | 0.02--0.69 | 0.49--1.23 | 0 | 27 |
+
+The last run had #380's note in the readout, and every page said `under
+vsync at idle clocks` (17--27% busy). A page always presents on the
+browser's frame, and it has no `FLINT_VSYNC=0`, so the browser's pass times
+read high; #270's did too. Compare a pass with a control page in the same
+run (here `ascii_none`), not with the desktop's figures.
+
+The scene sizes and the no-style pages' passes match. What moved is the
+style itself: it adds nine passes a frame where it added three, since edges
+(#267) and tone normalisation (#289) came on by default after #270 (the
+desktop's own 0.43 ms with edges, above), and #379's kept bind groups make
+it 0 a frame at scale 1 too. The runs disagree by up to 2x on the ASCII pass, with no-style
+pages steady, so the GPU was shared; take the minimum of several runs. The
+driver asks for the DPR with `--force-device-scale-factor`, one Chrome per
+DPR: CDP's `Emulation.setDeviceMetricsOverride` changes `devicePixelRatio`,
+but the canvas kept the display's 1.5 (2880x1620 at "DPR 1"), since winit
+sizes it from a ResizeObserver's device-pixel box. `?begin=auto` lifts the
+gate, so the screenshots need no hiding.
 
 **Cells are output pixels.** ASCII runs at the display stage, after the
 upscale, so a render scale or the web's DPR cap changes only the scene
@@ -758,6 +854,24 @@ style targets when only the scale moved (the surface is the same size,
 so the display-stage ones are too), and HDR-stage ones are remade at the
 new size on next use (`a_render_scale_step_keeps_the_style_targets`).
 
+**Per-entity styles draw only near their entities (#385).** Since edges
+(#267) became the default, a per-entity ASCII's cost was its edge pass
+over every pixel, styled or not. Its passes, and pencil's, are now
+scissored to the styled entities' projected bounds (book: Stylize Passes,
+"Drawn only where the entities are"), with the frame byte-identical.
+Desktop, 1920x1080, RTX 4070 laptop, best of five alternating runs:
+
+| scene | style | before | after |
+|---|---|---|---|
+| `stylize_props` (barrel, Y Bot in ASCII; cask, crate in pencil) | ASCII | 0.419 | 0.223 ms |
+| | Pencil | 0.072 | 0.048 ms |
+| `ascii_entities` (six props) | ASCII | 0.450 | 0.166 ms |
+| `stylize_props --style ascii` (whole frame, control) | ASCII | 0.484 | 0.440 ms |
+
+The control isn't scissored and moved within this machine's run-to-run
+spread. The saving scales with the share of the screen the props leave
+untouched, which is what a phone pays for. The browser is unmeasured.
+
 **DX12.** The ASCII and mask passes read every texture with
 `textureLoad` and bind no sampler of their own (the chain's one linear
 sampler is in the input group bound once a pass), so they add nothing to
@@ -769,9 +883,53 @@ GPU clocks down at 60 fps; `FLINT_VSYNC=0` gave ASCII 0.06--0.07 ms and
 the mask 0.01 ms. Compare passes with vsync off, or with `flint render
 --gpu-time`.
 
-**Not done:** a phone. The Pixel 8 Pro (the shared phone, behind
-`C:/Users/chris/dev/.pixel-lock`) wasn't measured; a tile GPU's
-bandwidth is where a full-screen pass would show first.
+### On a phone (#378)
+
+**ASCII halves the phone's frame rate.** Pixel 8 Pro (Tensor G3,
+Mali-G715, Chrome 157), DPR 2.25, a 1008x2005--2257 canvas with the
+scene at the web's 0.67 cap (672x1496), the same bundle and variants as
+above plus each with `edges = 1` (#267), played through `adb reverse`
+under the pixel lock. `?perf=1&fps=native`, so frames aren't paced and
+show what each costs; read 25--30 s after Begin, three 10 s windows a
+scene, the five scenes there and back (2026-11-08, `tools/phone-perf/`):
+
+| scene | p50 | p90 | frames / 10 s | passes |
+|---|---|---|---|---|
+| no style | 8.4 ms | 16.8 | 641--653 | 18 |
+| per entity | 25.0 | 67--117 | 249--299 | 26 |
+| full screen | 25.0--33.2 | 67--117 | 248--295 | 26 |
+| per entity, edges | 24.9--33.3 | 100--125 | 224--291 | 26 |
+| full screen, edges | 25.0 | 67--125 | 233--308 | 26 |
+| no style, at the end of the run (thermal status 1, skin 43 °C) | 16.6 | 17--33 | 542--611 | 18 |
+
+A second run bisected it on the no-style scene with `?style=`
+(thermal status 1, skin 39--43 °C, so 60 Hz is its ceiling):
+
+| added | p50 | p90 | frames / 10 s |
+|---|---|---|---|
+| nothing | 16.6 ms | 17--25 | 580--632 |
+| `invert` | 16.7 | 16.7 | 599 |
+| `palette` | 16.7 | 16.8 | 579--597 |
+| `ascii`, full screen, no styled entities (no mask) | 25.0 | 100 | 289--299 |
+| `ascii:cell=16` | 16.7--25.0 | 108 | 293 |
+
+- **It is ASCII's own passes**, not the mask (it costs the same with
+  nothing styled) and not the display stage (invert and palette hold
+  60). Four times the cell area barely helps, so it doesn't follow the
+  cell count, and a p90 near 100 ms says about one frame in ten stalls
+  rather than every frame paying the same. Edges add little on top.
+- **The CPU isn't it:** 2.3 ms a frame without, 3.6--5.7 with. No bind
+  groups a frame at the 0.67 cap, as on the desktop under a scale.
+- **The pass timings can't say which.** Chrome exposes
+  `timestamp-query` on the phone, but Mali reads 0.00 for every pass
+  after `Scene` (SSAO, Bloom, Composite and ASCII alike), so `?perf=1`'s
+  GPU list is only good for Grass, Shadows (0.7--2.3 ms) and Scene
+  (0.6--0.8 ms) here. Compare frame times against a control, unpaced.
+- Paced (the phone's default `fps=auto`), the per-entity scene holds 30
+  fps, one refresh in four at 120 Hz, with p99 117 ms.
+
+Finding and fixing the pass is #568. The suspects are the cell pass's
+ping-ponged `Rgba16Uint` history (#277) and the glyph pass.
 
 ## Touch (#132)
 
@@ -1612,6 +1770,10 @@ gzip -9:
 | Whole engine (size probe, below) | 14.9 MB | 10.7 MB | 4.1 MB |
 | `flint-web` running PlayerApp (#99, measured before the vfs merge; file-reading code was still dead) | | 9.4 MB | 3.5 MB |
 | `flint-web` reading game bundles (#98; every engine read live) | | 14.2 MB | 5.1 MB |
+| `flint-web`, `web-release` (#123, #137), main before #754 (`8e3d930f`) | | 12.33 MB | 4.70 MB |
+| the same after #754, default features | | 12.33 MB | 4.70 MB |
+| after #754, without `music`, `rhythm`, `procgen` and `living` | | 11.23 MB | 4.28 MB |
+| after #754, `--no-default-features` | | 10.92 MB | 4.14 MB |
 
 The **size probe** is a throwaway bin, not committed. It builds a
 `PlayerApp` from a `black_box` world and passes opaque bytes to
@@ -1633,6 +1795,25 @@ glue is credited to the first crate in its type arguments):
 | parry3d | 0.43 | | exr | 0.15 |
 | flint_render | 0.35 | | image | 0.15 |
 | rapier3d | 0.29 | | image_webp + tiff | 0.23 |
+
+### Media beside the page (#436)
+
+The showcase film is not part of the wasm or any bundle, so the 4 MB gzip
+line above doesn't count it. It is a click-to-play film on the Flint page,
+loaded on its own (`preload="none"` with its poster), and these are its
+sizes, recorded so the next cut can be held to them. The storyboard
+(`docs/design/showcase-film.md`, "The 16:9 cut") has the whole table.
+
+| File | Size | |
+|---|---|---|
+| `many-hands-web.mp4` (1920x1080, 30 fps, H.264 crf 32, 2:06) | 36.4 MB | 2.3 Mbit/s |
+| `many-hands-web.webm` (the same, VP9 two-pass at 2.1 Mbit/s) | 33.1 MB | 2.1 Mbit/s |
+| `many-hands-poster.jpg` (1920x1080) | 0.23 MB | |
+
+ASCII glyphs are fine detail in every frame and cost bits accordingly: the
+same cut at crf 27 and 60 fps was 80 MB, and 720p blurs 8-point cells into
+texture. The Flint page's current hero films are 1 to 6 MB; this one is
+for watching, not for a looping hero.
 
 ### The trims (#123)
 
@@ -1691,14 +1872,39 @@ opt-level = 3` raises one crate without giving back the rest.
 Not trimmed:
 
 - **flint_procgen is reachable on the web.** Scene loading resolves
-  `procgen` components through `ProcGenResolver`
-  (`player_app/scene_loading.rs`) into meshes and textures, so it stays.
-  Float uses none, so a `procgen` cargo feature could drop it for games like
-  Float. That needs a measurement first.
+  `model.asset` and texture names through `ProcGenResolver` into meshes and
+  textures. Since #754 it is flint-player's `procgen` feature, and a game
+  that uses none can leave it out: [Features](#features-754) has the sizes.
 - **exr** was reachable only through image's default formats. It's gone now.
 
 3.1 MB gzipped is in the range of other WebGPU game demos. Float's 10 MB of
 data, most of it music, now costs three times what the engine does.
+
+### Features (#754)
+
+The player's optional parts are Cargo features since #754 (ADR 0117 decision
+6): `music`, `rhythm`, `procgen`, `living`, beside `debug-hud`, `audio` and
+`gamepad`, all on by default. The site keeps the defaults, so its wasm is the
+size it was. A game that leaves parts out ships less. trunk 0.21.14 with its
+`wasm-opt -Oz`, `trunk build --release --cargo-profile web-release` plus the
+feature flags, gzip -9 of the page's `.wasm`, 2026-11-12:
+
+| Build | `.wasm` | gzip -9 | Saved (gzip) |
+|---|---|---|---|
+| main before #754 (`8e3d930f`), default features | 12.33 MB | 4.70 MB | |
+| after #754, default features | 12.33 MB | 4.70 MB | 0.00 MB |
+| `--no-default-features --features audio,gamepad,debug-hud` (no music, rhythm, procgen, living) | 11.23 MB | 4.28 MB | 0.42 MB |
+| `--no-default-features` (and no sound card, pads or debug panels) | 10.92 MB | 4.14 MB | 0.56 MB |
+
+- **The default build is over the 4 MB line again.** #137 shipped 3.64 MB;
+  the engine has grown by 1.06 MB gzipped since, with no new lever. The
+  features don't bring it back under on their own: with every default off
+  it is 4.14 MB.
+- **The music, the rhythm game, procgen and living props are 0.42 MB** of
+  the gzipped wasm together (1.10 MB before gzip). Each alone wasn't
+  measured.
+- `trunk build --no-default-features --features ...` passes the flags to
+  cargo; `index.html` names no features, so the page is the same.
 
 ### Built for speed (#137)
 

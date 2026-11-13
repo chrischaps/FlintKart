@@ -15,6 +15,8 @@ mod error;
 pub mod export_glb;
 mod generator;
 pub mod generators;
+pub mod living;
+pub mod living_props;
 pub mod mock;
 pub mod model;
 mod output;
@@ -23,6 +25,7 @@ mod queue;
 mod registry;
 pub mod resolver;
 mod rng;
+pub mod scene_tables;
 mod seed;
 pub mod skinning;
 mod spec;
@@ -33,11 +36,22 @@ pub use cache::{CacheStats, ProcGenCache, ProcGenCacheConfig};
 pub use disk_cache::{DiskCache, DiskCacheConfig, DiskStats};
 pub use error::{ProcGenError, Result};
 pub use export_glb::{mesh_lods_to_glb, mesh_to_glb, skinned_mesh_to_glb};
-pub use generator::{GenerationCost, Generator};
+pub use generator::{GenerationCost, Generator, LivingGenerator};
 pub use generators::creature::CreatureGenerator;
 pub use generators::register_built_in_generators;
 pub use generators::texture::TextureGenerator;
 pub use generators::tree::TreeGenerator;
+pub use living::{
+    boil_bones, CardBoil, LeafBinding, LivingClock, LivingJitter, LivingPose, LivingRig,
+    LivingSkeleton, PoseStream, SegmentPose, WarpedTime, BOIL_BONES, JITTER_CHANNELS,
+    STAGGER_PER_LEVEL,
+};
+pub use living_props::{
+    BlendFrame, ClockOverride, EchoOverride, LineageDone, LivingDefaults, LivingLayer,
+    LivingLayers, LivingProp, LivingPropId, LivingPropRequest, LivingProps, LivingScope,
+    LivingShadows, LivingStats, PropBlend, Resolved, ResolvedProp, SpeciesOverride,
+    VarianceOverride, POSE_CACHE_BYTES,
+};
 pub use output::{GeneratorOutput, OutputKind};
 pub use queue::{
     AssetKind, CompletedAsset, FailedAsset, GenerationRequest, ProcGenQueue, QueueStats,
@@ -45,9 +59,19 @@ pub use queue::{
 pub use registry::GeneratorRegistry;
 pub use resolver::ProcGenResolver;
 pub use rng::SeededRng;
+pub use scene_tables::{
+    apply_preset_file, commit_look, edit_species, list_presets, list_presets_in, look_edits,
+    preset_save_dir, read_preset, read_preset_in, settle_scene, write_preset, write_preset_in,
+    BoilDef, CommitReport, LivingDef, LivingEchoesDef, LivingSpeciesDef, LivingTables,
+    LivingVarianceDef, WoozeDef, WoozeIssue, WoozeKnobs, WoozePreset, PRESET_SUFFIX,
+};
 pub use seed::Seed;
-pub use skinning::{BoneDef, SkeletonDef, SkinnedMeshData, SkinnedVertex};
-pub use spec::{discover_specs, LodLevel, ProcGenSpec, SeedConfig, SeedMode, SpecMeta};
+pub use skinning::{BoneDef, SkeletonDef, SkinnedMeshData, SkinnedVertex, MAX_SKINNED_BONES};
+pub use spec::{
+    discover_specs, DriftConfig, EchoBlend, EchoConfig, EchoCopy, EchoPlace, EchoPlaces,
+    JitterConfig, LivingConfig, LodLevel, ProcGenSpec, SeedConfig, SeedMode, SpecMeta, Stagger,
+    VarianceConfig,
+};
 pub use types::{
     BoundingBox, BranchSegment, ChannelSemantics, ImageData, MaterialData, MeshData, SubMesh,
     Vertex,
