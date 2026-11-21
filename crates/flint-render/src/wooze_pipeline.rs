@@ -14,6 +14,8 @@
 //! Normals aren't bent: at a few centimetres over a metre, it's about a degree or
 //! two of shading for three times the noise.
 
+use crate::gpu_counts::CountedDevice;
+use crate::TrustedShader;
 use bytemuck::{Pod, Zeroable};
 
 use crate::pipeline::{BlendMode, RenderPipeline, ADDITIVE_BLEND, MULTIPLY_BLEND};
@@ -136,13 +138,13 @@ impl Stages<'_> {
         cull_mode: Option<wgpu::Face>,
         depth_write_enabled: bool,
     ) -> wgpu::RenderPipeline {
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        device.create_render_pipeline_counted(&wgpu::RenderPipelineDescriptor {
             label: Some(self.label),
             layout: Some(self.layout),
             vertex: wgpu::VertexState {
                 module: self.vertex_module,
                 entry_point: Some(self.vertex_entry),
-                buffers: std::slice::from_ref(&self.vertex_layout),
+                buffers: &[Some(self.vertex_layout.clone())],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -166,8 +168,8 @@ impl Stages<'_> {
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled,
-                depth_compare: wgpu::CompareFunction::Less,
+                depth_write_enabled: Some(depth_write_enabled),
+                depth_compare: Some(wgpu::CompareFunction::Less),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
@@ -175,7 +177,7 @@ impl Stages<'_> {
                 count: self.sample_count,
                 ..Default::default()
             },
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         })
     }
@@ -194,7 +196,7 @@ impl Stages<'_> {
 }
 
 fn vertex_module(device: &wgpu::Device) -> wgpu::ShaderModule {
-    device.create_shader_module(wgpu::ShaderModuleDescriptor {
+    device.create_trusted_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Shallow Wooze Vertex Shader"),
         source: wgpu::ShaderSource::Wgsl(VERTEX_SOURCE.into()),
     })
@@ -304,8 +306,8 @@ mod tests {
     #[test]
     fn a_woozy_vertex_stage_hands_over_what_its_plain_twin_does() {
         let woozy = validated(VERTEX_SOURCE, "wooze_vertex.wgsl");
-        let plain = naga::front::wgsl::parse_str(include_str!("shader.wgsl")).unwrap();
-        let skinned = naga::front::wgsl::parse_str(include_str!("skinned_shader.wgsl")).unwrap();
+        let plain = naga::front::wgsl::parse_str(crate::wgsl_sources::SCENE).unwrap();
+        let skinned = naga::front::wgsl::parse_str(crate::wgsl_sources::SKINNED).unwrap();
         assert_eq!(
             entry_stage_io(&woozy, "vs_wooze"),
             entry_stage_io(&plain, "vs_main")
@@ -413,11 +415,11 @@ mod tests {
             let instance = crate::gpu_select::instance();
             let adapter = crate::gpu_select::request_adapter(&instance, None).await?;
             let (device, queue) = adapter
-                .request_device(&wgpu::DeviceDescriptor::default(), None)
+                .request_device(&wgpu::DeviceDescriptor::default())
                 .await
                 .ok()?;
             let target = |format, usage| {
-                device.create_texture(&wgpu::TextureDescriptor {
+                device.create_texture_counted(&wgpu::TextureDescriptor {
                     label: None,
                     size: wgpu::Extent3d {
                         width: SIZE,
@@ -473,7 +475,7 @@ mod tests {
             );
             let row = (SIZE * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
                 * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            let buffer = self.device.create_buffer_counted(&wgpu::BufferDescriptor {
                 label: None,
                 size: (row * SIZE) as u64,
                 usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -482,9 +484,9 @@ mod tests {
             let mut encoder = self.device.create_command_encoder(&Default::default());
             encoder.copy_texture_to_buffer(
                 self.color.as_image_copy(),
-                wgpu::ImageCopyBuffer {
+                wgpu::TexelCopyBufferInfo {
                     buffer: &buffer,
-                    layout: wgpu::ImageDataLayout {
+                    layout: wgpu::TexelCopyBufferLayout {
                         offset: 0,
                         bytes_per_row: Some(row),
                         rows_per_image: None,
@@ -500,8 +502,11 @@ mod tests {
             buffer
                 .slice(..)
                 .map_async(wgpu::MapMode::Read, |r| r.unwrap());
-            self.device.poll(wgpu::Maintain::Wait);
-            let data = buffer.slice(..).get_mapped_range();
+            let _ = crate::wait_for_gpu(&self.device);
+            let data = buffer
+                .slice(..)
+                .get_mapped_range()
+                .expect("mapped buffer range");
             let mut out = Vec::with_capacity((SIZE * SIZE * 4) as usize);
             for y in 0..SIZE {
                 let start = (row * y) as usize;
@@ -737,7 +742,7 @@ mod tests {
 
         // Naming something with no draws builds nothing either.
         let draw = whole_sheet_draw().0;
-        renderer.set_shallow_wooze([(EntityId::new(), draw)]);
+        renderer.set_shallow_wooze([(EntityId::from_raw(1), draw)]);
         rig.image(&mut renderer, &world);
         assert_eq!(renderer.wooze_built(), (false, false, false));
 

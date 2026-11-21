@@ -27,6 +27,7 @@
 //! | archetypes, components and fields fit the schemas | the same | `unknown-archetype` `unknown-component` `unknown-field` `bad-type` `bad-enum-value` `out-of-range` `missing-field` `no-schemas` |
 //! | entity and asset references (every `parent`, every field a schema types `entity` or `asset`; an `ik_two_bone.tip` that is not a child) | `flint_scene::diagnose` (#684; the tip, #687) | `unknown-entity` `missing-asset` `not-a-child` |
 //! | the scene builds | new | `scene-load` |
+//! | each inline `particle_emitter` against the emitter's reader (its keys, its values parse and resolve); replaces the schema's form checks of it | new (#690, [`scene`]) | `bad-emitter` |
 //! | the assets a scene names by kind, through the resolver | new ([`scene::ASSET_FIELDS`]) | `missing-asset` |
 //! | the procgen spec behind a model or texture parses | new | `bad-spec` |
 //! | the input config is there and parses | new | `missing-asset` `bad-input-config` |
@@ -34,23 +35,27 @@
 //! | user styles load and compile | `flint bundle` | `bad-user-style` |
 //! | `[post_process.styles]`, the look | `flint validate`, `flint bundle` | `bad-style-setting` `bad-look` |
 //! | `[wooze]`, `[living.species]` | `flint validate` | `bad-wooze` `bad-species` |
+//! | `[field.<name>]`, each declared field's keys and zones | new (#1014, [`scene`]) | `bad-field` |
 //! | constraints, and that each can be evaluated | `flint validate`; the second is new | `constraint` `bad-constraint` |
 //! | the manifest reads, its schema directories exist, its scene is there | new | `bad-manifest` `bad-schemas` `missing-asset` |
-//! | the scripts compile, and their calls, callbacks and imports fit the script API | `flint script check` (#694, [`scripts`]) | `script-syntax` `unknown-function` `wrong-arity` `bad-argument` `unknown-callback` `callback-arity` `missing-module` `deprecated-function` `mixed-numbers` |
+//! | the scripts compile, and their calls, callbacks and imports fit the script API | `flint script check` (#694, [`scripts`]) | `script-syntax` `unknown-function` `wrong-arity` `bad-argument` `unknown-callback` `callback-arity` `missing-module` `deprecated-function` `mixed-numbers` `unknown-global` |
+//! | a project with a `Cargo.toml` names the `[patch.crates-io]` of the engine it builds by path (a folder only) | new (#982, [`cargo`]) | `missing-cargo-patch` |
+//! | that project's `Cargo.lock` gives gpu-allocator the `windows` crate wgpu-hal has | new (#995, [`cargo`]) | `stale-cargo-lock` |
 //!
 //! The scripts pass reads every `.rhai` a project holds (or that a scene
 //! runs) and the modules they import; their string literals are also read
 //! for the files they name ([`references`]).
 
+pub mod cargo;
 mod references;
-mod report;
+pub mod report;
 pub mod scene;
 pub mod scripts;
 
 pub use report::{json, text};
 
 use flint_constraint::ConstraintRegistry;
-use flint_core::diagnostic::{self, codes, Diagnostic};
+use flint_core::diagnostic::{self, codes, Allow, Diagnostic};
 use flint_core::project::{shown, Project, SchemaDirs};
 use flint_core::vfs::{self, normalize};
 use flint_schema::SchemaRegistry;
@@ -246,6 +251,10 @@ pub struct Subject {
     /// What the scripts are held to: the engine's API when `None`, else
     /// with a game's functions added (`--allow`, `--api`).
     pub script_api: Option<flint_script::check::Api>,
+    /// The project's `[project.diagnostics] allow` (#795), for what is
+    /// found outside a scene's own check (its scripts, the files it names).
+    /// Each scene's check applies its own project's list.
+    pub allow: Vec<Allow>,
 }
 
 impl Subject {
@@ -265,6 +274,7 @@ impl Subject {
             follow: false,
             preliminary: Vec::new(),
             script_api: None,
+            allow: Vec::new(),
         }
     }
 
@@ -290,6 +300,11 @@ impl Subject {
         let mut subject = Self::packed(files, Schemas::Resolve(flags.to_vec()));
         subject.root = from_here(&root);
         subject.preliminary = preliminary;
+        subject.allow = project.allow.clone();
+        // A game with Rust of its own builds the engine from its own
+        // workspace, where only its own [patch] applies
+        subject.preliminary.extend(cargo::patches(&project.root));
+        subject.preliminary.extend(cargo::lock(&project.root));
         // The manifest's own promises
         if let Some(scene) = project.scene_path() {
             if !vfs::is_file(&scene) {
@@ -329,6 +344,7 @@ impl Subject {
         subject.root = from_here(&root);
         subject.follow = true;
         subject.preliminary = preliminary;
+        subject.allow = project.allow.clone();
         subject
     }
 
@@ -356,7 +372,17 @@ fn from_here(path: &Path) -> PathBuf {
 /// `bad-manifest` that says why.
 fn project_of(path: &Path) -> (Project, Vec<Diagnostic>) {
     match Project::for_path(path) {
-        Ok(project) => (project, Vec::new()),
+        // The manifest's `[audio.buses]` too (#730), which the player reads
+        // at start and keeps its buses when it doesn't
+        Ok(project) => {
+            let buses = match flint_player::Buses::for_project(&project) {
+                Ok(_) => Vec::new(),
+                Err(e) => vec![Diagnostic::error(codes::BAD_MANIFEST, e.to_string())
+                    .file(from_here(&project.manifest_path()))
+                    .hint("the game plays with the built-in buses, sfx and music")],
+            };
+            (project, buses)
+        }
         Err(e) => (
             Project::for_scene(path),
             vec![Diagnostic::error(codes::BAD_MANIFEST, e.to_string())
@@ -389,6 +415,9 @@ pub struct Report {
     /// Everything wrong, in the order found, each once, with `/` in every
     /// path on every platform.
     pub diagnostics: Vec<Diagnostic>,
+    /// How many the projects' `[project.diagnostics] allow` left out
+    /// (#795).
+    pub allowed: usize,
 }
 
 impl Report {
@@ -396,16 +425,37 @@ impl Report {
         diagnostic::has_errors(&self.diagnostics)
     }
 
-    /// `2 errors, 1 warning`, or `no problems`.
+    /// `2 errors, 1 warning`, or `no problems`, and how many were allowed.
     pub fn counts(&self) -> String {
-        diagnostic::counts_line(&self.diagnostics)
+        format!(
+            "{}{}",
+            diagnostic::counts_line(&self.diagnostics),
+            diagnostic::allowed_note(self.allowed)
+        )
     }
 }
 
 /// Run `checks` over `subject`, through the vfs that is current: the disk,
 /// or a bundle's files inside `vfs::scoped`.
+/// A UI document's problems (#731), each a `bad-ui` on its file: what
+/// `load_ui` would refuse, with the style file it names. Its paths are from
+/// the project root, as a script's `load_ui` path is.
+fn ui_document(path: &Path) -> Vec<Diagnostic> {
+    let dir = path.parent().unwrap_or(Path::new(""));
+    let root = flint_core::project::Project::for_scene(path).root_for(dir);
+    flint_script::ui::check_document_at(path, &root)
+        .into_iter()
+        .map(|(file, message)| {
+            Diagnostic::error(codes::BAD_UI, message)
+                .file(file)
+                .hint("load_ui refuses this document, naming the same element")
+        })
+        .collect()
+}
+
 pub fn run(subject: &Subject, checks: Checks) -> Report {
     let mut found = subject.preliminary.clone();
+    let mut allowed = 0;
     let mut memo = scene::Memo::default();
     let mut loaded: BTreeMap<PathBuf, Rc<SceneSchemas>> = BTreeMap::new();
     let mut files: BTreeSet<String> = subject.files.iter().cloned().collect();
@@ -448,6 +498,7 @@ pub fn run(subject: &Subject, checks: Checks) -> Report {
         }
         let scene = scene::check(&path, &schemas, checks, subject.strict, &mut memo);
         found.extend(scene.diagnostics);
+        allowed += scene.allowed;
         if subject.follow {
             files.extend(
                 scene
@@ -460,6 +511,10 @@ pub fn run(subject: &Subject, checks: Checks) -> Report {
     }
     if checks.files {
         found.extend(references::check(subject, &files));
+        // Every UI document, as load_ui reads it (#731)
+        for key in files.iter().filter(|key| key.ends_with(".ui.toml")) {
+            found.extend(ui_document(&subject.path(key)));
+        }
     }
     let mut scripts_read = Vec::new();
     if checks.scripts {
@@ -492,25 +547,32 @@ pub fn run(subject: &Subject, checks: Checks) -> Report {
             diagnostics.push(d);
         }
     }
+    allowed += diagnostic::drop_allowed(&mut diagnostics, &subject.allow);
     Report {
         scenes,
         files: files.iter().filter(|f| references::is_scanned(f)).count(),
         scripts: scripts_read,
         diagnostics,
+        allowed,
     }
 }
 
 /// [`run`] for one scene with schemas already in hand, without the pass
-/// over the files it names: what `flint validate` asks.
+/// over the files it names: what `flint validate` asks. What the scene's
+/// project allows is left out and counted (`allowed`); `reached` is empty.
 pub fn scene(
     scene: &Path,
     schemas: &SceneSchemas,
     checks: Checks,
     strict: bool,
     script_api: &flint_script::check::Api,
-) -> Vec<Diagnostic> {
+) -> scene::SceneFound {
     let mut memo = scene::Memo::default();
-    let mut found = scene::check(scene, schemas, checks, strict, &mut memo).diagnostics;
+    let scene::SceneFound {
+        diagnostics: mut found,
+        allowed,
+        ..
+    } = scene::check(scene, schemas, checks, strict, &mut memo);
     if checks.scripts {
         let (files, missing) = scripts::of_scene(scene, &schemas.registry, !checks.files);
         found.extend(missing);
@@ -523,7 +585,12 @@ pub fn scene(
             found.push(problem.clone());
         }
     }
-    found
+    let allowed = allowed + diagnostic::drop_allowed(&mut found, &Project::for_scene(scene).allow);
+    scene::SceneFound {
+        diagnostics: found,
+        reached: Vec::new(),
+        allowed,
+    }
 }
 
 #[cfg(test)]

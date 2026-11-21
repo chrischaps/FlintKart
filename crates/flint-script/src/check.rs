@@ -29,6 +29,7 @@
 //! | `unknown-callback` | error | `fn on_colision`: one edit from a callback, never called |
 //! | `callback-arity` | error | a callback with a parameter count the engine doesn't call |
 //! | `missing-module` | error | `import "x"` finds no file; `tried` has the paths |
+//! | `unknown-global` | error | `global::NAME` with no top-level `const NAME`: fails every time it runs |
 //! | `deprecated-function` | warning | a function the API marks deprecated |
 //! | `mixed-numbers` | warning | a per-frame call mixing int and float literals in four or more `num` slots |
 //!
@@ -38,7 +39,8 @@
 //! literals are judged, only in `on_update` and `on_draw_ui` and the
 //! file's functions they call, so it stays cheap and quiet.
 
-use crate::api::registry::{parse_signature, ApiEntry, ApiListing, CALLBACKS};
+use crate::api::registry::{parse_signature, ApiEntry, ApiListing};
+use crate::engine::instance::{callback_problems, CallbackProblem};
 use crate::module_resolver::ModuleBase;
 use flint_core::diagnostic::{self, codes, Diagnostic};
 use flint_core::vfs;
@@ -486,6 +488,7 @@ impl Run<'_> {
         }
         if !file.module {
             found.extend(callbacks(path, source, ast, &seen));
+            found.extend(globals(path, ast));
         }
         found.sort_by_key(|d| (d.line, d.column));
         next
@@ -655,6 +658,23 @@ impl Run<'_> {
                 return Some(out);
             }
         };
+        // A name the engine knows, written as a literal (#853)
+        for &(func, index, problem) in NAMED_ARGS {
+            let given = call.strs.get(index).and_then(Option::as_deref);
+            if let Some(why) = (call.name == func)
+                .then_some(given)
+                .flatten()
+                .and_then(problem)
+            {
+                out.push(
+                    Diagnostic::error(
+                        codes::BAD_ARGUMENT,
+                        format!("`{func}` argument {}: {why}", index + 1 + skip),
+                    )
+                    .hint(entry.signature()),
+                );
+            }
+        }
         if at.iter().all(|e| e.deprecated.is_some()) {
             let note = entry.deprecated.unwrap_or_default();
             out.push(
@@ -851,6 +871,9 @@ struct CallSite {
     method: bool,
     /// Each argument's literal kind, or `None` where it isn't a literal.
     args: Vec<Option<Lit>>,
+    /// Each argument's text, where it is a plain string literal: what a
+    /// [`NAMED_ARGS`] function's name is checked from.
+    strs: Vec<Option<String>>,
     /// The function it is in; `None` at the top level.
     within: Option<String>,
     line: usize,
@@ -941,6 +964,18 @@ fn visit(nodes: &[ASTNode], within: Option<&str>, seen: &mut Seen) -> bool {
     true
 }
 
+/// Declared functions with an argument naming something the engine knows,
+/// so a literal that names nothing fails the check where it would fail the
+/// call at run time: the function, the argument's index and what is wrong
+/// with a name (#853).
+type NameProblem = fn(&str) -> Option<String>;
+const NAMED_ARGS: &[(&str, usize, NameProblem)] = &[("set_post", 0, |key| {
+    use flint_schema::post_effects;
+    post_effects::param(key)
+        .is_none()
+        .then(|| post_effects::unknown_key(key))
+})];
+
 fn place(pos: rhai::Position) -> (usize, usize) {
     (pos.line().unwrap_or(1), pos.position().unwrap_or(1))
 }
@@ -969,6 +1004,14 @@ fn call(x: &FnCallExpr, pos: rhai::Position, method: bool, within: Option<&str>,
         namespace,
         method,
         args: x.args.iter().map(Lit::of).collect(),
+        strs: x
+            .args
+            .iter()
+            .map(|e| match e {
+                Expr::StringConstant(s, _) => Some(s.to_string()),
+                _ => None,
+            })
+            .collect(),
         within: within.map(str::to_string),
         line,
         col,
@@ -989,69 +1032,89 @@ fn per_frame_fns(seen: &Seen) -> BTreeSet<String> {
     out
 }
 
+// -------------------------------------------------------------- globals ---
+
+/// Each `global::NAME` read of a script with no top-level `const NAME`
+/// (#1007). Rhai's `global::` reaches a script's top-level constants and
+/// nothing else, so such a read is `Variable not found` every time it runs:
+/// every frame, from `on_update`. A top-level `let` of the name is the
+/// usual slip, and the hint says so. Not judged in a module, whose
+/// functions' `global::` is the module's own.
+fn globals(path: &Path, ast: &AST) -> Vec<Diagnostic> {
+    use rhai::ASTFlags;
+    let mut consts: Vec<&str> = Vec::new();
+    let mut lets: BTreeSet<&str> = BTreeSet::new();
+    for stmt in ast.statements() {
+        if let Stmt::Var(x, flags, _) = stmt {
+            if flags.contains(ASTFlags::CONSTANT) {
+                consts.push(x.0.name.as_str());
+            } else {
+                lets.insert(x.0.name.as_str());
+            }
+        }
+    }
+    let mut reads: Vec<(String, rhai::Position)> = Vec::new();
+    crate::engine::instance::any_node(ast, |node| {
+        if let ASTNode::Expr(Expr::Variable(v, _, pos)) = node {
+            let (_, name, namespace, _) = &**v;
+            if namespace.path.len() == 1 && namespace.root() == "global" {
+                reads.push((name.to_string(), *pos));
+            }
+        }
+        false
+    });
+    reads
+        .into_iter()
+        .filter(|(name, _)| !consts.contains(&name.as_str()))
+        .map(|(name, pos)| {
+            let hint = if lets.contains(name.as_str()) {
+                Some(format!(
+                    "`{name}` is a top-level `let`, which `global::` doesn't reach: make it `const {name}` if it never changes, or read it by its bare name in a callback"
+                ))
+            } else {
+                diagnostic::did_you_mean(&name, consts.iter().copied())
+                    .or_else(|| Some(format!("declare `const {name} = ...` at the script's top level")))
+            };
+            let (line, col) = place(pos);
+            Diagnostic::error(
+                codes::UNKNOWN_GLOBAL,
+                format!("`global::{name}`: the script has no top-level `const {name}`, so the read fails every time it runs"),
+            )
+            .hint_opt(hint)
+            .file(path)
+            .at(line, col)
+        })
+        .collect()
+}
+
 // ------------------------------------------------------------ callbacks ---
 
 /// A callback defined at the wrong arity, and an `fn` one edit from a
-/// callback that nothing calls: the engine never would.
+/// callback that nothing calls: the engine never would. The same problems,
+/// in the same words, as the engine warns of at load
+/// ([`callback_problems`], #700).
 fn callbacks(path: &Path, source: &str, ast: &AST, seen: &Seen) -> Vec<Diagnostic> {
-    let names: Vec<&str> = CALLBACKS.iter().map(|c| c.name).collect();
-    let fold = |s: &str| -> String {
-        s.chars()
-            .filter(|c| *c != '_')
-            .flat_map(char::to_lowercase)
-            .collect()
-    };
     let called: BTreeSet<&str> = seen
         .calls
         .iter()
         .filter(|c| c.namespace.is_none())
         .map(|c| c.name.as_str())
         .collect();
-    let mut out = Vec::new();
-    for f in ast.iter_functions() {
-        let at = |d: Diagnostic| {
-            let (line, col) = fn_position(source, f.name);
-            d.file(path).at(line, col)
-        };
-        if let Some(cb) = CALLBACKS.iter().find(|c| c.name == f.name) {
-            if f.params.len() != cb.params.len() {
-                let wanted = format!("fn {}({})", cb.name, cb.params.join(", "));
-                let hint = if cb.name == flint_core::callbacks::ON_UPDATE {
-                    format!("`{wanted}`: delta_time() is the frame's step")
-                } else {
-                    format!("`{wanted}`")
-                };
-                out.push(at(Diagnostic::error(
-                    codes::CALLBACK_ARITY,
-                    format!(
-                        "`fn {}` has {} parameter{}; the engine calls it with {}, so it never runs",
-                        f.name,
-                        f.params.len(),
-                        if f.params.len() == 1 { "" } else { "s" },
-                        cb.params.len()
-                    ),
-                )
-                .hint(hint)));
-            }
-            continue;
-        }
-        let looks_like_one =
-            f.name.starts_with("on_") || names.iter().any(|n| fold(n) == fold(f.name));
-        if !looks_like_one || called.contains(f.name) || seen.strings.contains(f.name) {
-            continue;
-        }
-        if let Some(near) = diagnostic::closest(f.name, names.iter().copied()) {
-            out.push(at(Diagnostic::error(
-                codes::UNKNOWN_CALLBACK,
-                format!(
-                    "`fn {}` is not a callback, and nothing in this script calls it",
-                    f.name
-                ),
-            )
-            .hint(format!("did you mean `{near}`?"))));
-        }
-    }
-    out
+    let named = |name: &str| called.contains(name) || seen.strings.contains(name);
+    callback_problems(ast, named)
+        .into_iter()
+        .map(|problem| {
+            let code = match problem {
+                CallbackProblem::Arity { .. } => codes::CALLBACK_ARITY,
+                CallbackProblem::Unknown { .. } => codes::UNKNOWN_CALLBACK,
+            };
+            let (line, col) = fn_position(source, problem.name());
+            Diagnostic::error(code, problem.message())
+                .hint(problem.hint())
+                .file(path)
+                .at(line, col)
+        })
+        .collect()
 }
 
 /// Where `fn <name>` is written: line and column of `fn`, from 1.

@@ -46,7 +46,7 @@
 //!
 //! ```toml
 //! [mount]                                  # a folder outside the game, packed at a path inside it
-//! "engine/schemas" = "../schemas"          # (Flint's examples/, whose schemas are the repo's)
+//! "engine/schemas" = "../schemas"          # (a game beside the engine's checkout, not under it)
 //! [web]                                    # what `flint export web` puts on the page
 //! title = "Flint demos"
 //! line = "One sentence under the title."
@@ -61,11 +61,19 @@
 //! (`flint.toml`'s root; in the engine checkout, the checkout):
 //!
 //! ```bash
-//! flint bundle examples/ascii_entities.scene.toml   # examples/dist/ascii_entities.flintpack
+//! flint bundle levels/dock.scene.toml   # levels/dist/dock.flintpack
 //! ```
 //!
 //! See [`gather_scene`] for what "reaches" means. The bundle's paths are the
 //! project's, so the scene plays from the bundle as it does from the disk.
+//!
+//! **User styles' loop guard** (#550): the browser has no naga, so it can't
+//! guard a style's loops (#411) the way the native build does. Once the
+//! check passes, [`pack_guarded_modules`] packs the guarded module of each
+//! style pass with a loop to guard beside its `.shader.toml`
+//! (`styles/spin.guarded.wgsl`), and the web builds that instead of its
+//! composed text. A style without loops, or with only loops the IR proves
+//! end, packs nothing extra.
 
 use crate::check::{self, Checks, Schemas, Subject};
 use anyhow::{bail, Context, Result};
@@ -413,14 +421,68 @@ fn collect_under(root: &Path, rules: &Rules) -> Result<Vec<String>> {
 /// player will read them: every scene loads from the bundle with its
 /// prefabs and its archetypes known, every file and asset a scene, prefab,
 /// particle effect, glyph set, chunk, user style or script names is packed,
-/// and the user styles and looks load ([`Checks::BUNDLE`]).
+/// and the user styles and looks load ([`Checks::BUNDLE`]). The packed
+/// `flint.toml`'s `[project.diagnostics] allow` (#795) leaves out what it
+/// names, from the reference pass as from each scene's check (#1060), so
+/// a bundle refuses what `flint check` reports and nothing more.
 pub fn check_packed(files: &BTreeMap<String, Vec<u8>>, schemas: &[String]) -> check::Report {
     let source: MemorySource = files.iter().map(|(p, b)| (p.as_str(), b.clone())).collect();
-    let subject = Subject::packed(
+    let mut subject = Subject::packed(
         files.keys().cloned().collect(),
         Schemas::Listed(schemas.to_vec()),
     );
-    vfs::scoped(Arc::new(source), || check::run(&subject, Checks::BUNDLE))
+    vfs::scoped(Arc::new(source), || {
+        // A manifest that doesn't read was refused when the pack read its
+        // name and start scene; with none packed, nothing is allowed
+        if let Ok(project) = Project::for_path(Path::new(".")) {
+            subject.allow = project.allow;
+        }
+        check::run(&subject, Checks::BUNDLE)
+    })
+}
+
+/// Add to `files` the guarded module of every packed user style's pass
+/// that has a loop to guard (#550, `custom::guarded_file`), each beside its
+/// `.shader.toml`, read from the packed files as the player will read
+/// them. Returns the paths added. A description or shader that doesn't
+/// load is passed over: when a scene can see it, the check has refused
+/// the bundle already, and when none can, nothing draws it.
+fn pack_guarded_modules(files: &mut BTreeMap<String, Vec<u8>>) -> Result<Vec<String>> {
+    use flint_render::stylize::custom;
+    let source: MemorySource = files.iter().map(|(p, b)| (p.as_str(), b.clone())).collect();
+    let styles: Vec<&String> = files
+        .keys()
+        .filter(|p| p.ends_with(custom::SUFFIX))
+        .collect();
+    let made = vfs::scoped(Arc::new(source), || {
+        let mut made = Vec::new();
+        for path in styles {
+            let Ok(style) = custom::read_source(Path::new(path)) else {
+                continue;
+            };
+            for (i, pass) in style.passes.iter().enumerate() {
+                let Ok(user) = vfs::read_to_string(&pass.wgsl_path) else {
+                    continue;
+                };
+                if let Ok(Some((at, text))) = custom::guarded_file(&style, i, &user) {
+                    made.push((normalize(&at), text));
+                }
+            }
+        }
+        made
+    });
+    let mut added = Vec::new();
+    for (path, text) in made {
+        if files.contains_key(&path) {
+            bail!(
+                "{path} is the name of a user style's guarded module (#550), which `flint bundle` \
+                 writes; rename the file the game has there"
+            );
+        }
+        files.insert(path.clone(), text.into_bytes());
+        added.push(path);
+    }
+    Ok(added)
 }
 
 /// The files of the project at `root` that `flint check` reads: what the
@@ -462,14 +524,28 @@ pub struct Packed {
     pub files: Vec<(String, u64)>,
     /// Where they went.
     pub out_dir: PathBuf,
+    /// How many diagnostics `[project.diagnostics] allow` left out of the
+    /// check, counted as `flint check` counts them (#1060).
+    pub allowed: usize,
 }
 
 pub fn run(args: BundleArgs) -> Result<()> {
     let dry_run = args.dry_run;
     let packed = pack(args)?;
     if !dry_run {
-        println!("written to {}", packed.out_dir.display());
+        crate::output::say!("written to {}", packed.out_dir.display());
     }
+    crate::output::when_json(|| {
+        serde_json::json!({
+            "scene": packed.scene,
+            "out_dir": packed.out_dir.display().to_string().replace('\\', "/"),
+            "dry_run": dry_run,
+            "allowed": packed.allowed,
+            "files": packed.files.iter().map(|(file, bytes)| {
+                serde_json::json!({ "file": file, "bytes": bytes })
+            }).collect::<Vec<_>>(),
+        })
+    });
     Ok(())
 }
 
@@ -529,7 +605,7 @@ fn gather_game(args: &BundleArgs) -> Result<Gathered> {
         .collect();
     if !mounts.contains_key("engine/schemas") && !root.join("engine/schemas").is_dir() {
         if let Some(dir) = engine_schemas() {
-            println!(
+            crate::output::say!(
                 "no engine/schemas in the game: packing the engine's, from {}",
                 dir.display()
             );
@@ -714,7 +790,7 @@ fn gather_scene(args: &BundleArgs) -> Result<Gathered> {
     }
     if dirs.is_empty() {
         if let Some(dir) = engine_schemas() {
-            println!(
+            crate::output::say!(
                 "{scene} resolves no schemas: packing the engine's, from {}",
                 dir.display()
             );
@@ -868,7 +944,7 @@ fn gather_scene(args: &BundleArgs) -> Result<Gathered> {
     // Only the directories that hold something, as a game's bundle lists them
     schemas.retain(|s| files.keys().any(|p| p.starts_with(&format!("{s}/"))));
     let bytes: usize = files.values().map(Vec::len).sum();
-    println!(
+    crate::output::say!(
         "{scene}: {} files from {} ({} reached by name, {})",
         files.len(),
         flint_core::project::shown(&root),
@@ -1022,6 +1098,10 @@ fn write(gathered: Gathered, list: bool, dry_run: bool) -> Result<Packed> {
         msg.push_str("Pack the missing files, or leave the file that names them out with `exclude` in bundle.toml.");
         bail!(msg);
     }
+    let mut files = files;
+    for path in pack_guarded_modules(&mut files)? {
+        crate::output::say!("{path}: the loop guard's module, for the web (#550)");
+    }
 
     // Split into the main bundle and the late parts.
     let mut parts: BTreeMap<Option<String>, Vec<(String, Vec<u8>)>> = BTreeMap::new();
@@ -1038,10 +1118,10 @@ fn write(gathered: Gathered, list: bool, dry_run: bool) -> Result<Packed> {
         for (part, list) in &parts {
             let label = part.as_deref().unwrap_or("main");
             for (path, bytes) in list {
-                println!("{:>10}  {label:<6}  {path}", bytes.len());
+                crate::output::say!("{:>10}  {label:<6}  {path}", bytes.len());
             }
         }
-        println!();
+        crate::output::say!();
     }
 
     let file_name = |part: &Option<String>| match part {
@@ -1081,9 +1161,12 @@ fn write(gathered: Gathered, list: bool, dry_run: bool) -> Result<Packed> {
     let bytes = Bundle::write(manifest, main.iter().map(|(p, b)| (p.as_str(), b.clone())));
     written.insert(0, (file_name(&None), main.len(), bytes));
 
-    println!("{name}: starts {scene}; schemas {}", schemas.join(", "));
+    crate::output::say!("{name}: starts {scene}; schemas {}", schemas.join(", "));
+    if report.allowed > 0 {
+        crate::output::say!("  check: {}", report.counts());
+    }
     for (file, count, bytes) in &written {
-        println!(
+        crate::output::say!(
             "  {:<32} {:>4} files  {:>9}",
             file,
             count,
@@ -1097,9 +1180,10 @@ fn write(gathered: Gathered, list: bool, dry_run: bool) -> Result<Packed> {
             .map(|(file, _, bytes)| (file.clone(), bytes.len() as u64))
             .collect(),
         out_dir: out_dir.clone(),
+        allowed: report.allowed,
     };
     if dry_run {
-        println!("(dry run: nothing written)");
+        crate::output::say!("(dry run: nothing written)");
         return Ok(packed);
     }
     std::fs::create_dir_all(&out_dir).with_context(|| format!("creating {}", out_dir.display()))?;
@@ -1347,6 +1431,45 @@ mod tests {
         );
     }
 
+    /// #573: a style that takes `fwidth` under a branch on the pixel packs
+    /// (natively it draws), with a warning at its line and column, since
+    /// the browser's WebGPU refuses it. Loop counts are warned the same way.
+    #[test]
+    fn a_derivative_under_a_branch_is_a_warning_with_its_line() {
+        let files = pack(&[
+            (
+                "styles/frost.shader.toml",
+                "version = 1\nname = \"frost\"\nshader = \"frost.wgsl\"\n\
+                 [params.lines]\ndefault = 40.0\nmin = 4.0\nmax = 120.0\n",
+            ),
+            (
+                "styles/frost.wgsl",
+                "fn style(p: StylePixel) -> vec4<f32> {\n    var c = p.color.rgb;\n    \
+                 if (flint_luma(p.color.rgb) > 0.6) {\n        \
+                 c = c * fwidth(p.uv.x * params.lines);\n    }\n    \
+                 return vec4<f32>(c, p.color.a);\n}\n",
+            ),
+            ("levels/a.scene.toml", "[scene]\nname = \"a\"\n"),
+        ]);
+        let report = check_packed(&files, &[]);
+        assert!(!report.has_errors(), "{:?}", report.diagnostics);
+        let said: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "bad-user-style")
+            .collect();
+        assert_eq!(said.len(), 1, "{:?}", report.diagnostics);
+        let d = said[0];
+        assert_eq!(d.file.as_deref(), Some(Path::new("styles/frost.wgsl")));
+        assert!(
+            d.message
+                .starts_with("line 4, column 17: `fwidth` under the `if` at line 3"),
+            "{}",
+            d.message
+        );
+        assert!(!d.message.contains("warning:"), "said once: {}", d.message);
+    }
+
     /// #413: an image a user style reads must be packed: its `file` is a
     /// reference, and loading from the bundle reports it missing.
     #[test]
@@ -1376,5 +1499,169 @@ mod tests {
             styles[0].0.ends_with("papers/gone.png") && styles[0].2.contains("image not found"),
             "{problems:?}"
         );
+    }
+
+    const SPIN: &str = "fn style(p: StylePixel) -> vec4<f32> {\n    var n = 0u;\n    \
+                        loop {\n        n += 1u;\n    }\n    return p.color;\n}\n";
+
+    fn style(name: &str, wgsl: &str) -> String {
+        format!("version = 1\nname = \"{name}\"\nshader = \"{wgsl}\"\n")
+    }
+
+    /// What the web's `check_pass` builds for `style`'s pass `pass`, read
+    /// from `files` as the browser reads a bundle (#550).
+    fn web_module(files: &BTreeMap<String, Vec<u8>>, style: &str, pass: usize) -> Option<String> {
+        use flint_render::stylize::custom;
+        let source: MemorySource = files.iter().map(|(p, b)| (p.as_str(), b.clone())).collect();
+        vfs::scoped(Arc::new(source), || {
+            let source = custom::read_source(Path::new(style)).unwrap();
+            let user = vfs::read_to_string(&source.passes[pass].wgsl_path).unwrap();
+            custom::packed_guarded(&source, pass, &user)
+        })
+    }
+
+    /// #550: a style with a loop that never ends packs its guarded module,
+    /// the text the native build compiles, and the web reads it back; a
+    /// style without loops, or with only a loop the IR proves ends (#424),
+    /// packs nothing extra.
+    #[test]
+    fn a_looping_style_packs_its_guarded_module() {
+        use flint_render::stylize::custom;
+        let mut files = pack(&[
+            ("styles/spin.shader.toml", &style("spin", "spin.wgsl")),
+            ("styles/spin.wgsl", SPIN),
+            ("styles/plain.shader.toml", &style("plain", "plain.wgsl")),
+            (
+                "styles/plain.wgsl",
+                "fn style(p: StylePixel) -> vec4<f32> {\n    return p.color;\n}\n",
+            ),
+            (
+                "styles/octaves.shader.toml",
+                &style("octaves", "octaves.wgsl"),
+            ),
+            (
+                "styles/octaves.wgsl",
+                "fn style(p: StylePixel) -> vec4<f32> {\n    var c = p.color;\n    \
+                 for (var i = 0; i < 4; i++) {\n        c *= 0.9;\n    }\n    return c;\n}\n",
+            ),
+            ("levels/a.scene.toml", "[scene]\nname = \"a\"\n"),
+        ]);
+        let before: BTreeSet<String> = files.keys().cloned().collect();
+        let added = pack_guarded_modules(&mut files).unwrap();
+        assert_eq!(
+            added,
+            ["styles/spin.guarded.wgsl"],
+            "only the style with a loop to guard"
+        );
+        let after: BTreeSet<String> = files.keys().cloned().collect();
+        assert_eq!(
+            after.difference(&before).collect::<Vec<_>>(),
+            added.iter().collect::<Vec<_>>()
+        );
+
+        // The packed text is the native build's guarded module, under a header
+        let packed = String::from_utf8(files["styles/spin.guarded.wgsl"].clone()).unwrap();
+        let (header, body) = packed.split_once('\n').unwrap();
+        assert!(
+            header.starts_with("// flint guarded module (#550): styles/spin.wgsl"),
+            "{header}"
+        );
+        let source: MemorySource = files.iter().map(|(p, b)| (p.as_str(), b.clone())).collect();
+        let native = vfs::scoped(Arc::new(source), || {
+            custom::check_file(Path::new("styles/spin.shader.toml"))
+                .unwrap()
+                .guarded
+        });
+        assert_eq!(Some(body.to_string()), native);
+        assert_eq!(
+            body.matches(&format!(">= {}u", custom::LOOP_LIMIT)).count(),
+            1
+        );
+
+        // The web takes it whole; for the others there is nothing
+        assert_eq!(
+            web_module(&files, "styles/spin.shader.toml", 0),
+            Some(packed)
+        );
+        assert_eq!(web_module(&files, "styles/plain.shader.toml", 0), None);
+        assert_eq!(web_module(&files, "styles/octaves.shader.toml", 0), None);
+
+        // And the check still passes with it packed
+        assert_eq!(
+            problems(&files, &[]),
+            [],
+            "a guarded module is no stray file"
+        );
+    }
+
+    /// A guarded module written from another WGSL (or prelude) than the
+    /// one the player composes is stale: the web builds what it composed.
+    #[test]
+    fn a_stale_guarded_module_is_not_built() {
+        let mut files = pack(&[
+            ("styles/spin.shader.toml", &style("spin", "spin.wgsl")),
+            ("styles/spin.wgsl", SPIN),
+        ]);
+        pack_guarded_modules(&mut files).unwrap();
+        assert!(web_module(&files, "styles/spin.shader.toml", 0).is_some());
+        let edited = SPIN.replace("n += 1u", "n += 2u");
+        files.insert("styles/spin.wgsl".into(), edited.into_bytes());
+        assert_eq!(web_module(&files, "styles/spin.shader.toml", 0), None);
+        // A description edited after packing changes the prelude: stale too
+        files.insert("styles/spin.wgsl".into(), SPIN.as_bytes().to_vec());
+        let described = format!(
+            "{}[params.speed]\ndefault = 1.0\nmin = 0.0\nmax = 2.0\n",
+            style("spin", "spin.wgsl")
+        );
+        files.insert("styles/spin.shader.toml".into(), described.into_bytes());
+        assert_eq!(web_module(&files, "styles/spin.shader.toml", 0), None);
+    }
+
+    /// A style of several passes packs a module for each pass with a loop
+    /// to guard, named by the pass; two styles sharing one WGSL each get
+    /// their own, since each composes it with its own prelude.
+    #[test]
+    fn guarded_modules_are_named_by_style_and_pass() {
+        let mut files = pack(&[
+            (
+                "styles/glow.shader.toml",
+                "version = 1\nname = \"glow\"\n\
+                 [[passes]]\nname = \"spread\"\nshader = \"spin.wgsl\"\ntarget = \"soft\"\n\
+                 [[passes]]\nname = \"plain\"\nshader = \"plain.wgsl\"\nreads = [\"soft\"]\n",
+            ),
+            ("styles/spin.wgsl", SPIN),
+            (
+                "styles/plain.wgsl",
+                "fn style(p: StylePixel) -> vec4<f32> {\n    return flint_target_soft(p.uv);\n}\n",
+            ),
+            ("styles/spin.shader.toml", &style("spin", "spin.wgsl")),
+        ]);
+        let added = pack_guarded_modules(&mut files).unwrap();
+        assert_eq!(
+            added,
+            [
+                "styles/glow.spread.guarded.wgsl",
+                "styles/spin.guarded.wgsl"
+            ]
+        );
+        assert!(web_module(&files, "styles/glow.shader.toml", 0).is_some());
+        assert_eq!(web_module(&files, "styles/glow.shader.toml", 1), None);
+        assert_ne!(
+            files["styles/glow.spread.guarded.wgsl"], files["styles/spin.guarded.wgsl"],
+            "each composed with its own prelude"
+        );
+    }
+
+    /// A game's own file where a guarded module goes refuses the bundle
+    /// rather than be overwritten.
+    #[test]
+    fn a_file_in_a_guarded_modules_place_refuses_the_bundle() {
+        let mut files = pack(&[
+            ("styles/spin.shader.toml", &style("spin", "spin.wgsl")),
+            ("styles/spin.wgsl", SPIN),
+            ("styles/spin.guarded.wgsl", "// mine"),
+        ]);
+        let e = pack_guarded_modules(&mut files).unwrap_err().to_string();
+        assert!(e.contains("styles/spin.guarded.wgsl"), "{e}");
     }
 }

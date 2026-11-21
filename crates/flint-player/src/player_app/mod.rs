@@ -3,35 +3,74 @@
 //! Runs the game loop with physics, input, and first-person camera.
 
 #[cfg(test)]
+mod alloc_count;
+#[cfg(test)]
 mod asset_search_tests;
 mod camera_cut;
 #[cfg(test)]
+mod catalog_root_tests;
+#[cfg(test)]
+mod collider_mesh_tests;
+mod collider_meshes;
+// The load summary and controls line a scene says when it comes up (#716)
+#[cfg(test)]
 mod capture_gate_tests;
 #[cfg(test)]
+mod character_input_tests;
+#[cfg(all(test, feature = "debug-hud"))]
+mod component_panel_tests;
+mod console;
+#[cfg(test)]
 mod debug_key_tests;
+mod debug_keys;
 mod debug_panels;
 mod egui_input;
 #[cfg(test)]
 mod event_bus_tests;
 mod events;
 pub mod expression_feed;
+#[cfg(feature = "debug-hud")]
+mod expression_panel;
 #[cfg(test)]
 mod extension_hooks_tests;
 #[cfg(test)]
 mod extension_tests;
 pub mod fonts;
 mod frame;
+pub(crate) mod frame_capture;
+#[cfg(test)]
+mod frame_capture_tests;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod frame_grab;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod frame_grab_tests;
+mod frame_history;
+#[cfg(test)]
+mod frame_notes_tests;
 pub mod frame_rate;
 pub mod game_core;
 pub mod headless_animation;
 pub mod headless_game;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod headless_hud;
+mod hitch;
+#[cfg(test)]
+mod hitch_log_tests;
+mod hitch_watch;
 #[cfg(test)]
 mod hold_tests;
 mod hud_render;
 mod init;
+pub mod input_checks;
 mod input_config;
+mod input_probe;
 pub mod input_script;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod inspect;
 mod key_note;
+mod late_models;
+#[cfg(test)]
+mod late_models_tests;
 #[cfg(feature = "living")]
 mod living_ab;
 #[cfg(feature = "living")]
@@ -39,13 +78,26 @@ mod living_api;
 #[cfg(feature = "living")]
 pub mod living_props;
 #[cfg(feature = "living")]
+mod living_ramps;
+#[cfg(feature = "living")]
 mod living_subsystem;
 #[cfg(feature = "living")]
 pub(crate) mod living_tuning;
+#[cfg(test)]
+mod load_report_tests;
+// When a load report begins and ends, and what it says (#1092)
+mod load_timing;
+#[cfg(test)]
+mod look_read_tests;
+#[cfg(not(target_arch = "wasm32"))]
+mod loopback;
 mod missing_features;
 mod pacing;
 mod perf;
+mod perf_report;
 mod persist;
+pub mod playtest;
+pub mod playtest_warnings;
 #[cfg(feature = "procgen")]
 pub mod procgen_assets;
 mod quality;
@@ -55,10 +107,17 @@ mod scene_entry;
 mod scene_entry_tests;
 pub(crate) mod scene_loading;
 mod schemas;
+#[cfg(test)]
+mod scope_coverage_tests;
+#[cfg(test)]
+mod script_bus_tests;
 pub mod script_commands;
-#[cfg(feature = "living")]
-mod shallow_wooze;
+#[cfg(feature = "debug-hud")]
+mod script_error_card;
+#[cfg(test)]
+mod script_sound_tests;
 mod state;
+mod stats_view;
 pub mod style_commands;
 pub(crate) mod subsystem;
 #[cfg(test)]
@@ -67,6 +126,9 @@ mod text_halo;
 #[cfg(test)]
 mod touch_controls_tests;
 mod touch_overlay;
+pub(crate) mod trace;
+#[cfg(test)]
+mod trace_tests;
 mod transition;
 #[cfg(test)]
 mod transition_tests;
@@ -80,6 +142,8 @@ pub mod web_page;
 mod web_perf;
 #[cfg(target_arch = "wasm32")]
 pub mod web_startup;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod world_dump;
 mod world_text;
 
 #[cfg(target_os = "android")]
@@ -90,40 +154,16 @@ use flint_runtime::pad::Gilrs;
 use flint_runtime::InputState;
 pub use game_core::GameCore;
 pub use state::{LaunchOptions, ProcGenMode, SceneSettings};
+pub use stats_view::StatsView;
 use std::collections::HashMap;
 use std::sync::Arc;
 use transition::TransitionPhase;
 use winit::window::Window;
 
-// Component-name conventions shared by the debug panels (debug_panels.rs)
-// and the frame loop's panel-drain blocks. Kept here, the defining module,
-// so both siblings reach them via `super::`.
-
-/// Game-side day/night component driven by a script; the player only knows
-/// it to offer the F3 time scrubber (see flint-debug-ui tod_panel).
-#[cfg(feature = "debug-hud")]
-const TIME_OF_DAY_COMPONENT: &str = "time_of_day";
-#[cfg(feature = "debug-hud")]
-const WEATHER_COMPONENT: &str = "weather";
-/// Reality-tear controller (rare render-mode world events) driven by a
-/// game-side script; the F3 Reality panel forces/ends tears for tuning.
-#[cfg(feature = "debug-hud")]
-const REALITY_COMPONENT: &str = "reality";
-/// Second-raft visitor event controller driven by a game-side script; the
-/// F3 Visitor panel shows its phase/day and can force a visit for tuning.
-#[cfg(feature = "debug-hud")]
-const RAFT_VISITOR_COMPONENT: &str = "raft_visitor";
-/// Dead-calm ocean-stillness event controller driven by a game-side script;
-/// the F3 Dead Calm panel shows its phase/envelope and can force/end one.
-#[cfg(feature = "debug-hud")]
-const DEAD_CALM_COMPONENT: &str = "dead_calm";
 /// Live-tunable camera settings applied to the render camera at scene load
 /// and edited through the F3 Camera panel (see flint-debug-ui camera_panel).
+/// A game's own controllers get their panels from their schemas (#744).
 const CAMERA_TUNING_COMPONENT: &str = "camera_tuning";
-
-/// Panel name for the terrain grass debug overlay (F3).
-#[cfg(feature = "debug-hud")]
-const GRASS_DEBUG_PANEL: &str = "Grass Debug";
 
 /// Frame-capture settings for the player (`--screenshot` family of flags).
 ///
@@ -143,9 +183,12 @@ pub struct CaptureConfig {
     pub exit_after: Option<f64>,
     /// Timed input played into `InputState` (`--input-script`).
     pub input_script: Option<input_script::InputScript>,
-    /// Open the F2 stats overlay on the first frame (`--stats`). F2 still
-    /// closes it.
+    /// Open the F2 stats overlay on the first frame (`--stats`), in the
+    /// form `stats_view` names. F2 still steps it on and closes it.
     pub show_stats: bool,
+    /// What `show_stats` opens: the full overlay (the default, and what
+    /// `Off` means here) or the graph alone (`--stats=graph`, #1078).
+    pub stats_view: StatsView,
     /// Internal: the first capture has been written.
     pub(crate) taken: bool,
     /// Internal: number of numbered frames written so far.
@@ -177,6 +220,10 @@ pub struct CaptureConfig {
     /// GPU frame times summed over frames that had one (ADR 0108)
     pub(crate) perf_gpu_ms: f64,
     pub(crate) perf_gpu_frames: u64,
+    /// The GPU objects and writes the renderer counted over the same
+    /// frames, and how many of them created any (#1091)
+    pub(crate) perf_gpu_calls: flint_render::gpu_counts::GpuCalls,
+    pub(crate) perf_gpu_creating: u64,
     /// The same frames' dt and present-to-present times, reported as a
     /// spread so uneven pacing shows at an even mean.
     pub(crate) perf_pacing: pacing::Pacing,
@@ -323,6 +370,14 @@ pub struct PlayerApp {
     /// `--screenshot-every` / `--exit-after`. Captures the presented frame
     /// (scene + egui HUD) right before `present()`.
     pub capture: CaptureConfig,
+    /// Frame captures for the frame debugger (#1086): `--capture-frame-at`,
+    /// `--capture-on-hitch`, the debug key and an input script's `capture`
+    /// line, each a `.flintframe` folder (`frame_capture.rs`).
+    pub(crate) frame_captures: frame_capture::FrameCaptures,
+    /// The presented frame as a PNG (#583): a capture line on
+    /// `--expression-listen`, and `--record` (`frame_grab.rs`). Never waited on.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) frame_grabs: frame_grab::FrameGrabs,
     /// How the run ends, and why it failed if it did
     outcome: state::Outcome,
     /// A windowless device for the tests that take a scene through a
@@ -359,6 +414,11 @@ pub struct PlayerApp {
     // Terrain data for height queries
     terrain: Option<(flint_terrain::Terrain, flint_terrain::TerrainConfig)>,
 
+    /// The scene as the renderer binds it (#739): made when the scene's
+    /// settings are read, which registers its user styles, and taken by
+    /// `stage_scene`'s `bind_scene`.
+    scene_binding: Option<flint_render::SceneBinding>,
+
     // Debug overlay panels (F3 toggle)
     #[cfg(feature = "debug-hud")]
     debug_panels: Vec<Box<dyn flint_debug_ui::DebugPanel>>,
@@ -371,6 +431,9 @@ pub struct PlayerApp {
 
     // Chunk streaming: chunk_id → spawned entity IDs
     loaded_chunks: HashMap<String, Vec<flint_core::EntityId>>,
+    /// The models of entities spawned after their scene: a chunk's, a
+    /// script's (#1107)
+    late_models: late_models::LateModels,
 
     // Android gamepad tracking (maps winit DeviceId to InputState gamepad slots)
     #[cfg(target_os = "android")]

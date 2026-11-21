@@ -1,13 +1,13 @@
-// The web player's ?perf=1 readout over CDP, page by page (#381): headed Chrome
-// plays each scene of a bundle at a fixed device-pixel canvas, waits for the
+// The web player's ?perf=1 readout, page by page (#381): headed Chrome (over
+// CDP) or Firefox (over WebDriver BiDi, --browser firefox, #430) plays each scene of a bundle at a fixed device-pixel canvas, waits for the
 // readout to fill, reads it a few times ten seconds apart, and saves what it
 // read, the page's WebGPU call totals and a screenshot. Every web perf ticket
 // used to write this script again; README.md beside it says how to run it.
 //
 // usage: node tools/web-perf/run.mjs <site-dir|url> <bundle> <scene[+query],...> --out <dir>
 //          [--dpr 1,2] [--size 1920x1080] [--seconds 25] [--reads 2]
-//          [--query '&fps=native'] [--passes 'Style mask,ASCII'] [--begin auto|click]
-//          [--port 9381] [--chrome <path>]
+//          [--query '&fps=native'] [--passes 'Style mask,ASCII'] [--begin auto|click] [--rounds 1]
+//          [--port 9381] [--browser chrome|firefox] [--chrome <path>] [--firefox <path>] [--prefs k=v,...] [--trace]
 //
 // <site-dir> is served on 127.0.0.1 for the run; a URL is used as it is.
 // <bundle> is relative to the page (`games/<id>/<id>.flintpack` in a
@@ -16,12 +16,16 @@
 // so the CSS size is size / dpr. Writes <out>/<scene>@dpr<d>.json and .png for
 // each page, and <out>/summary.json and <out>/table.md over them all. Exits 1
 // when a page never started or drew on another canvas size than asked.
+// --rounds N plays every scene once a round, N rounds, in one browser per DPR,
+// so heat or another job shows as a trend across rounds, not a step between
+// scenes (tools/phone-perf/submits.mjs's alternation, #568, #1318).
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { parsePerfLine, range } from './perfline.mjs';
+import { TRACE_JS, summarizeTrace, traceLine } from './trace.mjs';
 
 // ---- arguments -------------------------------------------------------------
 
@@ -29,12 +33,13 @@ const argv = process.argv.slice(2);
 const flags = {};
 const positional = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) flags[argv[i].slice(2)] = argv[++i];
+  if (argv[i] === '--trace') flags.trace = true; // the one flag with no value
+  else if (argv[i].startsWith('--')) flags[argv[i].slice(2)] = argv[++i];
   else positional.push(argv[i]);
 }
 const [site, bundle, sceneList] = positional;
 if (!site || !bundle || !sceneList || !flags.out) {
-  console.error('usage: node tools/web-perf/run.mjs <site-dir|url> <bundle> <scene,...> --out <dir> [--dpr 1,2] [--size 1920x1080] [--seconds 25] [--reads 2] [--query ...] [--passes ...] [--begin auto|click] [--port 9381] [--chrome <path>]');
+  console.error('usage: node tools/web-perf/run.mjs <site-dir|url> <bundle> <scene,...> --out <dir> [--dpr 1,2] [--size 1920x1080] [--seconds 25] [--reads 2] [--query ...] [--passes ...] [--begin auto|click] [--rounds 1] [--port 9381] [--browser chrome|firefox] [--chrome <path>] [--firefox <path>] [--prefs k=v,...] [--trace]');
   process.exit(2);
 }
 const outDir = resolve(flags.out);
@@ -42,8 +47,16 @@ const dprs = (flags.dpr ?? '1').split(',').map(Number);
 const [width, height] = (flags.size ?? '1920x1080').split('x').map(Number);
 const warmSecs = Number(flags.seconds ?? 25);
 const reads = Math.max(1, Number(flags.reads ?? 2));
+const rounds = Math.max(1, Number(flags.rounds ?? 1));
 const extra = flags.query ?? '';
 const begin = flags.begin ?? 'auto';
+const trace = 'trace' in flags;
+const extraPrefs = Object.fromEntries(
+  (flags.prefs ?? '').split(',').filter(Boolean).map((kv) => {
+    const [k, v = ''] = kv.split('=');
+    return [k.trim(), v === 'true' ? true : v === 'false' ? false : /^-?\d+$/.test(v) ? Number(v) : v];
+  }),
+);
 const cdpPort = Number(flags.port ?? 9381);
 const scenes = sceneList.split(',').filter(Boolean);
 const chromePath =
@@ -54,6 +67,19 @@ const chromePath =
     darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   }[process.platform] ??
   'google-chrome';
+const browser = flags.browser ?? 'chrome';
+const firefoxPath =
+  flags.firefox ??
+  process.env.FIREFOX ??
+  {
+    win32: 'C:/Program Files/Mozilla Firefox/firefox.exe',
+    darwin: '/Applications/Firefox.app/Contents/MacOS/firefox',
+  }[process.platform] ??
+  'firefox';
+if (browser !== 'chrome' && browser !== 'firefox') {
+  console.error('--browser is chrome or firefox');
+  process.exit(2);
+}
 if (![width, height, warmSecs, ...dprs].every((n) => Number.isFinite(n) && n > 0)) {
   console.error('--size, --seconds and --dpr take positive numbers');
   process.exit(2);
@@ -185,7 +211,123 @@ async function openChrome(dpr, css) {
       }
     }
   };
-  return { send, evaluate, close };
+  const navigate = (url) => send('Page.navigate', { url });
+  const screenshot = async () => {
+    const shot = await send('Page.captureScreenshot', { format: 'png' });
+    return shot.result ? shot.result.data : { why: shot.timeout ? 'timed out' : JSON.stringify(shot.error) };
+  };
+  return { navigate, evaluate, screenshot, close };
+}
+
+// ---- Firefox, headed, over WebDriver BiDi (#430) ------------------------------
+// Firefox has no CDP. It speaks WebDriver BiDi on --remote-debugging-port, at
+// ws://127.0.0.1:<port>/session. It runs on a profile of its own in a temp
+// folder (never the user's), with prefs for what Chrome's flags do:
+// layout.css.devPixelsPerPx for --force-device-scale-factor, and the
+// occlusion and background throttles off.
+
+async function openFirefox(dpr, css) {
+  const profile = mkdtempSync(join(tmpdir(), 'flint-web-perf-ff-'));
+  const prefs = {
+    'layout.css.devPixelsPerPx': String(dpr),
+    'dom.webgpu.enabled': true,
+    'browser.shell.checkDefaultBrowser': false,
+    'browser.startup.homepage_override.mstone': 'ignore',
+    'browser.aboutwelcome.enabled': false,
+    'datareporting.policy.dataSubmissionEnabled': false,
+    'toolkit.telemetry.reportingpolicy.firstRun': false,
+    'widget.windows.window_occlusion_tracking.enabled': false,
+    'dom.min_background_timeout_value': 4,
+    'media.autoplay.default': 0,
+    'media.autoplay.blocking_policy': 0,
+    'network.proxy.type': 0,
+    // --prefs 'k=v,k=v': more, or these overridden, for one run (#962)
+    ...extraPrefs,
+  };
+  const lines = Object.entries(prefs).map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`);
+  writeFileSync(join(profile, 'user.js'), lines.join('\n') + '\n');
+  const firefox = spawn(firefoxPath, [
+    '--remote-debugging-port', String(cdpPort), '-profile', profile, '-no-remote', '-new-instance',
+    '-width', String(css[0] + 40), '-height', String(css[1] + 140),
+  ], { stdio: 'ignore' });
+  let failed = null;
+  firefox.on('error', (e) => (failed = e));
+  let ws;
+  for (let i = 0; i < 80 && !ws && !failed; i++) {
+    await sleep(250);
+    try {
+      const sock = new WebSocket(`ws://127.0.0.1:${cdpPort}/session`);
+      await new Promise((ok, no) => {
+        sock.addEventListener('open', ok);
+        sock.addEventListener('error', no);
+      });
+      ws = sock;
+    } catch {}
+  }
+  if (failed) throw new Error(`couldn't start Firefox at ${firefoxPath}: ${failed.message} (--firefox or FIREFOX names another)`);
+  if (!ws) {
+    firefox.kill();
+    throw new Error(`no WebDriver BiDi on port ${cdpPort} (is another Firefox holding it? --port picks another)`);
+  }
+  let nextId = 0;
+  const pending = new Map();
+  ws.addEventListener('message', (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.id && pending.has(m.id)) {
+      pending.get(m.id)(m);
+      pending.delete(m.id);
+    }
+  });
+  const send = (method, params = {}, ms = 15000) =>
+    new Promise((r) => {
+      const id = ++nextId;
+      pending.set(id, r);
+      ws.send(JSON.stringify({ id, method, params }));
+      setTimeout(() => {
+        if (pending.has(id)) {
+          pending.delete(id);
+          r({ timeout: true });
+        }
+      }, ms);
+    });
+  const started = await send('session.new', { capabilities: {} });
+  if (started.type !== 'success') {
+    firefox.kill();
+    throw new Error(`Firefox refused a BiDi session: ${JSON.stringify(started.error ?? started)}`);
+  }
+  const tree = await send('browsingContext.getTree', {});
+  const context = tree.result?.contexts?.[0]?.context;
+  await send('browsingContext.activate', { context });
+  // BiDi hands back typed values; the driver only asks for primitives
+  const evaluate = async (expression, userActivation = false) => {
+    const m = await send('script.evaluate', {
+      expression, target: { context }, awaitPromise: true, resultOwnership: 'none', userActivation,
+    });
+    const v = m.result?.result;
+    return v && 'value' in v ? v.value : undefined;
+  };
+  const navigate = (url) => send('browsingContext.navigate', { context, url, wait: 'none' });
+  const screenshot = async () => {
+    const shot = await send('browsingContext.captureScreenshot', { context });
+    return shot.result ? shot.result.data : { why: shot.timeout ? 'timed out' : JSON.stringify(shot.error ?? shot.message) };
+  };
+  const close = async () => {
+    try {
+      await send('session.end', {}, 3000);
+      ws.close();
+    } catch {}
+    firefox.kill();
+    // Firefox holds its profile for a moment after it's told to go
+    for (let i = 0; i < 20; i++) {
+      try {
+        rmSync(profile, { recursive: true, force: true });
+        return;
+      } catch {
+        await sleep(250);
+      }
+    }
+  };
+  return { navigate, evaluate, screenshot, close };
 }
 
 // ---- each page -------------------------------------------------------------
@@ -199,14 +341,15 @@ const urlFor = (scene, css) => {
     `${extra}${query.map((q) => '&' + q).join('')}`
   );
 };
-const labelFor = (scene, dpr) => `${scene.replace(/[^\w.=-]+/g, '_')}@dpr${dpr}`;
+const labelFor = (scene, dpr, round) =>
+  `${scene.replace(/[^\w.=-]+/g, '_')}@dpr${dpr}${rounds > 1 ? `-r${round + 1}` : ''}`;
 
-async function playPage({ send, evaluate }, scene, dpr, css) {
-  const label = labelFor(scene, dpr);
+async function playPage({ navigate, evaluate, screenshot }, scene, dpr, css, round = 0) {
+  const label = labelFor(scene, dpr, round);
   const url = urlFor(scene, css);
   log(`${label}: ${url}`);
-  const result = { label, scene, dpr, css, url, reads: [] };
-  await send('Page.navigate', { url });
+  const result = { label, scene, dpr, round: round + 1, css, url, reads: [] };
+  await navigate(url);
   // the gate lifts once the scene is loaded and the player is running
   const want = begin === 'auto' ? 'data-gone' : 'data-ready';
   let status = '';
@@ -232,13 +375,27 @@ async function playPage({ send, evaluate }, scene, dpr, css) {
       timestampQuery: !!(await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' }))?.features.has('timestamp-query'),
     }))()`)) ?? '{}',
   );
+  // --trace: every frame the browser gives the page, from here on (#962). The
+  // readout's p99 says a window had slow frames; the trace says when, and
+  // whether they came one at a time (the frame's own work) or as a spell at
+  // half rate (the browser or the machine missing vsync)
+  if (trace) await evaluate(TRACE_JS);
   await sleep(warmSecs * 1000);
   for (let r = 0; r < reads; r++) {
     if (r > 0) await sleep(10000); // the readout's window is 10 s: each read is its own
     const text = await evaluate(`document.getElementById('perf-text')?.innerText`);
     const line = await evaluate(`document.getElementById('perf')?.dataset.line`);
-    result.reads.push({ after: warmSecs + r * 10, text, line, parsed: parsePerfLine(line) });
+    // the page's running totals too: the readout rounds a frame's count to one
+    // decimal, the difference of two totals is exact (#565)
+    const calls = JSON.parse((await evaluate(`JSON.stringify(window.flintGpuCalls ?? null)`)) ?? 'null');
+    result.reads.push({ after: warmSecs + r * 10, text, line, parsed: parsePerfLine(line), calls });
     log(`${label} read ${r + 1}/${reads}: ${line ?? '(no line yet)'}`);
+  }
+  // exact counts between the first read and the last: `submit` is one a frame
+  const [first, last] = [result.reads[0]?.calls, result.reads.at(-1)?.calls];
+  if (reads > 1 && first && last) {
+    result.between = Object.fromEntries(Object.keys(last).map((k) => [k, last[k] - (first[k] ?? 0)]));
+    log(`${label} between reads: ${JSON.stringify(result.between)}`);
   }
   // the canvas the frames were drawn on, as the readout says it, not as asked
   const drawn = result.reads.at(-1)?.parsed.canvas;
@@ -247,9 +404,16 @@ async function playPage({ send, evaluate }, scene, dpr, css) {
     log(`${label}: ${result.warning}`);
   }
   result.calls = JSON.parse((await evaluate(`JSON.stringify(window.flintGpuCalls ?? null)`)) ?? 'null');
-  const shot = await send('Page.captureScreenshot', { format: 'png' });
-  if (shot.result) writeFileSync(join(outDir, `${label}.png`), Buffer.from(shot.result.data, 'base64'));
-  else log(`${label}: no screenshot (${shot.timeout ? 'timed out' : JSON.stringify(shot.error)})`);
+  if (trace) {
+    const t = JSON.parse((await evaluate(`JSON.stringify(window.__flintTrace ?? null)`)) ?? 'null');
+    if (t) {
+      result.trace = summarizeTrace(t);
+      log(`${label} trace: ${traceLine(result.trace)}`);
+    }
+  }
+  const shot = await screenshot();
+  if (typeof shot === 'string') writeFileSync(join(outDir, `${label}.png`), Buffer.from(shot, 'base64'));
+  else log(`${label}: no screenshot (${shot.why})`);
   return result;
 }
 
@@ -258,16 +422,20 @@ for (const dpr of dprs) {
   const css = [Math.round(width / dpr), Math.round(height / dpr)];
   let chrome;
   try {
-    chrome = await openChrome(dpr, css);
+    chrome = await (browser === 'firefox' ? openFirefox : openChrome)(dpr, css);
   } catch (e) {
     console.error(e.message);
     server?.close();
     process.exit(1);
   }
-  for (const scene of scenes) {
-    const result = await playPage(chrome, scene, dpr, css);
-    writeFileSync(join(outDir, `${result.label}.json`), JSON.stringify(result, null, 1));
-    pages.push(result);
+  // a round plays every scene once, so a scene is read against the others of
+  // its own round (#568's alternation)
+  for (let round = 0; round < rounds; round++) {
+    for (const scene of scenes) {
+      const result = await playPage(chrome, scene, dpr, css, round);
+      writeFileSync(join(outDir, `${result.label}.json`), JSON.stringify(result, null, 1));
+      pages.push(result);
+    }
   }
   await chrome.close();
 }
@@ -279,7 +447,7 @@ const passNames = flags.passes
   : [...new Set(pages.flatMap((p) => p.reads.flatMap((r) => Object.keys(r.parsed.gpu?.passes ?? {}))))];
 const over = (p, f) => p.reads.map((r) => f(r.parsed)).filter((v) => v !== undefined);
 const sizeOf = (p, f) => [...new Set(over(p, f).map((s) => s.join('x')))].join(', ');
-const head = ['page', 'canvas', 'scene', ...passNames.map((n) => `${n} ms`), 'GPU frame ms', 'GPU timed', 'bind groups a frame', 'passes a frame', 'frame p50 ms'];
+const head = ['page', 'canvas', 'scene', ...passNames.map((n) => `${n} ms`), 'GPU frame ms', 'GPU timed', 'bind groups a frame', 'passes a frame', 'frame p50 ms', 'mean ms a frame', 'GPU-bound', ...(trace ? ['slow frames (spells, longest s)'] : [])];
 // how the readout says its GPU times were taken (#380): under vsync an idle GPU
 // clocks down and its passes read high
 const timed = (p) => {
@@ -289,11 +457,19 @@ const timed = (p) => {
   const busy = g.map((x) => x.idleClocks).filter((x) => x !== undefined);
   return busy.length ? `vsync, idle clocks (${range(busy.map((b) => b * 100), 0)}% busy)` : 'vsync';
 };
+// how many reads said GPU-bound (#1318)
+const gpuBound = (p) => {
+  const t = p.reads.map((r) => r.parsed.throughput).filter(Boolean);
+  if (!t.length) return '';
+  const n = t.filter((x) => x.gpuBound).length;
+  return n === t.length ? 'yes' : n === 0 ? 'no' : `${n} of ${t.length} reads`;
+};
+const pageName = (p) => `DPR ${p.dpr}, ${p.scene}${rounds > 1 ? `, round ${p.round}` : ''}`;
 const rows = pages.map((p) =>
   p.error
-    ? [`DPR ${p.dpr}, ${p.scene}`, p.error, ...head.slice(2).map(() => '')]
+    ? [pageName(p), p.error, ...head.slice(2).map(() => '')]
     : [
-        `DPR ${p.dpr}, ${p.scene}`,
+        pageName(p),
         sizeOf(p, (x) => x.canvas) + (p.warning ? ' (!)' : ''),
         sizeOf(p, (x) => x.scene),
         ...passNames.map((n) => range(over(p, (x) => x.gpu?.passes?.[n]))),
@@ -302,12 +478,17 @@ const rows = pages.map((p) =>
         range(over(p, (x) => x.webgpu?.bindGroups), 1),
         range(over(p, (x) => x.webgpu?.passes), 1),
         range(over(p, (x) => x.frame?.p50), 1),
+        // the window's span over its frames, and how many reads called it the
+        // GPU's (#1318): unpaced and GPU-bound, it's the GPU's ms a frame
+        range(over(p, (x) => x.throughput?.ms)),
+        gpuBound(p),
+        ...(trace ? [p.trace ? `${p.trace.slow} (${p.trace.spells.length}, ${Math.max(0, ...p.trace.spells.map((s) => s.lasts))})` : ''] : []),
       ],
 );
 const first = pages.find((p) => p.env)?.env;
 const adapter = pages.flatMap((p) => p.reads).find((r) => r.parsed.adapter)?.parsed.adapter;
 const table = [
-  `Chrome over CDP, ?perf=1, a ${width}x${height} device-pixel canvas, read ${reads}x from ${warmSecs} s after Begin, 10 s apart.`,
+  `${browser === 'firefox' ? 'Firefox over WebDriver BiDi' : 'Chrome over CDP'}, ?perf=1, a ${width}x${height} device-pixel canvas, read ${reads}x from ${warmSecs} s after Begin, 10 s apart${rounds > 1 ? `, ${rounds} rounds of every scene` : ''}.`,
   first ? `${first.ua.match(/Chrome\/[\d.]+/)?.[0] ?? first.ua}, adapter ${adapter ?? 'unread'}, timestamp-query ${first.timestampQuery ? 'on' : 'off'}.` : '',
   '',
   `| ${head.join(' | ')} |`,
@@ -317,7 +498,7 @@ const table = [
   '',
 ].join('\n');
 writeFileSync(join(outDir, 'table.md'), table);
-writeFileSync(join(outDir, 'summary.json'), JSON.stringify({ base, bundle, size: [width, height], dprs, warmSecs, reads, pages }, null, 1));
+writeFileSync(join(outDir, 'summary.json'), JSON.stringify({ base, bundle, size: [width, height], dprs, warmSecs, reads, rounds, pages }, null, 1));
 console.log('\n' + table);
 log(`wrote ${pages.length} pages to ${outDir}`);
 server?.close();

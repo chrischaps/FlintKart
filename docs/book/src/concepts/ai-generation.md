@@ -41,12 +41,15 @@ pub trait GenerationProvider: Send {
     fn supported_kinds(&self) -> Vec<AssetKind>;
     fn health_check(&self) -> Result<ProviderStatus>;
     fn generate(&self, request: &GenerateRequest, style: Option<&StyleGuide>, output_dir: &Path) -> Result<GenerateResult>;
-    fn submit_job(&self, request: &GenerateRequest, style: Option<&StyleGuide>) -> Result<GenerationJob>;
-    fn poll_job(&self, job: &GenerationJob) -> Result<JobPollResult>;
-    fn download_result(&self, job: &GenerationJob, output_dir: &Path) -> Result<GenerateResult>;
+    /// The price units a request is billed: megapixels, seconds, tasks
+    fn billed_units(&self, request: &GenerateRequest) -> f64 { 0.0 }
+    /// Finish a job a generate submitted and didn't see through
+    fn resume(&self, job: &GenerationJob, output_dir: &Path) -> Result<GenerateResult>;
     fn build_prompt(&self, request: &GenerateRequest, style: Option<&StyleGuide>) -> String;
 }
 ```
+
+A paid provider is made with a `Calls` (`create_provider(name, &config, &calls)`) and sends every request through it: one transport and retry policy, and the run's cost meter, so no provider builds an HTTP client of its own. Tests drive a provider end to end over a `ScriptedTransport`.
 
 The Mock provider generates solid-color PNGs, minimal valid GLB files, and silence WAV files --- useful for testing workflows and CI pipelines without API keys or network access.
 
@@ -116,10 +119,10 @@ The `flint asset resolve` command can resolve an entire scene's asset needs at o
 
 | Strategy | Behavior |
 |----------|----------|
-| `strict` | All assets must already exist in the catalog. Missing assets are errors. |
-| `placeholder` | Missing assets get placeholder geometry. |
-| `ai_generate` | Missing assets are generated via AI providers and stored in the catalog. |
-| `human_task` | Missing assets produce task files for manual creation. |
+| `strict` | Every reference must be found. A missing one is an error (exit 1). |
+| `placeholder` | Missing references are listed. The run still passes. |
+| `ai_generate` | Missing models, textures and sounds are generated via AI providers and stored in the catalog. |
+| `human_task` | Missing models, textures and sounds get task files for manual creation. |
 | `ai_then_human` | Generate with AI first, then produce review tasks for human approval. |
 
 ```bash
@@ -129,6 +132,37 @@ flint asset resolve my_scene.scene.toml --strategy ai_generate --style medieval_
 # Create task files for a human artist
 flint asset resolve my_scene.scene.toml --strategy human_task --output-dir tasks/
 ```
+
+### Which references it reads
+
+`resolve` takes its list from the scene's schemas (#968), not from a list of its own. A reference is the value of any field the loaded schemas declare as `type = "asset"`. Use `flint schema <component>` to see a component's fields. Arrays and tables with fields are searched too. The search covers every component of every entity, including the entities a prefab instance expands to (named `<prefix>_<name>`), and every scene table, such as `[environment] skybox`. When a game adds an `asset` field to its own schema layer, `resolve` reads that field with no change to the engine. The schemas are found the way every command finds them: `--schemas` (repeatable), else the project's `flint.toml` `schemas`, else `schemas/` beside the scene. Three things are left out: an empty value, a component or table that no schema declares, and a field whose `unless` sibling is `true` (`model.runtime`). Only what the scene writes is read. An archetype's defaults are not.
+
+The engine's schemas declare these fields as `asset`: `model.asset`, `material.texture`, `sprite.texture`, `audio_source.file`, `script.source`, `collider.model`, `animator.sequence`, `particle_effect.effect`, `particle_emitter.texture`, `terrain.heightmap`, `terrain.splat_map`, `terrain.layer0_texture` to `layer3_texture`, `grass_ground.mask`, `spline.file`, `spline_mesh.texture`, `spline_mesh.normal_texture` and `[environment] skybox`.
+
+A reference counts as found when the project's [asset catalog](assets.md#asset-catalog) holds that name, or when the engine would load it: a file the project's [asset search](assets.md#where-the-engine-looks-for-a-file) finds for one of the field's kinds, or a model or texture in the catalog and store. This is the lookup `flint check` uses. A name that an `asset_def` declares and no file holds yet is missing, marked as not made yet: making it is what `resolve` is for. Each reference prints on its own line, `Found: boat.model.asset -> "boat" (models/boat.glb)` or `Missing: ...` with the paths tried. Under `--json`, the `references` list gives each one's `entity` (`null` for a scene table), `table`, `field`, `name`, `kinds`, `found` and `missing`.
+
+A provider makes only models, textures and sounds. A batch strategy reports any other missing reference (a script, a heightmap, a skybox) as `No provider makes ...` and lists it in the JSON's `no_provider`, and the run exits 1.
+
+## Costs and Budgets
+
+Generation spends money, so every paid call goes through a cost meter (#721), the same one the AI steps of `flint gen` and `flint render --ai-refine` use:
+
+- **`--max-cost <USD>`** on `flint asset generate`, `resolve` and `regenerate` is checked before each call is sent: a call that would take the run's spend past it is refused (`cost ceiling reached ... nothing more was sent`) and never reaches the provider. `resolve` keeps one meter for the whole scene, so an asset over budget is skipped (`over_budget` in its `--json` report; under `ai_then_human` it becomes a task) and a cheaper one after it may still fit. A scene left with an unresolved asset exits 1.
+- **Every paid call is in the ledger**, `.flint/ai_costs.jsonl` at the project root: one JSON object per line with the provider, the endpoint, the asset, the operation (`generate`, `resolve`, `regenerate`), the units billed (`megapixel`, `second`, `task`) and `estimated_usd`. A call is recorded the moment the provider accepts it, so a generation that fails afterwards (a lost download) is still there. `flint asset costs [--since YYYY-MM-DD]` and `flint gen --cost-report` print the same report over it.
+- **Prices are data**, in `flint-ai-core`'s `prices.toml`, dated and with each rate's source: Flux (fal.ai) per megapixel, each image rounded up; ElevenLabs per second of sound asked for; Meshy per textured model (a preview and a refine, 30 credits). Meshy publishes no dollar price for an API credit, so its $0.60 assumes its Pro plan's $0.02; set your plan's in **`.flint/prices.toml`**, which overrides any entry:
+
+```toml
+# .flint/prices.toml
+[calls.meshy]
+unit = "task"
+usd = 0.45
+```
+
+With a ceiling set, a provider with no price at all is refused, since its cost can't be kept under one.
+
+### Jobs
+
+A Meshy model takes minutes. The task is a job in `.flint/jobs/` from the moment Meshy accepts (and bills) it, updated as it is polled. `flint asset job list` shows each one with its status, progress and cost. A run that stops, or a wait that times out (half an hour), leaves the job; `flint asset job resume <id>` waits for it, downloads the model and registers the asset, paying for nothing new.
 
 ## Model Validation
 
@@ -199,16 +233,19 @@ The layering order is: global config < project config < environment variables.
 | `flint asset validate <file> --style <name>` | Validate a model against style constraints |
 | `flint asset manifest` | Generate a build manifest of all generated assets |
 | `flint asset regenerate <name> --seed 42` | Regenerate an existing asset with a new seed |
-| `flint asset job status <id>` | Check status of an async generation job |
+| `flint asset resolve <scene> --strategy ai_generate --max-cost 1.00` | Batch-generate, refusing any call that would pass $1.00 |
+| `flint asset costs [--since DATE]` | What AI calls have cost, from `.flint/ai_costs.jsonl` |
+| `flint asset job status <id>` | Check status of a generation job (a Meshy model) |
 | `flint asset job list` | List all generation jobs |
+| `flint asset job resume <id>` | Finish a job a run didn't see through, paying nothing new |
 
 ## Runtime Catalog Integration
 
-The player can optionally load the asset catalog at startup for runtime asset resolution. When an entity references an asset by name, the resolution chain is:
+The player reads the project root's asset catalog for runtime asset resolution, the same one `flint validate` and `flint check` ask. When an entity references an asset by name, the resolution chain is:
 
-1. Look up the name in the `AssetCatalog`
+1. Look up the name in the `AssetCatalog` (`<root>/assets`)
 2. If found, resolve the content hash
-3. Load from the `ContentStore` path (`.flint/assets/<hash>`)
+3. Load from the `ContentStore` path (`<root>/.flint/assets/<hash>`)
 4. Fall back to file-based loading if not in the catalog
 
 This means scenes can seamlessly reference both pre-imported and AI-generated assets by name, without hardcoding file paths.

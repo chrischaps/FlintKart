@@ -32,7 +32,7 @@
 //! name = "done"
 //! ```
 
-use crate::layer_edit;
+use crate::animator::{self, Animator};
 use flint_core::components as comp;
 use flint_core::{vfs, EntityId, FlintError, Result};
 use flint_ecs::FlintWorld;
@@ -409,12 +409,8 @@ impl SequenceSync {
             .copied()
             .collect();
         for entity_id in ids {
-            let wanted = world
-                .get_components(entity_id)
-                .and_then(|c| c.get(comp::ANIMATOR))
-                .and_then(|a| a.get("sequence"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
+            let wanted = crate::animator::Animator::of(world, entity_id)
+                .sequence
                 .to_string();
             let seen = self.last_seen.get(&entity_id).cloned().unwrap_or_default();
             if wanted == seen {
@@ -423,8 +419,8 @@ impl SequenceSync {
             if wanted.is_empty() {
                 self.stop(&entity_id);
             } else if !self.play(entity_id, &wanted) {
-                println!(
-                    "WARNING: entity {:?} asked for unknown sequence '{}'{}",
+                log::warn!(
+                    "entity {:?} asked for unknown sequence '{}'{}",
                     entity_id,
                     wanted,
                     self.searched_text()
@@ -499,12 +495,8 @@ impl SequenceSync {
                         .get(&entity_id)
                         .is_some_and(|s| !s.is_empty())
                     {
-                        if let Some(comps) = world.get_components_mut(entity_id) {
-                            comps.set_field(
-                                comp::ANIMATOR,
-                                "sequence",
-                                toml::Value::String(String::new()),
-                            );
+                        if let Some(mut comps) = world.get_components_mut(entity_id) {
+                            animator::write(&mut comps).sequence("");
                         }
                         self.last_seen.insert(entity_id, String::new());
                     }
@@ -516,12 +508,8 @@ impl SequenceSync {
                         .get(&entity_id)
                         .is_some_and(|s| !s.is_empty())
                     {
-                        if let Some(comps) = world.get_components_mut(entity_id) {
-                            comps.set_field(
-                                comp::ANIMATOR,
-                                "sequence",
-                                toml::Value::String(String::new()),
-                            );
+                        if let Some(mut comps) = world.get_components_mut(entity_id) {
+                            animator::write(&mut comps).sequence("");
                         }
                         self.last_seen.insert(entity_id, String::new());
                     }
@@ -539,33 +527,20 @@ impl SequenceSync {
         ev: &SequenceEvent,
         cues: &mut Vec<SequenceCueEvent>,
     ) {
-        let Some(comps) = world.get_components_mut(entity_id) else {
+        let has_clip = !Animator::of(world, entity_id).clip.is_empty();
+        let Some(mut comps) = world.get_components_mut(entity_id) else {
             return;
         };
         match &ev.step {
             SequenceStep::Blend { clip, duration } => {
-                // Only `blend_target` changes a tracked skeletal base clip;
-                // `clip` is latched at state creation. Set both so an
-                // untracked entity also starts on the right clip.
-                let has_clip = comps
-                    .get(comp::ANIMATOR)
-                    .and_then(|a| a.get("clip"))
-                    .and_then(|v| v.as_str())
-                    .is_some_and(|c| !c.is_empty());
+                // A crossfade is `blend_target`: writing `clip` on a tracked
+                // entity would cut to it instead (#732). Set `clip` only when
+                // empty, so an untracked entity also starts on the right clip.
+                let mut write = animator::write(&mut comps);
                 if !has_clip {
-                    comps.set_field(comp::ANIMATOR, "clip", toml::Value::String(clip.clone()));
+                    write.clip(clip);
                 }
-                comps.set_field(comp::ANIMATOR, "playing", toml::Value::Boolean(true));
-                comps.set_field(
-                    comp::ANIMATOR,
-                    "blend_target",
-                    toml::Value::String(clip.clone()),
-                );
-                comps.set_field(
-                    comp::ANIMATOR,
-                    "blend_duration",
-                    toml::Value::Float(duration.max(MIN_BLEND)),
-                );
+                write.playing(true).blend(clip, duration.max(MIN_BLEND));
             }
             SequenceStep::Layer {
                 index,
@@ -575,32 +550,28 @@ impl SequenceSync {
                 mode,
                 mask,
             } => {
-                layer_edit::edit_layer_table(comps, *index, |t| {
+                animator::edit_layer(&mut comps, *index, |layer| {
                     // A slot that was inactive has no meaningful weight;
                     // a fade onto it should start from silence, not 1.0.
-                    let was_inactive = t
-                        .get("clip")
-                        .and_then(|v| v.as_str())
-                        .map_or(true, |c| c.is_empty());
-                    if was_inactive && *fade > 0.0 && !t.contains_key("weight") {
-                        t.insert("weight".into(), toml::Value::Float(0.0));
+                    if layer.is_inactive() && *fade > 0.0 && !layer.has_weight() {
+                        layer.silent();
                     }
                     if let Some(c) = clip {
-                        t.insert("clip".into(), toml::Value::String(c.clone()));
+                        layer.clip(c);
                     }
                     if let Some(m) = mode {
-                        t.insert("mode".into(), toml::Value::String(m.clone()));
+                        layer.mode(m);
                     }
                     if let Some(m) = mask {
-                        t.insert("mask".into(), toml::Value::String(m.clone()));
+                        layer.mask(m);
                     }
                     if let Some(w) = weight {
-                        layer_edit::fade_weight(t, *w, *fade);
+                        layer.fade(*w, *fade);
                     }
                 });
             }
             SequenceStep::Speed { value } => {
-                comps.set_field(comp::ANIMATOR, "speed", toml::Value::Float(*value));
+                animator::write(&mut comps).speed(*value);
             }
             SequenceStep::Cue { name } => cues.push(SequenceCueEvent {
                 entity_id,
@@ -739,7 +710,7 @@ name = "done"
                 "layers",
                 toml::Value::Array(vec![toml::Value::Table(Default::default())]),
             );
-            layer_edit::edit_layer_table(&mut comps, u8::MAX as usize, |_| {
+            animator::edit_layer(&mut comps, u8::MAX as usize, |_| {
                 panic!("out-of-range layer index should be rejected");
             });
         }

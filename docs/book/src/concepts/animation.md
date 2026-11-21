@@ -8,7 +8,7 @@ Property animations are the simplest form --- animate any transform property (po
 
 ### Animation Clips
 
-Clips are `.anim.toml` files in an `animations/` directory the scene can see ([where the engine looks](assets.md#where-the-engine-looks-for-a-file)); the demos' are in `examples/animations/`:
+Clips are `.anim.toml` files in an `animations/` directory the scene can see ([where the engine looks](assets.md#where-the-engine-looks-for-a-file)); the demos' are in [`flint-examples/animations/`](https://github.com/chrischaps/flint-examples/tree/main/animations):
 
 ```toml
 # animations/door_swing.anim.toml
@@ -240,7 +240,10 @@ A posed joint and everything past it draw orange in the skeleton overlay.
 
 A layer's `weight` is a live dial, so a script that sets it pops the pose. To
 ramp instead, set `fade_target` and `fade_duration` on the layer table (or call
-`fade_anim_layer(entity, index, weight, seconds)`). The engine owns the weight
+`fade_anim_layer(entity, index, weight, seconds)`). A ramp is linear unless the
+layer's `fade_easing` says otherwise (`fade_anim_layer(entity, index, weight,
+seconds, easing)`: `"linear"`, `"smooth"`, `"ease_in"`, `"ease_out"` or
+`"ease_in_out"`, the engine's one set of easings, #734). The engine owns the weight
 while the ramp runs: it writes the ramped value back to `layers[i].weight`
 every frame and zeroes `fade_duration` when it arrives, so the next
 `sync_from_world` doesn't re-arm it — the same contract as `blend_target`. Any
@@ -427,12 +430,16 @@ drift. `flint render` runs the pass once before its frame.
 
 ## Animator Schema
 
-The `animator` component controls playback for both tiers:
+The `animator` component controls playback for every kind of clip, and each
+kind follows it by the same rules: a property clip, a node clip and a skinned
+clip all cut to a new `clip`, pause and resume on `playing`, replay a finished
+one-shot and keep an `autoplay` going. (`blend_target` and `layers` are
+composed only on skinned models.)
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `clip` | string | "" | Current animation clip name |
-| `playing` | bool | false | Whether the animation is playing |
+| `clip` | string | "" | Current animation clip name. Writing a new one cuts to it from its start; the engine writes the clip a crossfade lands on |
+| `playing` | bool | false | Whether the clip is playing: `false` holds the current frame, `true` resumes (and replays a finished one-shot). The engine sets it `false` when a one-shot ends, and `true` when `autoplay` starts a clip |
 | `autoplay` | bool | false | Start playing on scene load |
 | `loop` | bool | true | Loop when the clip ends |
 | `speed` | f32 | 1.0 | Playback speed (-10.0 to 10.0) |
@@ -458,14 +465,15 @@ Animations can be controlled from [Rhai scripts](scripting.md) by writing direct
 
 | Function | Description |
 |----------|-------------|
-| `play_clip(entity_id, clip_name)` | Start playing a named animation clip |
-| `stop_clip(entity_id)` | Stop the current animation |
+| `play_clip(entity_id, clip_name)` | Play a named clip: a new clip cuts to its start (cancelling a crossfade), a stopped one resumes, a finished one-shot replays |
+| `stop_clip(entity_id)` | Pause the clip on its current frame (layers keep their own clocks) |
 | `blend_to(entity_id, clip, duration)` | Crossfade to another clip over the given duration |
 | `set_anim_speed(entity_id, speed)` | Set animation playback speed |
 | `set_anim_layer(entity_id, index, clip, weight)` | Play `clip` on a layer (additive, unmasked) |
 | `set_anim_layer(entity_id, index, clip, weight, #{mode, mask})` | Same with a `mode` (`"additive"`/`"override"`) and a root-joint `mask` |
 | `set_anim_layer_weight(entity_id, index, weight)` | Set a layer's weight instantly (cancels a fade) |
 | `fade_anim_layer(entity_id, index, weight, seconds)` | Ramp a layer's weight over `seconds` |
+| `fade_anim_layer(entity_id, index, weight, seconds, easing)` | The same, eased: `linear`, `smooth`, `ease_in`, `ease_out` or `ease_in_out` |
 | `clear_anim_layer(entity_id, index)` | Leave an inactive slot |
 | `play_sequence(entity_id, name)` / `stop_sequence(entity_id)` | Drive the animator from a `*.sequence.toml` |
 | `on_sequence_cue(sequence, cue)` | Callback: a sequence passed a `cue` event |

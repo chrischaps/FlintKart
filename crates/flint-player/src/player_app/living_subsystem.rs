@@ -9,19 +9,18 @@
 //! in `living_tuning.rs` and `living_ab.rs`.
 
 use super::living_props;
-use super::shallow_wooze::{self, GrassWooze, ShallowWooze};
 use super::subsystem::{
-    EncodeCtx, ExitReport, KeyPress, PlayerInput, RenderCtx, ReportCtx, SceneCtx, Stage, StageCtx,
-    Subsystem,
+    EncodeCtx, ExitReport, FrameCtx, PlayerInput, ReportCtx, SceneCtx, Stage, StageCtx, Subsystem,
 };
+use flint_render::shallow_wooze::{self, GrassWooze, ShallowWooze};
+use flint_render::FrameInputs;
 use flint_script::context::ScriptCommand;
-use winit::keyboard::KeyCode;
 
 /// Living props' and the wooze field's state for one scene.
 #[derive(Default)]
 pub(crate) struct LivingSubsystem {
     /// Room to blend the props each frame
-    pub(crate) blend: flint_procgen::BlendFrame,
+    pub(crate) blend: flint_living::BlendFrame,
     /// The field made from it, sampled on a clock of its own that stops
     /// when a game state pauses `living`. No table: no field, no samples.
     pub(crate) wooze: Option<flint_wooze::WoozeField>,
@@ -29,16 +28,28 @@ pub(crate) struct LivingSubsystem {
     pub(crate) wooze_missing_warned: bool,
     /// The shading boil's beats (#214), on the same clock as the field.
     pub(crate) boil_clock: flint_wooze::BoilClock,
-    /// The boil drawn this frame, for the A/B's other side
-    pub(crate) boil_now: flint_wooze::BoilFrame,
     /// Shallow wooze (#215): the clocks of the meshes on the field with no poses.
     pub(crate) shallow_wooze: ShallowWooze,
     /// Woozy grass (#252): the grass's sway and comb on the same clock.
     pub(crate) grass_wooze: GrassWooze,
     /// What's been done to a running grove by hand (#218).
     pub(crate) tune: super::living_tuning::LivingTune,
+    /// The knobs a script's `tune_living(map, seconds)` is easing (#514).
+    pub(crate) ramps: super::living_ramps::KnobRamps,
     /// `Some` in a capture (`flint render`, #216, #725): see [`Capture`].
     pub(crate) capture: Option<Capture>,
+    /// The field as the `wooze` module's reads last had it (#505), shared
+    /// until it changes, so a frame that changes nothing copies nothing.
+    published: Option<std::sync::Arc<flint_wooze::WoozeField>>,
+    /// This run of the subsystem, so scripts' beat clocks start again in
+    /// each scene.
+    scene_token: u64,
+}
+
+/// A new [`LivingSubsystem::scene_token`].
+fn next_scene_token() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 /// How a capture's grove differs from the player's: every pose a step asks
@@ -116,7 +127,7 @@ impl LivingSubsystem {
             .world
             .entities_with_component(flint_wooze::components::SHALLOW_WOOZE)
             .is_empty();
-        let used = !ctx.resolver.living_props().is_empty()
+        let used = !ctx.living.is_empty()
             || ctx.scene.living.is_some()
             || wooze.is_some()
             || shallow
@@ -126,13 +137,32 @@ impl LivingSubsystem {
         }
         let mut living = Self {
             wooze,
+            scene_token: next_scene_token(),
             ..Default::default()
         };
         // What --compare asked for, before any scene was: which presets, and
         // whether to start comparing; the picks outlive the scene
         living.tune.ab_picks = ctx.launch.compare.clone();
         living.tune.compare_at_start = ctx.launch.compare_at_start.take();
+        // The scripts' on_init reads the field at the scene's first moment
+        living.publish_reading(ctx.script, 0.0);
         Some(Box::new(living))
+    }
+
+    /// Hand the `wooze` module's reads (#505) the field and the time on its
+    /// clock `time`, replacing what an earlier scene or frame handed them.
+    pub(crate) fn publish_reading(&mut self, script: &mut flint_script::ScriptSystem, time: f64) {
+        let field = match (&self.wooze, &self.published) {
+            (Some(field), Some(published)) if **published == *field => Some(published.clone()),
+            (Some(field), _) => Some(std::sync::Arc::new(field.clone())),
+            (None, _) => None,
+        };
+        self.published = field.clone();
+        script.set_module_state(super::living_api::WoozeReading {
+            field,
+            time,
+            scene: self.scene_token,
+        });
     }
 
     /// One frame of living props, on `dt` of the living clock: the clock and
@@ -145,17 +175,21 @@ impl LivingSubsystem {
         Self {
             wooze,
             capture: Some(Capture { shallow: moment }),
+            scene_token: next_scene_token(),
             ..Default::default()
         }
     }
 
     pub(super) fn tick(&mut self, ctx: &mut StageCtx, dt: f64) {
         let living_dt = dt + self.before_living_tick(ctx);
+        // Knobs a script is easing (#514), on the same clock, before the
+        // props read them
+        self.step_knob_ramps(ctx, living_dt);
         // A scene with a wooze field reads it where each prop now stands.
         if self.wooze.is_some() {
             self.wooze_time += living_dt;
             let world = &*ctx.world;
-            ctx.resolver.living_props_mut().track_positions(|entity| {
+            ctx.living.track_positions(|entity| {
                 world.get_world_position(entity).map(|p| [p.x, p.y, p.z])
             });
         }
@@ -166,17 +200,16 @@ impl LivingSubsystem {
         }
         let wooze = self.wooze.as_ref().map(|field| (field, self.wooze_time));
         let lineages = match self.capture {
-            Some(_) => ctx.resolver.step_living_now(living_dt, wooze),
-            None => ctx.resolver.process_living_in(living_dt, wooze),
+            Some(_) => ctx.living.step_now(ctx.resolver, living_dt, wooze),
+            None => ctx.living.process(ctx.resolver, living_dt, wooze),
         };
         let shallow = self.capture.is_none_or(|c| c.shallow);
-        // Hand-made meshes read the same field on the same dt (#215).
+        // Hand-made meshes read the same field on the same dt (#215); the
+        // renderer takes their draws with the frame's inputs
         if let (Some(field), Some(renderer)) = (&self.wooze, ctx.renderer.as_deref_mut()) {
             if shallow {
-                let draws =
-                    self.shallow_wooze
-                        .advance(ctx.world, field, self.wooze_time, living_dt);
-                renderer.set_shallow_wooze(draws.iter().copied());
+                self.shallow_wooze
+                    .advance(ctx.world, field, self.wooze_time, living_dt);
             }
             // And so does grass that asks to (#252), where the viewer stands.
             self.grass_wooze.advance(
@@ -209,7 +242,7 @@ impl LivingSubsystem {
             return;
         }
         if let (Some(renderer), Some((device, queue))) = (ctx.renderer.as_deref_mut(), ctx.gpu) {
-            living_props::upload_blends(ctx.resolver, &mut self.blend, renderer, device, queue);
+            living_props::upload_blends(ctx.living, &mut self.blend, renderer, device, queue);
         }
         // The other side of an A/B (#238), on the same dt, after the scene's own.
         self.tick_hidden_side(ctx, living_dt);
@@ -229,7 +262,7 @@ impl LivingSubsystem {
     /// The `--exit-after` lines: whether the rings stayed full and within
     /// budget. Silent with no props.
     fn report(&self, ctx: &ReportCtx, out: &mut ExitReport) {
-        let props = ctx.resolver.living_props();
+        let props = &*ctx.living;
         if props.is_empty() {
             return;
         }
@@ -348,8 +381,8 @@ impl LivingSubsystem {
                     Err(format!("there's no zone named '{name}' to remove"))
                 }
             }),
-            C::Tune { knobs } => {
-                if let Err(problem) = self.tune_living_from_script(ctx, knobs.clone()) {
+            C::Tune { knobs, seconds } => {
+                if let Err(problem) = self.tune_living_over(ctx, knobs.clone(), *seconds) {
                     tracing::warn!(target: "script", "tune_living: {problem}");
                 }
             }
@@ -361,7 +394,7 @@ impl LivingSubsystem {
             C::Freeze { frozen } => self.tune.frozen = *frozen,
             C::Step => self.step_living(),
             C::SavePreset { name } => match self.save_living_preset(ctx, name) {
-                Ok(path) => println!("[living] saved {}", path.display()),
+                Ok(path) => tracing::info!(target: "player", "[living] saved {}", path.display()),
                 Err(problem) => {
                     tracing::warn!(target: "script", "save_living_preset: {problem}");
                 }
@@ -372,7 +405,7 @@ impl LivingSubsystem {
                 }
             }
             C::Commit => match self.commit_living(ctx) {
-                Ok(said) => println!("[living] {said}"),
+                Ok(said) => tracing::info!(target: "player", "[living] {said}"),
                 Err(problem) => tracing::warn!(target: "script", "commit_living: {problem}"),
             },
             C::Compare { a, b } => {
@@ -401,30 +434,28 @@ impl Subsystem for LivingSubsystem {
         Self::NAME
     }
 
-    /// Its three script modules (`living_api.rs`, #698): a script can turn
-    /// the knobs, the field and the A/B wherever it runs.
+    /// Its script modules (`living_api.rs`, #698): a script can turn the
+    /// knobs and the field wherever it runs, and the A/B and the commit
+    /// there in a build with the debug HUD (#854).
     fn script_modules(&self) -> &[&'static str] {
-        &["wooze", "living", "debug"]
+        crate::player_app::living_api::ENABLED
     }
 
     fn update(&mut self, stage: Stage, ctx: &mut StageCtx) {
-        match stage {
-            Stage::Procgen => {
-                // What the panel asked this frame, then the clock it may
-                // have frozen
-                #[cfg(feature = "debug-hud")]
-                self.drain_living_panel(ctx);
-                let dt = self.living_dt(ctx);
-                self.tick(ctx, dt);
-            }
-            // The grass's clock: the field's, or the wall clock when it isn't
-            // woozy (the renderer's own default, set in its sync)
-            Stage::Sync => {
-                if let Some(renderer) = ctx.renderer.as_deref_mut() {
-                    self.grass_wooze.apply(renderer, ctx.clock.total_time);
-                }
-            }
-            _ => {}
+        // Before on_update, the field and the moment its clock reaches this
+        // frame (#505): what this frame's poses and shallow wooze are drawn
+        // at, so a script's motion holds on the same beat as theirs.
+        if stage == Stage::PreScripts {
+            let time = self.wooze_time + self.living_dt(ctx);
+            self.publish_reading(ctx.script, time);
+        }
+        // What the panel asked this frame, then the clock it may have
+        // frozen. What it draws goes to the renderer in `frame_inputs`.
+        if stage == Stage::Procgen {
+            #[cfg(feature = "debug-hud")]
+            self.drain_living_panel(ctx);
+            let dt = self.living_dt(ctx);
+            self.tick(ctx, dt);
         }
     }
 
@@ -432,33 +463,34 @@ impl Subsystem for LivingSubsystem {
         self.command(command, ctx)
     }
 
-    fn on_key(&mut self, key: KeyPress, ctx: &mut StageCtx) -> bool {
-        // Living Props A/B (#238): F5 freezes the living clock, F6 flips
-        // between the two presets, F7 splits the view between them. F6 and
-        // F7 start a comparison of the panel's picks if none is running.
-        match key.code {
-            KeyCode::F5 => self.toggle_living_freeze(ctx),
-            KeyCode::F6 => self.living_ab_key(ctx, false),
-            KeyCode::F7 => self.living_ab_key(ctx, true),
-            // Pick a living prop (#248): F8 the one at the view centre, as with
-            // the cursor captured, and Shift+F8 the next by name, for a click
-            // that missed. A scripted Escape lets go, as a real one does first.
+    fn debug_keys(&self) -> &'static [flint_runtime::DebugKey] {
+        super::subsystem::living::DEBUG_KEYS.keys
+    }
+
+    fn on_debug_key(&mut self, action: &str, key: &str, ctx: &mut StageCtx) {
+        // Living Props A/B (#238): freeze the living clock, flip between the
+        // two presets, split the view between them. Flip and split start a
+        // comparison of the panel's picks if none is running.
+        match action {
+            "living_freeze" => self.toggle_living_freeze(ctx),
+            "living_flip" => self.living_ab_key(ctx, false),
+            "living_split" => self.living_ab_key(ctx, true),
+            // Pick a living prop (#248): the one at the view centre, as with
+            // the cursor captured, or the next by name, for a click that
+            // missed.
             #[cfg(feature = "debug-hud")]
-            KeyCode::F8 => {
-                if key.shift {
-                    self.pick_next_living(ctx, true);
-                } else if !self.pick_living_at_centre(ctx) {
-                    ctx.note.say("F8", "no living prop at the view centre");
+            "living_pick" => {
+                if !self.pick_living_at_centre(ctx) {
+                    ctx.note.say(key, "no living prop at the view centre");
                 }
             }
             #[cfg(feature = "debug-hud")]
-            KeyCode::Escape => {
-                self.living_let_go(ctx);
+            "living_pick_next" => {
+                self.pick_next_living(ctx, true);
             }
             _ => {}
         }
-        // The player's own debug keys don't use these
-        false
+        let _ = key;
     }
 
     fn on_input(&mut self, input: PlayerInput, ctx: &mut StageCtx) -> bool {
@@ -468,20 +500,20 @@ impl Subsystem for LivingSubsystem {
         }
     }
 
-    fn pre_render(&mut self, ctx: &mut RenderCtx) {
-        // The shading boil's drawing (#214): the field where the viewer stands.
-        // With no field the amount is 0, and neither pass boils.
-        let renderer = &mut *ctx.renderer;
-        self.boil_now = self
-            .wooze
-            .as_ref()
-            .map(|field| {
-                let sample = field.sample(ctx.camera.position_array(), self.wooze_time);
-                self.boil_clock
-                    .frame(&sample, renderer.post_process_config().boil_on)
-            })
-            .unwrap_or_default();
-        renderer.set_boil(self.boil_now);
+    fn frame_inputs<'s>(&'s self, ctx: &FrameCtx, inputs: &mut FrameInputs<'s>) {
+        if let Some(field) = &self.wooze {
+            // The shading boil's drawing (#214): the field where the viewer
+            // stands. With no field, none: neither pass boils.
+            let sample = field.sample(ctx.camera.position_array(), self.wooze_time);
+            inputs.boil = self.boil_clock.frame(&sample, ctx.boil_on);
+            // Hand-made meshes' drift (#215), outside a capture of no moment
+            if self.capture.is_none_or(|c| c.shallow) {
+                inputs.shallow_wooze = self.shallow_wooze.draws();
+            }
+        }
+        // The grass's clock: the field's, or the frame's when it isn't woozy
+        inputs.grass_time = self.grass_wooze.sway_time();
+        inputs.grass_wooze = self.grass_wooze.comb();
     }
 
     fn post_encode(&mut self, ctx: &mut EncodeCtx) {
@@ -505,12 +537,10 @@ impl Subsystem for LivingSubsystem {
         super::living_ab::draw_other_side(
             super::living_ab::OtherSide {
                 ab,
-                resolver: ctx.resolver,
+                living: ctx.living,
                 blend: &mut self.blend,
                 world: ctx.world,
                 camera: ctx.camera,
-                own_boil: self.boil_now,
-                own_shallow: &self.shallow_wooze,
             },
             ctx.renderer,
             ctx.device,
@@ -531,10 +561,6 @@ impl Subsystem for LivingSubsystem {
     }
 
     fn scene_unloading(&mut self, ctx: &mut SceneCtx) {
-        // The renderer keeps the last shallow draws it was handed
-        if let Some(renderer) = ctx.renderer.as_deref_mut() {
-            renderer.set_shallow_wooze(std::iter::empty());
-        }
         // The panel's picks outlive the scene, as --compare's do
         if let Some(picks) = &self.tune.ab_picks {
             ctx.launch.compare = Some(picks.clone());
@@ -543,7 +569,7 @@ impl Subsystem for LivingSubsystem {
         if let Some(split) = self.tune.compare_at_start.take() {
             ctx.launch.compare_at_start = Some(split);
         }
-        ctx.resolver.clear_living_props();
+        ctx.living.clear_props();
     }
 
     fn exit_report(&self, ctx: &ReportCtx, report: &mut ExitReport) {

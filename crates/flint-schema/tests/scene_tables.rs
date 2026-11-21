@@ -11,6 +11,7 @@
 //!   rejected no scene that loaded before
 //!
 //! `flint-scene`'s own tests hold the schemas to the structs that read them.
+#![allow(clippy::disallowed_methods)] // a test: reads its files off the disk, not through the vfs
 
 use flint_schema::diagnostic::Severity;
 use flint_schema::{validate_table, SchemaRegistry};
@@ -87,12 +88,34 @@ fn schemas_components_holds_only_components() {
         wrong.push(format!("`{both}` is both a component and a scene table"));
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    assert!(tables.contains("wooze") && tables.contains("post_process"));
     assert_eq!(
-        tables.into_iter().collect::<Vec<_>>(),
-        ["camera", "environment", "living", "post_process", "wooze"],
-        "the engine's scene tables; a new one needs a reader, and a line in the book"
+        tables,
+        book_tables(),
+        "the engine's scene tables against the ones the book's Scene-level tables \
+         section names (docs/book/src/concepts/schemas.md): a new table needs its line there"
     );
     assert!(components.len() > 40 && !components.contains("wooze"));
+}
+
+/// The tables the book names in its one sentence listing them: every
+/// `` `[name]` `` on the line that opens "A scene file has tables". Was a
+/// count in this file, which #880's `panels` broke while the book's list
+/// went on naming five (#928).
+fn book_tables() -> BTreeSet<String> {
+    let page = repo().join("docs/book/src/concepts/schemas.md");
+    let text = std::fs::read_to_string(&page).unwrap();
+    let line = text
+        .lines()
+        .find(|l| l.starts_with("A scene file has tables that belong to no entity:"))
+        .unwrap_or_else(|| panic!("{}: no sentence listing the scene tables", page.display()));
+    // The sentence alone: the next says each is a `[table.<name>]`
+    let sentence = line.split_once(". ").map_or(line, |(first, _)| first);
+    sentence
+        .split("`[")
+        .skip(1)
+        .filter_map(|rest| rest.split_once("]`").map(|(name, _)| name.to_string()))
+        .collect()
 }
 
 /// The registry loads them from `scene/`, with no lint, and each declares
@@ -111,7 +134,15 @@ fn the_registry_loads_the_engine_tables_clean() {
             );
         }
     }
-    assert_eq!(registry.tables().len(), 5);
+    // Every table a file under `scene/` declares, and nothing else (#928:
+    // was a count, six, which the next table would have broken)
+    let loaded: BTreeSet<String> = registry.tables().iter().map(|t| t.name.clone()).collect();
+    let declared: BTreeSet<String> = toml_files("schemas/scene")
+        .iter()
+        .flat_map(|(_, doc)| doc.get("table").and_then(|t| t.as_table()))
+        .flat_map(|t| t.keys().cloned())
+        .collect();
+    assert_eq!(loaded, declared);
     let about_tables: Vec<String> = registry
         .lints()
         .iter()
@@ -150,44 +181,40 @@ fn scenes() -> Vec<(String, toml::Table)> {
     }
     let root = repo();
     let mut out = Vec::new();
-    for dir in ["examples", "tests", "showcase_game", "crates", "tools"] {
-        walk(&root.join(dir), &root, &mut out);
+    // ...and each game kept in the checkout: a top-level directory with a
+    // `flint.toml`, found by it so the engine names no game (#760)
+    let games = std::fs::read_dir(&root)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|d| d.join("flint.toml").is_file());
+    for dir in ["tests", "crates", "tools"]
+        .map(|d| root.join(d))
+        .into_iter()
+        .chain(games)
+    {
+        walk(&dir, &root, &mut out);
     }
     out.sort_by(|a, b| a.0.cmp(&b.0));
-    assert!(out.len() > 100, "the repository's scenes were not found");
+    assert!(
+        out.len() > 30,
+        "the repository's scenes were not found: {}",
+        out.len()
+    );
     out
 }
 
-/// What the checks found in the examples the day they were turned on
-/// (#686): keys and tables that no code has ever read, so each of these
-/// scenes has been playing without them. All are warnings, and none is in a
-/// frozen fixture. They are named here so the list can't grow; repairing a
-/// scene takes its lines off (the test fails on a line that no longer
-/// applies).
+/// Keys and tables in the repository's scenes that no code reads, each
+/// pinned here so the list can't grow; repairing a scene takes its line off
+/// (the test fails on a line that no longer applies).
 ///
-/// - `[camera] orthographic = true` in four 2D examples: the key is
-///   `projection = "orthographic"`, so they have been drawn in perspective.
-/// - `[camera] distance / pitch / yaw` in rolling_meadow: those are
-///   `flint render` flags, not scene keys.
-/// - `[lights.*]` in campfire: lights are entities with a `light` component,
-///   so the scene is lit by the default lights.
-const NOTHING_READS: &[&str] = &[
-    "examples/campfire.scene.toml: [lights] is no scene table",
-    "examples/collision_2d_test/collision_2d_test.scene.toml: not declared: \
-     warning[unknown-field] [camera] orthographic: `camera` has no field `orthographic`",
-    "examples/rolling_meadow.scene.toml: not declared: warning[unknown-field] [camera] \
-     distance: `camera` has no field `distance`",
-    "examples/rolling_meadow.scene.toml: not declared: warning[unknown-field] [camera] pitch: \
-     `camera` has no field `pitch`",
-    "examples/rolling_meadow.scene.toml: not declared: warning[unknown-field] [camera] yaw: \
-     `camera` has no field `yaw`",
-    "examples/scrolling_test/scrolling_test.scene.toml: not declared: warning[unknown-field] \
-     [camera] orthographic: `camera` has no field `orthographic`",
-    "examples/ui_test/ui_fonts.scene.toml: not declared: warning[unknown-field] [camera] \
-     orthographic: `camera` has no field `orthographic`",
-    "examples/ui_test/ui_test.scene.toml: not declared: warning[unknown-field] [camera] \
-     orthographic: `camera` has no field `orthographic`",
-];
+/// Empty since #807. The first run (#686) found six examples: four 2D ones
+/// wrote `[camera] orthographic = true` (the key is `projection =
+/// "orthographic"`), so they were drawn in perspective; rolling_meadow wrote
+/// `flint render`'s `distance / pitch / yaw` flags as `[camera]` keys; and
+/// campfire's `[lights.*]` table lit nothing (a light is an entity with a
+/// `light` component). Each scene now says what it meant.
+const NOTHING_READS: &[&str] = &[];
 
 /// No scene in the repository (the examples, the frozen fixtures the goldens
 /// load, the showcase game) writes a top-level table the schemas don't
@@ -218,7 +245,7 @@ fn the_repository_scenes_fit_the_table_schemas() {
             }
         }
     }
-    assert!(checked > 100, "only {checked} scene tables were checked");
+    assert!(checked > 60, "only {checked} scene tables were checked");
     assert!(
         !problems.iter().any(|p| p.contains(": rejected: ")),
         "a table schema rejects a scene that loaded before it:\n  {}",
