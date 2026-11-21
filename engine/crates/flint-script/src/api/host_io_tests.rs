@@ -6,6 +6,7 @@
 use crate::context::{InputSnapshot, ScriptCommand};
 use crate::engine::test_support::*;
 use crate::engine::ScriptEngine;
+use flint_core::callbacks::Callback;
 use flint_ecs::FlintWorld;
 
 #[test]
@@ -177,14 +178,10 @@ fn test_play_sound_command() {
     let commands = engine.drain_commands();
     assert_eq!(commands.len(), 1);
     match &commands[0] {
-        ScriptCommand::PlaySound {
-            name,
-            volume,
-            pitch,
-        } => {
+        ScriptCommand::PlaySound { name, play, .. } => {
             assert_eq!(name, "bang.ogg");
-            assert!((volume - 1.0).abs() < 1e-10);
-            assert!((pitch - 1.0).abs() < 1e-10);
+            assert!((play.volume - 1.0).abs() < 1e-10);
+            assert!((play.pitch - 1.0).abs() < 1e-10);
         }
         _ => panic!("Expected PlaySound command"),
     }
@@ -250,9 +247,9 @@ fn test_play_sound_pitch_and_falloff() {
     let commands = engine.drain_commands();
     assert_eq!(commands.len(), 3);
     match &commands[0] {
-        ScriptCommand::PlaySound { volume, pitch, .. } => {
-            assert!((volume - 0.5).abs() < 1e-10);
-            assert!((pitch - 1.2).abs() < 1e-6);
+        ScriptCommand::PlaySound { play, .. } => {
+            assert!((play.volume - 0.5).abs() < 1e-10);
+            assert!((play.pitch - 1.2).abs() < 1e-6);
         }
         other => panic!("Expected PlaySound, got {other:?}"),
     }
@@ -260,15 +257,15 @@ fn test_play_sound_pitch_and_falloff() {
         ScriptCommand::PlaySoundAt {
             name,
             position,
-            volume,
-            pitch,
+            play,
             distances,
             rolloff,
+            ..
         } => {
             assert_eq!(name, "bell");
             assert_eq!(*position, (1.0, 2.0, 3.0));
-            assert!((volume - 0.8).abs() < 1e-6);
-            assert!((pitch - 1.0).abs() < 1e-10);
+            assert!((play.volume - 0.8).abs() < 1e-6);
+            assert!((play.pitch - 1.0).abs() < 1e-10);
             assert_eq!(*distances, Some((1.0, 400.0)));
             assert_eq!(*rolloff, Some(0.7));
         }
@@ -276,12 +273,12 @@ fn test_play_sound_pitch_and_falloff() {
     }
     match &commands[2] {
         ScriptCommand::PlaySoundAt {
-            volume,
+            play,
             distances,
             rolloff,
             ..
         } => {
-            assert!((volume - 1.0).abs() < 1e-10);
+            assert!((play.volume - 1.0).abs() < 1e-10);
             assert_eq!(*distances, None);
             assert_eq!(*rolloff, None);
         }
@@ -374,7 +371,7 @@ fn test_persist_api_without_store() {
 
     probe_component(&mut world, id);
     engine.add_script(id, ast, "test.rhai".into());
-    assert!(engine.scripts[&id].has_on_persist_migrate);
+    assert!(engine.scripts[&id].defines(Callback::PersistMigrate));
     // Should not panic, and with no store in scope migrates nothing
     engine.migrate_persistent_store(&mut world);
     engine.call_inits(&mut world);
@@ -451,4 +448,64 @@ fn test_physics_api_without_physics() {
     // Should not panic, and the call is found and answers ()
     engine.call_inits(&mut world);
     assert_eq!(probe_float(&world, id, "age"), 1.0, "on_init ran through");
+}
+
+/// A wall behind a pane of glass, each on its own layer (#729): a script's
+/// `raycast` meets the glass, or with a mask the wall, and an unknown
+/// layer is a script error naming the nearest.
+#[test]
+fn a_script_raycast_takes_a_layer_mask() {
+    let engine = ScriptEngine::new();
+    let mut world = FlintWorld::new();
+    let mut physics = flint_physics::PhysicsSystem::new();
+    physics.set_layers(flint_physics::CollisionLayers::new(&["glass", "wall"]).unwrap());
+    for (name, x, w, layer) in [("glass", 5.0, 0.1, "glass"), ("wall", 10.0, 1.0, "wall")] {
+        let id = world.spawn(name).unwrap();
+        let text = format!(
+            "[transform]\nposition = [{x}, 0, 0]\n[rigidbody]\nbody_type = \"static\"\n\
+             [collider]\nshape = \"box\"\nsize = [{w}, 4, 4]\nlayer = \"{layer}\"\n"
+        );
+        for (component, data) in text.parse::<toml::Table>().unwrap() {
+            world.set_component(id, &component, data).unwrap();
+        }
+    }
+    physics.initialize(&mut world).unwrap();
+    physics
+        .fixed_update(&mut world, 1.0 / 60.0, &mut flint_runtime::EventBus::new())
+        .unwrap();
+    let mut sm = flint_runtime::GameStateMachine::new();
+    let mut store = flint_runtime::PersistentStore::new();
+    let _world = crate::context::WorldScope::new(&engine.ctx, &mut world);
+    let _state = crate::context::StateScope::new(&engine.ctx, &mut sm, &mut store, &physics);
+    let names: rhai::Array = engine
+        .rhai_engine()
+        .eval(
+            r#"
+            let plain = raycast(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 50.0);
+            let walls = raycast(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 50.0, "wall");
+            let both = raycast(0, 0, 0, 1, 0, 0, 50, ["wall", "glass"]);
+            let none = raycast(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 50.0, []);
+            [entity_name(plain.entity), entity_name(walls.entity), entity_name(both.entity),
+             type_of(none), collision_layers()]
+        "#,
+        )
+        .unwrap();
+    let text: Vec<String> = names.iter().map(|v| v.to_string()).collect();
+    assert_eq!(
+        text,
+        [
+            "glass",
+            "wall",
+            "glass",
+            "()",
+            "[\"default\", \"glass\", \"wall\"]"
+        ]
+    );
+    let err = engine
+        .rhai_engine()
+        .eval::<rhai::Dynamic>(r#"raycast(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 50.0, "wal")"#)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("`wal` is not a collision layer"), "{err}");
+    assert!(err.contains("did you mean `wall`?"), "{err}");
 }

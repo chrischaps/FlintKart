@@ -32,6 +32,7 @@
 //! drawing can never disagree.
 
 use flint_core::project::{AssetKind, Listed, Project};
+use flint_core::toml_util::{check_keys, KeyIssue, Shape};
 use flint_core::vfs;
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -44,8 +45,38 @@ pub struct FontAlias {
     pub file: String,
 }
 
+/// The keys a `fonts.toml` may hold (#282).
+const MANIFEST: Shape = Shape::Table(&[
+    (
+        "font",
+        Shape::Tables(&Shape::Table(&[
+            ("name", Shape::Value),
+            ("file", Shape::Value),
+        ])),
+    ),
+    (
+        "egui",
+        Shape::Table(&[("proportional", Shape::Value), ("monospace", Shape::Value)]),
+    ),
+]);
+
+/// The keys of a `fonts.toml` manifest that will be ignored: misspelled,
+/// in the wrong table, or a `[font]` where the format wants `[[font]]`.
+/// Empty for a document that doesn't parse (`parse_manifest` says why).
+#[cfg(test)]
+fn manifest_issues(text: &str) -> Vec<KeyIssue> {
+    text.parse::<toml::Value>()
+        .map(|doc| manifest_doc_issues(&doc))
+        .unwrap_or_default()
+}
+
+fn manifest_doc_issues(doc: &toml::Value) -> Vec<KeyIssue> {
+    check_keys(doc, &MANIFEST)
+}
+
 /// Parse a `fonts.toml` manifest. Entries missing `name` or `file` are
 /// dropped with a warning; a malformed document yields an empty list.
+/// Keys the format doesn't know are warned about (each one a `KeyIssue`).
 pub fn parse_manifest(text: &str) -> Vec<FontAlias> {
     let doc: toml::Value = match text.parse() {
         Ok(v) => v,
@@ -54,6 +85,9 @@ pub fn parse_manifest(text: &str) -> Vec<FontAlias> {
             return Vec::new();
         }
     };
+    for issue in manifest_doc_issues(&doc) {
+        tracing::warn!("fonts.toml: {issue}");
+    }
     let Some(entries) = doc.get("font").and_then(|v| v.as_array()) else {
         return Vec::new();
     };
@@ -331,6 +365,42 @@ pub fn resolve_font_id(
     }
 }
 
+/// Scripts' `measure_text`, and the UI documents' layout (#731), laid out
+/// with the font stack `ctx` draws the HUD with. Until `ready` says egui's
+/// fonts are built (its first pass), and for a family the definitions
+/// don't have, it estimates or falls back instead of panicking; `None` is a
+/// context whose fonts are known to be built (a headless HUD's).
+pub fn text_measurer(
+    ctx: egui::Context,
+    ready: Option<Arc<std::sync::atomic::AtomicBool>>,
+) -> flint_script::context::TextMeasurer {
+    Arc::new(
+        move |text: &str, size: f32, font: Option<&str>, spacing: f32| {
+            if ready
+                .as_ref()
+                .is_some_and(|r| !r.load(std::sync::atomic::Ordering::Relaxed))
+            {
+                let chars = text.chars().count() as f32;
+                return (chars * size * 0.6 + spacing * (chars - 1.0).max(0.0), size);
+            }
+            ctx.fonts_mut(|f| {
+                let family = font
+                    .map(|n| egui::FontFamily::Name(n.into()))
+                    .filter(|fam| f.definitions().families.contains_key(fam))
+                    .unwrap_or(egui::FontFamily::Proportional);
+                let job = text_layout_job(
+                    text,
+                    egui::FontId::new(size, family),
+                    egui::Color32::WHITE,
+                    spacing,
+                );
+                let galley = f.layout_job(job);
+                (galley.size().x, galley.size().y)
+            })
+        },
+    )
+}
+
 /// The one layout-job builder shared by the HUD renderer and `measure_text`:
 /// single line, no wrapping, optional extra letter spacing.
 pub fn text_layout_job(
@@ -439,6 +509,48 @@ file = "NoName.ttf"
                 },
             ]
         );
+    }
+
+    #[test]
+    fn manifest_keys_it_ignores_are_named() {
+        // #282: each of these used to change nothing, without a word
+        let text = r#"
+proportional = "body"
+
+[[font]]
+name = "body"
+fiel = "Barlow-Medium.ttf"
+
+[egui]
+monospce = "code"
+"#;
+        let issues: Vec<String> = manifest_issues(text)
+            .iter()
+            .map(|i| i.to_string())
+            .collect();
+        assert_eq!(issues.len(), 3, "{issues:#?}");
+        let all = issues.join("\n");
+        assert!(all.contains("`proportional` in the top level") && all.contains("[egui]"));
+        assert!(
+            all.contains("`fiel` in [[font]] #1") && all.contains("`file`?"),
+            "{all}"
+        );
+        assert!(
+            all.contains("`monospce` in [egui]") && all.contains("`monospace`?"),
+            "{all}"
+        );
+
+        // One `[font]` where the format wants an array of them
+        let single = manifest_issues("[font]\nname = \"a\"\nfile = \"a.ttf\"\n");
+        assert_eq!(single.len(), 1);
+        assert!(
+            single[0].to_string().contains("`[[font]]`"),
+            "{}",
+            single[0]
+        );
+
+        let clean = "[[font]]\nname = \"a\"\nfile = \"a.ttf\"\n[egui]\nproportional = \"a\"\n";
+        assert!(manifest_issues(clean).is_empty());
     }
 
     #[test]

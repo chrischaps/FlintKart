@@ -3,6 +3,8 @@
 //! These need a GPU adapter with timestamp queries. Without one each test
 //! prints a note and passes.
 
+#![allow(clippy::disallowed_methods)] // the test's own targets and read-backs, not the renderer's, so uncounted (#1091)
+
 use flint_ecs::FlintWorld;
 use flint_render::{Camera, RendererConfig, SceneRenderer};
 
@@ -19,13 +21,10 @@ fn timing_device() -> Option<(wgpu::Device, wgpu::Queue)> {
             return None;
         }
         adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    required_features: features,
-                    ..Default::default()
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: features,
+                ..Default::default()
+            })
             .await
             .ok()
     })
@@ -69,10 +68,15 @@ fn a_renderer_times_its_phases_once_asked() {
     let world = FlintWorld::new();
     let camera = Camera::default();
     let frame = |renderer: &mut SceneRenderer| {
-        renderer.update_from_world(&world, &device);
+        renderer.prepare(
+            &device,
+            &queue,
+            &world,
+            &flint_render::FrameInputs::default(),
+        );
         renderer.render_to(&device, &queue, &depth, &camera, &color);
         renderer.finish_gpu_timings(&device, &queue);
-        device.poll(wgpu::Maintain::Wait);
+        let _ = flint_render::wait_for_gpu(&device);
     };
 
     // Off by default: nothing timed.
@@ -86,13 +90,18 @@ fn a_renderer_times_its_phases_once_asked() {
     );
     // A host scope of its own, in the same frame as the renderer's.
     let timed = |renderer: &mut SceneRenderer| {
-        renderer.update_from_world(&world, &device);
+        renderer.prepare(
+            &device,
+            &queue,
+            &world,
+            &flint_render::FrameInputs::default(),
+        );
         renderer.render_to(&device, &queue, &depth, &camera, &color);
         let timer = renderer.gpu_timer_mut().unwrap();
         let scope = timer.begin_submit(&device, &queue, "UI");
         timer.end_submit(&device, &queue, scope);
         renderer.finish_gpu_timings(&device, &queue);
-        device.poll(wgpu::Maintain::Wait);
+        let _ = flint_render::wait_for_gpu(&device);
     };
     // The times come back a frame or more late.
     for _ in 0..4 {
@@ -118,7 +127,7 @@ fn a_renderer_times_its_phases_once_asked() {
     // With FXAA on, it writes the target, so it's the scope apart and the
     // composite joins the chain.
     let mut config = renderer.post_process_config().clone();
-    config.fxaa_enabled = true;
+    config.fxaa = true;
     renderer.set_post_process_config(config);
     renderer.ensure_fxaa_resources(&device);
     for _ in 0..4 {
@@ -148,6 +157,27 @@ fn a_renderer_times_its_phases_once_asked() {
     assert!(ui.min <= ui.p50 && ui.p50 <= ui.p90 && ui.p90 <= ui.max);
     timer.record(false);
     assert!(timer.recorded().is_empty());
+
+    // Each frame's busy time comes back under the index the host gave the
+    // frame it timed (#1104), not the frame it arrives in.
+    let _ = renderer.take_gpu_frame_times().count();
+    for n in 100..103u64 {
+        renderer.gpu_timer_mut().unwrap().set_frame_index(Some(n));
+        timed(&mut renderer);
+    }
+    renderer.gpu_timer_mut().unwrap().set_frame_index(None);
+    timed(&mut renderer);
+    renderer.gpu_timer_mut().unwrap().flush(&device);
+    let mut times: Vec<_> = renderer.take_gpu_frame_times().collect();
+    assert_eq!(times.len(), 4, "every frame came back: {times:?}");
+    times.sort_by_key(|t| t.index);
+    let indices: Vec<Option<u64>> = times.iter().map(|t| t.index).collect();
+    assert_eq!(indices, [None, Some(100), Some(101), Some(102)]);
+    assert!(
+        times.iter().all(|t| t.ms > 0.0 && t.ms < 1000.0),
+        "{times:?}"
+    );
+    assert_eq!(renderer.take_gpu_frame_times().count(), 0, "taken once");
 
     // Off again: the times go with the timer.
     assert!(!renderer.set_gpu_timing(&device, &queue, false));

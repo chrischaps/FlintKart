@@ -7,15 +7,29 @@ Three mechanical checks, the ones a page drifts on without anyone noticing:
           code span) is one that command's `--help` lists, and every
           subcommand named is real. In docs/book/src/cli-reference/, a table
           row whose first cell is a `--flag`, under a heading that names a
-          command ("The `render` Command", "`flint play-chart`"), is checked
+          command ("The `render` Command", "`flint music chart play`"), is checked
           against that command too.
   styles  every `[post_process.styles.<name>]` names a registered style
           (`flint render --list-styles --json`).
   images  every image a book page links (`![..](path)`, `<img src=..>`)
           exists on disk.
+  maps    the maps an agent reads first (#756): a count of crates ("31-crate",
+          "31 crates under `crates/`") or workspace members ("32-member") is
+          the real one, written in digits; every crate under crates/ is named
+          in the root CLAUDE.md's Architecture tree and in the book's
+          architecture overview (its tree and a `### <crate>` section); and a
+          "Commands: a, b, ..." list names only real commands and every one
+          `flint --help` shows (hidden ones may be listed, need not be).
+  examples
+          every example a page cites (#984): a `flint-examples/<path>` (the
+          path in a clone of the examples' repository, which the book's
+          commands use) and every link into
+          github.com/chrischaps/flint-examples names a file or folder that
+          repository has. Its file list comes from --examples <clone>, else a
+          clone at flint-examples/ in the checkout, else GitHub's API.
 
 Usage:
-  python scripts/docs-check.py [--flint <path to flint binary>] [--json]
+  python scripts/docs-check.py [--flint <path to flint binary>] [--examples <clone>] [--json]
 
 Without --flint it looks for target/debug/flint, then target/release/flint;
 build one with `cargo build -p flint-cli --no-default-features --bin flint`.
@@ -36,7 +50,7 @@ ROOT = Path(__file__).resolve().parent.parent
 BOOK = ROOT / "docs" / "book" / "src"
 ALLOW = ROOT / "docs" / "book" / "docs-check-allow.txt"
 
-COUNTS = {"flags": 0, "styles": 0, "images": 0}
+COUNTS = {"flags": 0, "styles": 0, "images": 0, "maps": 0, "examples": 0}
 FLAG_RE = re.compile(r"^--[a-z0-9][a-z0-9-]*")
 HELP_FLAG_RE = re.compile(r"^\s+(?:-[A-Za-z0-9], )?(--[a-z0-9][a-z0-9-]*)")
 HELP_CMD_RE = re.compile(r"^  ([a-z][a-z0-9-]*)(?:\s|$)")
@@ -54,6 +68,23 @@ HEADING_CMD_RES = [
 STOP_WORDS = {"|", "||", "&&", ";", ">", ">>", "2>", "2>&1", "&"}
 # A code block in one of these languages holds no shell commands.
 NON_SHELL = {"toml", "rhai", "rust", "wgsl", "json", "text", "txt", "glsl", "ini", "yaml", "yml", "csv", "diff", "html", "js", "javascript", "python", "py"}
+# The maps (#756): counts of the workspace, and command lists.
+CRATE_COUNT_RES = [re.compile(r"\b(\d+)-crate\b"), re.compile(r"\b(\d+) crates under `crates/`")]
+MEMBER_COUNT_RE = re.compile(r"\b(\d+)-member\b")
+SPELLED_COUNT_RE = re.compile(r"\b((?:twenty|thirty|forty)(?:-[a-z]+)?)[- ](?:crates?|members?)\b", re.I)
+COMMANDS_RE = re.compile(r"\bCommands: (?=`?[a-z])")
+# The examples' repository (#984), and how a page cites a file in it.
+EXAMPLES_REPO = "chrischaps/flint-examples"
+EXAMPLE_URL_RE = re.compile(r"github\.com/chrischaps/flint-examples/(?:blob|tree)/main/([^)\s#?`\"'>]+)")
+EXAMPLE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_./-])flint-examples/([A-Za-z0-9_./*{}<>,-]*)")
+TREE_GUTTER = "│├└─ "
+# Where each crate under crates/ must be named: (file, the section it's
+# under, whether that section must hold a `### <crate>` heading for it).
+CRATE_MAPS = [
+    ("CLAUDE.md", "## Architecture", False),
+    ("docs/book/src/architecture/overview.md", "## Workspace Structure", False),
+    ("docs/book/src/architecture/overview.md", "## Crate Details", True),
+]
 
 
 class Flint:
@@ -221,7 +252,56 @@ def book_page(path):
         return rel(path)
 
 
-def scan(path, flint, styles, problems, allow):
+def example_files(given):
+    """Every file and folder in the examples' repository, as paths from its
+    root: from a clone (`--examples`, else `flint-examples/` here), else the
+    GitHub API. (None, None) when there is no way to know."""
+    clone = Path(given) if given else ROOT / "flint-examples"
+    if (clone / "index.toml").is_file():
+        out = subprocess.run(["git", "ls-files"], cwd=clone, capture_output=True, text=True)
+        files = out.stdout.split() if out.returncode == 0 else [
+            p.relative_to(clone).as_posix() for p in clone.rglob("*") if p.is_file()]
+        source = str(clone)
+    elif given:
+        raise SystemExit(f"docs-check: --examples {given} has no index.toml")
+    else:
+        import urllib.request
+        url = f"https://api.github.com/repos/{EXAMPLES_REPO}/git/trees/main?recursive=1"
+        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "flint-docs-check"})
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                tree = json.load(r)
+        except Exception as e:  # offline, rate-limited
+            print(f"docs-check: can't list {EXAMPLES_REPO} ({e}); the example citations go unchecked. "
+                  "Clone it at flint-examples/ or pass --examples <clone>", file=sys.stderr)
+            return None, None
+        files = [e["path"] for e in tree["tree"] if e["type"] == "blob"]
+        source = f"github.com/{EXAMPLES_REPO}@main"
+    names = set(files)
+    for f in files:
+        parts = f.split("/")
+        for i in range(1, len(parts)):
+            names.add("/".join(parts[:i]))
+    return names, source
+
+
+def check_examples(line, where, examples, source, problems, allow):
+    if examples is None:
+        return
+    for name in EXAMPLE_URL_RE.findall(line) + EXAMPLE_PATH_RE.findall(line):
+        name = name.rstrip(".,:;)]").rstrip("/")
+        if not name or re.search(r"[<>*{}\[\]|]", name) or "..." in name:
+            continue  # the repository itself, or a pattern
+        COUNTS["examples"] += 1
+        if name not in examples and not allowed(allow, where, name):
+            problems.append(problem("examples", where, f"`flint-examples/{name}` is not a file or folder of {EXAMPLES_REPO}",
+                                    f"looked in {source}; the examples moved there in #984, scenes at its root"))
+
+
+def scan(path, flint, styles, ws, problems, allow, examples=None, source=None):
     text = path.read_text(encoding="utf-8")
     page = book_page(path)
     in_book = path.is_relative_to(BOOK)
@@ -250,6 +330,11 @@ def scan(path, flint, styles, problems, allow):
             COUNTS["styles"] += 1
             if name not in styles and not allowed(allow, where, name):
                 problems.append(problem("styles", where, f"`[post_process.styles.{name}]`: no style `{name}` is registered", "`flint render --list-styles` lists them; a style a page makes up goes in docs/book/docs-check-allow.txt"))
+
+        check_counts(line, where, ws, problems, allow)
+        check_examples(line, where, examples, source, problems, allow)
+        if COMMANDS_RE.search(line):
+            check_commands(flint, command_list(lines, n - 1), where, problems, allow)
 
         if fence is not None:
             if not shell_block:
@@ -309,12 +394,96 @@ def scan(path, flint, styles, problems, allow):
                     problems.append(problem("images", where, f"image `{target}` does not exist", f"looked for {rel((path.parent / target).resolve())}"))
 
 
+def workspace():
+    """The crates under crates/ and the workspace's member count, from disk."""
+    import tomllib
+
+    crates = sorted(p.name for p in (ROOT / "crates").iterdir() if (p / "Cargo.toml").is_file())
+    with open(ROOT / "Cargo.toml", "rb") as f:
+        members = tomllib.load(f)["workspace"]["members"]
+    return {"crates": crates, "members": len(members)}
+
+
+def check_counts(line, where, ws, problems, allow):
+    for r in CRATE_COUNT_RES:
+        for m in r.finditer(line):
+            COUNTS["maps"] += 1
+            n = int(m.group(1))
+            if n != len(ws["crates"]) and not allowed(allow, where, m.group(0)):
+                problems.append(problem("maps", where, f"`{m.group(0)}`: crates/ holds {len(ws['crates'])} crates", "count the directories under crates/ with a Cargo.toml"))
+    for m in MEMBER_COUNT_RE.finditer(line):
+        COUNTS["maps"] += 1
+        if int(m.group(1)) != ws["members"] and not allowed(allow, where, m.group(0)):
+            problems.append(problem("maps", where, f"`{m.group(0)}`: the workspace has {ws['members']} members", "count `members` in the root Cargo.toml"))
+    for m in SPELLED_COUNT_RE.finditer(line):
+        COUNTS["maps"] += 1
+        problems.append(problem("maps", where, f"`{m.group(0)}`: a count of the workspace in words", f"write it in digits ({len(ws['crates'])} crates, {ws['members']} members) so this check can hold it"))
+
+
+def command_list(lines, i):
+    """The command names of a "Commands: ..." list starting on lines[i].
+
+    The list runs to the end of its sentence; a line ending in a comma
+    continues on the next (a code block's tree gutter is stripped). Where
+    the list uses code spans, only the spans are names."""
+    text = COMMANDS_RE.split(lines[i], maxsplit=1)[1]
+    j = i
+    while text.rstrip().endswith(",") and j + 1 < len(lines):
+        j += 1
+        text += " " + lines[j].lstrip(TREE_GUTTER)
+    text = re.split(r"\.(?:\s|$)", text, maxsplit=1)[0]
+    if "`" in text:
+        return re.findall(r"`([a-z][a-z0-9-]*)`", text)
+    return [w for w in (t.strip() for t in text.split(",")) if re.fullmatch(r"[a-z][a-z0-9-]*", w)]
+
+
+def check_commands(flint, names, where, problems, allow):
+    COUNTS["maps"] += 1
+    for name in names:
+        if flint.help([name]) is None and not allowed(allow, where, name):
+            problems.append(problem("maps", where, f"`{name}` in a command list: `flint {name} --help` fails", "`flint --help` lists the commands"))
+    for name in sorted(flint.help([])["commands"] - set(names)):
+        if not allowed(allow, where, name):
+            problems.append(problem("maps", where, f"command list leaves out `{name}`", "a list of the CLI's commands names every one `flint --help` shows"))
+
+
+def section(lines, heading):
+    """(first line number, lines) of the section under `heading`, to the next heading of its level."""
+    level = heading.split(" ", 1)[0]
+    for n, line in enumerate(lines):
+        if line.strip() == heading:
+            end = next((k for k in range(n + 1, len(lines)) if re.match(rf"^{level} ", lines[k])), len(lines))
+            return n + 1, lines[n + 1:end]
+    return None
+
+
+def check_crate_maps(ws, problems, allow):
+    for name, heading, as_heading in CRATE_MAPS:
+        path = ROOT / name
+        page = book_page(path)
+        found = section(path.read_text(encoding="utf-8").splitlines(), heading)
+        if found is None:
+            problems.append(problem("maps", (page, 1), f"no `{heading}` section", "it holds the crate map this check reads"))
+            continue
+        start, body = found
+        text = "\n".join(body)
+        for crate in ws["crates"]:
+            COUNTS["maps"] += 1
+            if as_heading:
+                ok = re.search(rf"^### {re.escape(crate)}\s*$", text, re.M) is not None
+            else:
+                ok = re.search(rf"(?<![\w-]){re.escape(crate)}(?![\w-])", text) is not None
+            if not ok and not allowed(allow, (page, start), crate):
+                what = f"`### {crate}` section" if as_heading else f"`{crate}`"
+                problems.append(problem("maps", (page, start), f"`{heading}` has no {what}", f"crates/{crate} is a workspace crate; every map of the workspace names it"))
+
+
 def sources():
-    files = sorted(BOOK.rglob("*.md"))
+    files = sorted(BOOK.rglob("*.md")) + [ROOT / "README.md"]
     listed = subprocess.run(["git", "ls-files", "*CLAUDE.md"], cwd=ROOT, capture_output=True, text=True)
     for name in listed.stdout.split():
         p = ROOT / name
-        if p.exists() and not name.startswith(("engine/", "examples/")):
+        if p.exists() and not name.startswith(("engine/", "flint-examples/")):
             files.append(p)
     return files
 
@@ -333,6 +502,7 @@ def find_flint(given):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--flint", help="the flint binary to ask (default: target/debug/flint)")
+    ap.add_argument("--examples", help="a clone of flint-examples to check citations against (default: flint-examples/ here, else GitHub)")
     ap.add_argument("--json", action="store_true", help="print the problems as JSON")
     args = ap.parse_args()
 
@@ -342,9 +512,12 @@ def main():
     styles = flint.styles()
     allow = load_allow()
     problems = []
+    ws = workspace()
     files = sources()
+    examples, source = example_files(args.examples)
     for f in files:
-        scan(f, flint, styles, problems, allow)
+        scan(f, flint, styles, ws, problems, allow, examples, source)
+    check_crate_maps(ws, problems, allow)
 
     if args.json:
         print(json.dumps({"files": len(files), "commands": len(flint.cache), "styles": sorted(styles), "checked": COUNTS, "problems": problems}, indent=2))
@@ -352,7 +525,7 @@ def main():
         for p in problems:
             print(f"{p['file']}:{p['line']}: [{p['check']}] {p['message']}\n    {p['hint']}")
         print(f"docs-check: {len(files)} files; {COUNTS['flags']} flags on {len(flint.cache)} commands, "
-              f"{COUNTS['styles']} style tables, {COUNTS['images']} images: "
+              f"{COUNTS['styles']} style tables, {COUNTS['images']} images, {COUNTS['maps']} map entries, {COUNTS['examples']} example citations: "
               + (f"{len(problems)} problem(s)" if problems else "clean"))
     return 1 if problems else 0
 

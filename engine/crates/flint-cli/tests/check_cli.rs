@@ -250,6 +250,42 @@ fn every_problem_of_a_project_is_listed_in_one_run() {
     assert_eq!(stderr(&o), "", "stderr");
 }
 
+/// #680: a loop of parents is one `parent-cycle` on its entity, not that
+/// and a `scene-load` saying the same thing again; `flint validate` agrees.
+#[test]
+fn a_parent_cycle_is_named_once_before_the_scene_is_played() {
+    let dir = project(
+        "parent_cycle",
+        &[(
+            "scenes/dock.scene.toml",
+            "[scene]\nname = \"Dock\"\n\n[entities.mast]\nparent = \"sail\"\n\n\
+             [entities.sail]\nparent = \"mast\"\n",
+        )],
+    );
+    let o = flint(&dir, &["check", ".", "--json"]);
+    assert_eq!(o.status.code(), Some(1), "{}", stdout(&o));
+    let doc = json(&o);
+    let codes: Vec<&str> = doc["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["code"].as_str().unwrap())
+        .collect();
+    assert_eq!(codes, ["parent-cycle"], "{doc:#}");
+    let cycle = diagnostic(&doc, "parent-cycle", Some("mast"));
+    assert_eq!(cycle["field"], "parent");
+    let message = cycle["message"].as_str().unwrap();
+    assert!(message.contains("mast -> sail -> mast"), "{message}");
+
+    let o = flint(&dir, &["validate", "scenes/dock.scene.toml"]);
+    assert_eq!(o.status.code(), Some(1), "{}", stdout(&o));
+    assert!(
+        stdout(&o).contains("error[parent-cycle] entity 'mast'"),
+        "{}",
+        stdout(&o)
+    );
+}
+
 #[test]
 fn the_same_list_is_one_json_document() {
     let dir = broken("json");
@@ -357,6 +393,116 @@ fn a_clean_project_exits_zero() {
         "{}",
         stdout(&o)
     );
+}
+
+/// A UI document with a bad `type` is an error naming the file and the
+/// element (#731), as `load_ui` refuses it; mended, the project is clean.
+#[test]
+fn a_bad_type_in_a_ui_document_names_its_file_and_element() {
+    let dir = project(
+        "ui_document",
+        &[
+            ("scenes/dock.scene.toml", CLEAN_SCENE),
+            (
+                "scripts/sign.rhai",
+                "fn on_init() { play_sound(\"audio/creak.ogg\"); }\n",
+            ),
+            ("audio/creak.ogg", ""),
+            ("models/boat.glb", ""),
+            (
+                "ui/pause.ui.toml",
+                "[ui]\nstyle = \"ui/pause.style.toml\"\n\n[elements.menu]\ntype = \"panel\"\n\n[elements.resume]\ntype = \"buton\"\nparent = \"menu\"\nclass = \"button\"\n",
+            ),
+            ("ui/pause.style.toml", "[styles.button]\nwidth = 200\n"),
+        ],
+    );
+    let doc = json(&flint(&dir, &["check", "--json"]));
+    let d = diagnostic(&doc, "bad-ui", None);
+    assert!(
+        d["file"].as_str().unwrap().ends_with("ui/pause.ui.toml"),
+        "{d:#}"
+    );
+    let message = d["message"].as_str().unwrap();
+    assert!(
+        message.contains("element `resume`: unknown type `buton`"),
+        "{message}"
+    );
+    assert_eq!(doc["valid"], false);
+
+    let layout = dir.join("ui/pause.ui.toml");
+    let text = std::fs::read_to_string(&layout).unwrap();
+    std::fs::write(&layout, text.replace("buton", "button")).unwrap();
+    let o = flint(&dir, &["check"]);
+    assert_eq!(o.status.code(), Some(0), "{}{}", stdout(&o), stderr(&o));
+}
+
+/// #1014's second box: a field a scene declares is held to its own rules, a
+/// wrong key or zone named by field and key or zone, and a fixed one passes.
+#[test]
+fn a_declared_fields_bad_key_and_zone_are_named() {
+    const FIELD: &str = r#"
+[field.weather]
+keys = { wind = { min = 0, default = 1 }, fog = { min = 0, max = 1, default = 0 } }
+
+[[field.weather.zone]]
+name = "storm"
+shape = "sphere"
+center = [10, 0, 0]
+radius = 3
+wind = 6
+rain = 2
+
+[field.slow]
+keys = { scale = { min = 0, max = 1, default = 2 } }
+"#;
+    let scene = CLEAN_SCENE.replacen("[entities.", &format!("{FIELD}\n[entities."), 1);
+    let dir = project(
+        "declared_field",
+        &[
+            ("scenes/dock.scene.toml", &scene),
+            (
+                "scripts/sign.rhai",
+                "fn on_init() { play_sound(\"audio/creak.ogg\"); }\n",
+            ),
+            ("audio/creak.ogg", ""),
+            ("models/boat.glb", ""),
+        ],
+    );
+    let o = flint(&dir, &["check", "--json"]);
+    assert_eq!(o.status.code(), Some(1));
+    let doc = json(&o);
+    let named: Vec<(String, String)> = doc["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["code"] == "bad-field")
+        .map(|d| {
+            assert_eq!(d["table"], "field", "{d:#}");
+            let field = d["field"].as_str().unwrap().to_string();
+            (field, d["message"].as_str().unwrap().to_string())
+        })
+        .collect();
+    assert_eq!(
+        named,
+        [
+            (
+                "slow.keys.scale".to_string(),
+                "its default is out of range: scale = 2 must be from 0 to 1".to_string()
+            ),
+            (
+                "weather.zone.storm".to_string(),
+                "'rain' isn't a zone key; it takes name, shape, center, radius, size, falloff, fog, wind"
+                    .to_string()
+            ),
+        ]
+    );
+
+    let fixed = scene
+        .replace("rain = 2\n", "")
+        .replace("default = 2", "default = 1");
+    std::fs::write(dir.join("scenes/dock.scene.toml"), fixed).unwrap();
+    let o = flint(&dir, &["check"]);
+    assert_eq!(o.status.code(), Some(0), "{}{}", stdout(&o), stderr(&o));
 }
 
 /// One scene: the scene and the files it names (its script's literals),
@@ -571,6 +717,79 @@ fn bundle_and_check_report_the_same_references() {
     let dir = clean("bundle_clean");
     let packed = flint(&dir, &["bundle", ".", "--dry-run"]);
     assert_eq!(packed.status.code(), Some(0), "{}", stderr(&packed));
+}
+
+/// #1060: a project's `[project.diagnostics] allow` reaches the bundle's
+/// reference pass as it reaches `flint check`'s. A script names a poster
+/// nobody made (`missing-file`, found outside any scene's own check); the
+/// manifest allows the code, so check passes with it counted, and the
+/// bundle packs and counts the same one. Before, the bundle refused it.
+#[test]
+fn bundle_and_check_allow_the_same_reference() {
+    let dir = project(
+        "bundle_allowed",
+        &[
+            (
+                "flint.toml",
+                "[project]\nid = \"dock\"\nschemas = [\"schemas\"]\n\
+                 scene = \"scenes/dock.scene.toml\"\n\n\
+                 [project.diagnostics]\nallow = [\"missing-file\"]\n",
+            ),
+            ("scenes/dock.scene.toml", CLEAN_SCENE),
+            (
+                "scripts/sign.rhai",
+                "fn on_init() {\n    play_sound(\"audio/creak.ogg\");\n    \
+                 let poster = \"textures/poster.png\";\n}\n",
+            ),
+            ("audio/creak.ogg", ""),
+            ("models/boat.glb", ""),
+        ],
+    );
+    // The poster is what the allow list leaves out: without it, both fail on it
+    let unallowed = project(
+        "bundle_unallowed",
+        &[
+            ("scenes/dock.scene.toml", CLEAN_SCENE),
+            (
+                "scripts/sign.rhai",
+                "fn on_init() {\n    play_sound(\"audio/creak.ogg\");\n    \
+                 let poster = \"textures/poster.png\";\n}\n",
+            ),
+            ("audio/creak.ogg", ""),
+            ("models/boat.glb", ""),
+        ],
+    );
+    let checked = flint(&unallowed, &["check"]);
+    assert_eq!(checked.status.code(), Some(1), "{}", stdout(&checked));
+    assert!(
+        stdout(&checked).contains("error[missing-file]"),
+        "{}",
+        stdout(&checked)
+    );
+    let packed = flint(&unallowed, &["bundle", ".", "--dry-run"]);
+    assert_eq!(packed.status.code(), Some(1), "{}", stderr(&packed));
+    assert!(
+        stderr(&packed).contains("error[missing-file]"),
+        "{}",
+        stderr(&packed)
+    );
+
+    let checked = json(&flint(&dir, &["--json", "check"]));
+    assert_eq!(checked["valid"], true, "{checked}");
+    assert_eq!(checked["allowed"], 1, "{checked}");
+
+    let o = flint(&dir, &["--json", "bundle", ".", "--dry-run"]);
+    assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
+    let packed = json(&o);
+    assert_eq!(packed["allowed"], checked["allowed"], "{packed}");
+
+    // The text says so too, in check's words
+    let o = flint(&dir, &["bundle", ".", "--dry-run"]);
+    assert!(
+        stdout(&o).contains("  check: no problems (1 allowed by flint.toml)\n"),
+        "{}",
+        stdout(&o)
+    );
 }
 
 /// `flint bundle` holds no check of its own: what it used to do in

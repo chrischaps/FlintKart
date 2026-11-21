@@ -5,7 +5,7 @@
 //!
 //! ```bash
 //! flint check                         # the project in the working directory
-//! flint check examples/               # every scene under a folder
+//! flint check flint-examples/        # every scene under a folder
 //! flint check scenes/dock.scene.toml  # one scene and the files it names
 //! flint check . --json                # one JSON document on stdout
 //! ```
@@ -23,10 +23,6 @@ pub struct CheckArgs {
     /// A project folder (every scene under it is checked) or one scene file
     #[arg(default_value = ".")]
     pub path: PathBuf,
-
-    /// Print one JSON document on stdout instead of text
-    #[arg(long)]
-    pub json: bool,
 
     /// Schema directories, later ones overriding earlier (repeatable).
     /// Without it: the project's flint.toml `schemas`, else schemas/ in the
@@ -64,13 +60,5 @@ pub fn report(args: &CheckArgs) -> Result<check::Report> {
 
 pub fn run(args: CheckArgs) -> Result<()> {
     let report = report(&args)?;
-    if args.json {
-        println!("{}", serde_json::to_string_pretty(&check::json(&report))?);
-    } else {
-        print!("{}", check::text(&report));
-    }
-    if report.has_errors() {
-        std::process::exit(1);
-    }
-    Ok(())
+    crate::output::emit(&report)
 }

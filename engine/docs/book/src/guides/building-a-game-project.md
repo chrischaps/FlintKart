@@ -8,6 +8,8 @@ Game projects live in their own git repositories with the Flint engine included 
 
 ### 1. Start the project with `flint init`
 
+Run it from the folder that will hold the game, outside the Flint checkout: it creates `my_game/` under the directory you're in. This uses a `flint` on your PATH; without one, call the engine's build by its path ([Installation](../getting-started/installation.md#running-without-installing)).
+
 ```bash
 flint init my_game --engine subtree
 ```
@@ -105,7 +107,7 @@ Flint finds the manifest by walking up from a scene or from the working director
 The file is checked when it is read. A value of the wrong type, or a key in `[project]` that Flint doesn't know, is an error that names the file and the key, so a typo doesn't pass silently:
 
 ```
-flint.toml: unknown key `shcemas` in [project] (the keys are id, schemas, scene, input, strict, save_version)
+flint.toml: unknown key `shcemas` in [project] (the keys are id, schemas, scene, input, strict, save_version, diagnostics)
 flint.toml: `project.schemas` must be a list of strings, found a string
 ```
 
@@ -117,7 +119,8 @@ flint.toml: `project.schemas` must be a list of strings, found a string
 | `id` | `flint bundle` and `flint export web`: the bundle's name and the game's `?game=` id, when `bundle.toml` has no `name` (`--name` wins over both). The player: save data lives under the OS user directory in a folder of this name, `<config>/<id>/saves/` ([Where saves live](../concepts/scripting.md#where-saves-live)); without it the input config's `game_id` is used, and a game with neither saves inside its own folder. Input rebinds are still named for the input config's `game_id` |
 | `schemas` | Every command, the viewer and the player: the schema directories, in override order, whenever no `--schemas` flag is given. `flint bundle` writes the same list into the bundle. See [Multi-Schema Layering](#multi-schema-layering) |
 | `scene` | `flint play` and `flint-player` with no scene argument open it. `flint bundle` starts the bundle there when `bundle.toml` has no `scene` |
-| `strict` | `flint validate`: `true` makes a field that its component's schema doesn't declare an error (`unknown-field`), where it is a warning otherwise; the same as `--strict` on one run. It changes what `flint validate` fails on, nothing about how a scene loads or plays. See [Scene Diagnostics](../concepts/schemas.md#unknown-fields-and-strict) |
+| `strict` | `flint validate`: `true` makes a field that its component's schema doesn't declare an error (`unknown-field`), where it is a warning otherwise; the same as `--strict` on one run. It changes what `flint validate`, `flint check` and the viewer's panel report, nothing about how a scene loads or plays: a load's summary keeps an unknown field a warning. See [Scene Diagnostics](../concepts/schemas.md#unknown-fields-and-strict) |
+| `[project.diagnostics] allow` | A list of diagnostic codes the project accepts, each optionally at a place: `["unknown-field:material.wetness", "unknown-table"]`. What it names is left out of every report, which says how many it left out. See [Allowing a code](../concepts/schemas.md#allowing-a-code) |
 | `input` | The player: the game layer of the [input config](../concepts/physics-and-runtime.md#config-layering), unless the scene names its own with `[scene] input_config` |
 | `save_version` | The player: a whole number, 0 when left out. A save file at a lower version is handed to the scripts' `on_persist_migrate(from)` before `on_init`, then stamped with this one ([Versions and migration](../concepts/scripting.md#versions-and-migration)) |
 
@@ -141,7 +144,7 @@ A game loads two schema directories, in order, with the later one overriding the
 1. **Engine schemas** from `engine/schemas/` --- built-in components like `transform`, `material`, `rigidbody`, `collider`, `character_controller`, `sprite`, etc.
 2. **Game schemas** from `schemas/` --- game-specific components like `health`, `weapon`, `enemy_ai`
 
-If both directories define a component with the same name, the game's version takes priority.
+If both directories define a component with the same name, the game's version replaces the engine's whole. To add a field to an engine component instead (a `wetness` on every `material`), the game's file says `extend = true` and declares only the new field; the engine's fields stay as the engine declares them. See [Schemas: Adding a field to an engine component](../concepts/schemas.md#adding-a-field-to-an-engine-component). An archetype is the same: `[archetype.player]` with `extend = true` adds the components it lists and merges its defaults into the engine's ([Adding a component to an engine archetype](../concepts/schemas.md#adding-a-component-to-an-engine-archetype)).
 
 The engine's set has no room-builder vocabulary in it: `furniture`, `wall`, `floor`, `ceiling`, `pillar`, `room` and `door` are the layer the engine's example scenes are written in, `engine/schemas/examples`. A game that wants them lists that directory between the two (`["engine/schemas", "engine/schemas/examples", "schemas"]`); most games define archetypes of their own instead. See [Schemas: The Examples Layer](../concepts/schemas.md#the-examples-layer).
 
@@ -321,6 +324,8 @@ cargo run --manifest-path engine/Cargo.toml --bin flint -- play
 cargo run --manifest-path engine/Cargo.toml --bin flint-player -- scenes/level_1.scene.toml
 ```
 
+Built this way the engine's workspace is cargo's root, and its `[patch.crates-io]` applies. A game that builds a binary of its own (a [player extension](player-extensions.md#a-game-binary)) has a workspace of its own, whose root `Cargo.toml` names the engine's patches itself; `flint check` says when one is missing.
+
 ## Asset Resolution
 
 A game keeps each kind of asset in its folder at the project root: `scripts/`, `audio/`, `sprites/`, `models/` and the rest.
@@ -341,6 +346,18 @@ git subtree push --prefix=engine flint-engine main
 
 Engine edits are normal commits in your game repo. The subtree commands handle splitting and merging the `engine/` prefix.
 
+### What `engine/` carries, and leaving some of it out
+
+A subtree is the engine's whole tree, so a game carries the engine's book, its test fixtures and the showcase game along with the crates. The examples are not in it: they are their own repository, [flint-examples](https://github.com/chrischaps/flint-examples), since #984. The engine keeps the tree under a budget ([ADR 0122](https://github.com/chrischaps/Flint/blob/main/docs/adr/0122-what-a-games-engine-carries.md)): 175 MB in all, no file stored twice, no texture over 2048 texels a side, checked on every engine PR. `python3 engine/scripts/size-check.py --report` prints each part's size (in a sparse checkout, of what is written out).
+
+Nothing a game builds reads `engine/docs`, `engine/tests` or `engine/showcase_game`, so each clone or worktree of the game can leave them out of its working tree with a sparse checkout:
+
+```bash
+git sparse-checkout set --no-cone '/*' '!/engine/docs/' '!/engine/tests/' '!/engine/showcase_game/'
+```
+
+On a game with the engine of 2026-11-14 (examples and all) this took the working tree from 166 MB to 41 MB; since the examples left, the engine's whole tree is about 158 MB. A game with the old recipe can drop its `'!/engine/examples/'`. The engine still builds (`cargo build --manifest-path engine/Cargo.toml`), and `git subtree pull` and `push` work as before: the files are still in the repository, just not written out. `git sparse-checkout disable` brings them back. In Git Bash, prefix the command with `MSYS_NO_PATHCONV=1`, or Git Bash rewrites `'/*'` as a Windows path and the checkout keeps everything.
+
 ### After a pull: read the changelog
 
 `--squash` folds the engine's commits into one, so their subjects are gone from your history. The engine's changelog is where to read what changed: every change a game can notice (scene and schema keys, script functions, CLI flags, formats, Cargo features, and changes in how something looks, sounds or behaves), each with what to do about it. Before pulling, note the day of your last pull; after it, print what is new since then:
@@ -352,6 +369,8 @@ bash engine/scripts/changelog.sh since 2026-11-02   # newest first
 ```
 
 The entries live one file a month in `engine/changelog/` (`engine/CHANGELOG.md` links them), and `since` also reads the ones not yet gathered into a month, in `engine/changelog.d/`. It prints every entry dated that day or later, so a pull made the same day may show an entry you already had. Then run your scenes through `flint validate` and play the game once, watching the log: several entries are new warnings for mistakes that used to pass in silence.
+
+A pull that moves a dependency your own Rust uses too (wgpu and egui, in November 2026) has a port on [Upgrading the Engine](upgrading-the-engine.md).
 
 ## Further Reading
 

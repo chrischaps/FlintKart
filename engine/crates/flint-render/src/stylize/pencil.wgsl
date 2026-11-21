@@ -137,7 +137,9 @@ fn strip(x: f32, off: f32, band: f32, len_px: f32, row: PencilRow, hs: vec3<f32>
     }
     let rows = max(u32(row.h.y + 0.5), 1u);
     let pick = min(u32(hs.z * f32(rows)), rows - 1u);
-    let dims = vec2<f32>(textureDimensions(stroke_tex, 0));
+    let layer = img_layer(row.h.w);
+    let info = u.strokes[layer];
+    let dims = img_size(info);
     let rh = dims.y / f32(rows);
     // The level from the texels a pixel spans along the dash, but never
     // so coarse that a row is under two texels tall: across, a stroke is a
@@ -146,8 +148,8 @@ fn strip(x: f32, off: f32, band: f32, len_px: f32, row: PencilRow, hs: vec3<f32>
     let lod = min(log2(max(along, 1.0)), log2(max(rh * 0.5, 1.0)));
     let lo = vec2<f32>(0.0, f32(pick) * rh);
     let hi = vec2<f32>(dims.x, f32(pick + 1u) * rh);
-    let c = img_read(stroke_tex, vec2<f32>(x * dims.x, (f32(pick) + v) * rh), lod, false, lo, hi);
-    let ink = c.a * (1.0 - luma(c.rgb)) / max(u.img.z, 0.02);
+    let c = img_read(stroke_tex, layer, info, vec2<f32>(x * dims.x, (f32(pick) + v) * rh), lod, false, lo, hi);
+    let ink = c.a * (1.0 - flint_luma(c.rgb)) / max(info.stats.z, 0.02);
     return clamp(ink, 0.0, 1.0) * (0.75 + 0.25 * hs.y);
 }
 
@@ -348,7 +350,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if passes_through(slot) {
         return src;
     }
-    let row = u.rows[slot];
+    let row = pencil_rows[slot];
     let ppp = u.pixels_per_point;
     let texel = 1.0 / u.size;
     let prep = textureSampleLevel(prep_texture, prep_sampler, in.uv, 0.0);
@@ -427,10 +429,21 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     var offsets = array<f32, 4>(0.0, 0.36 * PI, -0.22 * PI, 0.14 * PI);
     var light = 1.0;
 
-    // A world grid's plane weights, from the surface's normal
+    // A world grid's plane weights, from the surface's normal. A local
+    // grid (#544) takes the point, how it moves across a pixel and the
+    // normal into its root's own space first, so the strokes ride on it
     var weights = vec3<f32>(0.0);
+    var hp = wp.xyz;
+    var hdx = wdx;
+    var hdy = wdy;
     if on_world {
-        let n = oct_decode(textureLoad(prep_texture, px, 0).zw);
+        var n = oct_decode(textureLoad(prep_texture, px, 0).zw);
+        if local_grid(row) {
+            hp = to_local(row, wp.xyz);
+            hdx = dir_to_local(row, wdx);
+            hdy = dir_to_local(row, wdy);
+            n = normal_to_local(row, n);
+        }
         let an = pow(abs(n), vec3<f32>(6.0));
         weights = an / max(an.x + an.y + an.z, 1e-6);
     }
@@ -451,14 +464,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
                 if wt < 0.02 {
                     continue;
                 }
-                let q = plane_coords(wp.xyz, axis);
+                let q = plane_coords(hp, axis);
                 // Metres `across` moves per point on screen, from the
                 // quad's derivatives: the octave is picked per plane and
                 // per stroke direction, so a floor seen edge-on climbs to
                 // wider rows across its depth (an anisotropic mip)
                 let rate = max(length(vec2<f32>(
-                    dot(plane_coords(wdx, axis), perp),
-                    dot(plane_coords(wdy, axis), perp),
+                    dot(plane_coords(hdx, axis), perp),
+                    dot(plane_coords(hdy, axis), perp),
                 )) * ppp, 1e-7);
                 let lvl = log2(row.a.x * rate);
                 let octave = floor(lvl);
@@ -545,8 +558,10 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         // its height is the tooth and the tone, its hue tints the paper
         let scale = max(row.h.x, 0.05);
         let lod = log2(max(1.0 / (scale * ppp), 1e-3));
-        let c = img_read(paper_tex, pt / scale, lod, true, vec2<f32>(0.0), vec2<f32>(0.0));
-        let hgt = img_paper_height(c, u.img.x, u.img.y);
+        let layer = img_layer(row.h.z);
+        let info = u.papers[layer];
+        let c = img_read(paper_tex, layer, info, pt / scale, lod, true, vec2<f32>(0.0), vec2<f32>(0.0));
+        let hgt = img_paper_height(c, info.stats.x, info.stats.y);
         paper_noise = hgt;
         tooth = smoothstep(0.2, 0.75, hgt);
         paper = row.e.xyz * img_paper_tint(c) * (1.0 - grain * 0.5 * (0.5 - hgt));
@@ -573,6 +588,6 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     }
     let lead = mix(row.f.xyz, row.f.xyz * 0.5 + scene * 0.35, row.d.z * 0.5);
     let out = mix(ground, lead, clamp(ink, 0.0, 1.0));
-    let encoded = select(out, to_linear(out), u.srgb > 0.5);
+    let encoded = select(out, flint_to_linear(out), u.srgb > 0.5);
     return vec4<f32>(encoded, src.a);
 }

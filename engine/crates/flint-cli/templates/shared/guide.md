@@ -18,7 +18,7 @@ flint play
 - `flint validate scenes/main.scene.toml` checks one scene against the schemas and the constraints, and `--fix` applies the fixes a constraint offers.
 - `flint render` draws the scene to a PNG with no window, through the scene's `[camera]`. Look at the picture after every visual change. `--no-grid` leaves the editor grid out and `--width` / `--height` set the size; `flint render --help` lists the rest. `--scripts --time 0.5` runs the scripts for half a second first. A script's HUD is not drawn in a render, only in play.
 - `flint play` opens the scene `flint.toml` names under `[project]`, or the scene you pass. Esc quits.
-- `flint edit scenes/main.scene.toml` opens the scene in a viewer that reloads when the file changes.
+- `flint edit scenes/main.scene.toml` opens the scene in a viewer that reloads when the file changes. When a person moves or tweaks something there and saves (Ctrl+S), each field written is a JSON line (entity, component, field, old, new) in `viewer-edits.jsonl`, in the project's `.flint` folder, which the save makes: read its tail to see what they changed.
 
 ## What is where
 
@@ -65,7 +65,7 @@ What trips people up:
 - **Lights.** A light is a `light` table with a `type` (`directional`, `point` or `spot`). A directional light's `direction` points toward the light. A scene with no light entity is lit by the engine's default pair, with no warning.
 - **Boxes.** `bounds` draws a box, so an entity with no shape of its own (a light, a script holder) carries no `bounds` and needs no `archetype`. An archetype that lists `bounds` gives the entity one, so on a non-visual entity it draws a box nobody wrote: `flint schema <archetype>` shows what an archetype brings.
 - **Solid things.** A solid thing is a `rigidbody` (`body_type` of `static`, `kinematic` or `dynamic`) and a `collider`. A box collider's `size` is its full extent, centred on the middle of the entity's `bounds`.
-- **Facing.** A character with a `character_controller` always starts facing +Z. Put the way in along +Z from where it stands.
+- **Facing.** A character with a `character_controller` starts facing +Z. Put the way in along +Z from where it stands, or turn it with `start_yaw` (degrees; 90 faces +X).
 - **Archetype defaults.** A component table in a scene merges field by field into its archetype's defaults; it does not replace them.
 - **Ids.** Entity ids differ from run to run. Find entities by name (`get_entity("name")`), and derive anything that must repeat from names.
 
@@ -85,7 +85,30 @@ max_hp = { type = "i32", default = 100, min = 1 }
 current_hp = { type = "i32", default = 100, min = 0 }
 ```
 
-An archetype (a named bundle of components with defaults) is a file in `schemas/archetypes`. A game schema with the same name as an engine one replaces it, so pick new names unless you mean to.
+An archetype (a named bundle of components with defaults) is a file in `schemas/archetypes`. A game schema with the same name as an engine one replaces it whole, so pick new names unless you mean to, or say `extend = true` to add to it (below).
+
+To add a field to an engine component instead (a `wetness` the game's scripts read on every `material`), declare only that field and say `extend = true`:
+
+```toml
+[component.material]
+extend = true
+
+[component.material.fields]
+wetness = { type = "f32", default = 0.0 }
+```
+
+The engine's own fields stay as the engine declares them, and `flint schema material` shows which file each field came from.
+
+An engine archetype extends the same way: the components listed are added to its own, and each default merges into the engine's key by key.
+
+```toml
+[archetype.player]
+extend = true
+components = ["stamina"]
+
+[archetype.player.defaults.stamina]
+max = 120.0
+```
 
 ## Scripts
 

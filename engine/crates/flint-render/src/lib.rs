@@ -6,7 +6,7 @@
 //! for skeletal animation.
 
 pub mod atlas;
-pub mod billboard_pipeline;
+pub(crate) mod billboard_pipeline;
 pub mod bind_cache;
 pub mod bitmap_font;
 mod camera;
@@ -14,81 +14,88 @@ mod context;
 mod debug;
 pub mod entity_style;
 mod file_watch;
+pub mod frame_capture;
+#[cfg(not(target_arch = "wasm32"))]
+mod frame_capture_write;
+pub mod frame_replay;
+mod frame_taps;
 pub mod frustum;
 pub mod glyph_atlas;
+pub mod gpu_counts;
+pub mod gpu_labels;
 mod gpu_mesh;
 pub mod gpu_select;
 pub mod gpu_timer;
-pub mod grass_pipeline;
+mod gpu_wait;
+pub(crate) mod grass_pipeline;
 pub mod ground_fog;
 mod headless;
 pub mod look;
+pub mod look_fade;
 pub mod model_loader;
 pub mod motion_hold;
-pub mod ocean_pipeline;
+pub(crate) mod ocean_pipeline;
 pub mod orbit_controller;
 pub mod palette;
 pub mod panels;
-pub mod particle_pipeline;
+pub(crate) mod particle_pipeline;
+pub mod pass_knobs;
 mod pipeline;
+pub mod pipeline_cache;
 pub mod post_style;
 pub mod postprocess;
 mod primitives;
 pub mod quality;
+pub mod render_mode;
 pub mod render_scale;
 pub mod render_stats;
 mod scene_renderer;
-pub mod selection_outline;
-pub mod shadow;
-pub mod skinned_pipeline;
-pub mod sky_pipeline;
-pub mod skybox_pipeline;
+pub(crate) mod selection_outline;
+pub(crate) mod shadow;
+pub mod shallow_wooze;
+pub(crate) mod skinned_pipeline;
+pub(crate) mod sky_pipeline;
+pub(crate) mod skybox_pipeline;
 pub mod split_view;
-pub mod sprite2d_pipeline;
-pub mod style_albedo;
+pub(crate) mod sprite2d_pipeline;
+pub(crate) mod style_albedo;
 pub mod style_mask;
 pub mod stylize;
-pub mod terrain_pipeline;
+mod surface_frame;
+pub(crate) mod terrain_pipeline;
 mod texture_cache;
+mod trusted_shader;
 pub mod water_body;
+mod wgsl_sources;
 mod wooze_pipeline;
-pub mod world_line_pipeline;
+pub(crate) mod world_line_pipeline;
 
 pub use atlas::{AtlasRegistry, TextureAtlas};
-pub use billboard_pipeline::BillboardPipeline;
-pub use bind_cache::{new_depth_id, DepthKey, DepthTarget};
+pub use bind_cache::{DepthKey, DepthTarget};
 pub use bitmap_font::{anchor_origin, apply_fill, BitmapFont};
 pub use camera::{Camera, CameraMode};
-pub use context::{resolve_present_mode, RenderContext, RenderError};
+pub use context::{resolve_present_mode, PresentOptions, RenderContext, RenderError, Vsync};
 pub use debug::{DebugMode, DebugState};
 pub use frustum::Frustum;
 pub use glyph_atlas::{
     EdgeGlyphs, GlyphAtlas, GlyphError, GlyphRamp, GlyphSet, GlyphSetCache, GpuGlyphAtlas, RampMap,
 };
-pub use gpu_mesh::{GpuMesh, GpuSkinnedMesh, MeshCache};
+pub use gpu_mesh::{GpuMesh, GpuSkinnedMesh, MeshCache, KEPT_GEOMETRY_LABEL};
 pub use gpu_select::{list_adapters, no_adapter_hint, set_gpu_override};
-pub use gpu_timer::{GpuPassTime, GpuScope, GpuSpread, GpuTimer, GpuTimings, PassSpread};
-pub use grass_pipeline::{
-    check_grass_mask_patch, grass_dispatch_window, GrassComputeUniforms, GrassEntityPosition,
-    GrassGround, GrassHeight, GrassInstanceGpu, GrassPipeline, GrassRenderUniforms, GrassVertex,
-    BLADE_INDEX_COUNT, MAX_GRASS_ENTITIES,
+pub use gpu_timer::{
+    GpuFrameTime, GpuPassTime, GpuScope, GpuSpread, GpuTimer, GpuTimings, PassSpread,
+    TimestampHealth, TracedGpuFrame, TracedPass, TIMESTAMPS_UNAVAILABLE,
 };
+pub use gpu_wait::{gpu_wait_timeout, wait_for_gpu};
+pub use grass_pipeline::{GrassEntityPosition, GrassGround, GrassHeight, GrassInstanceGpu};
 pub use ground_fog::GroundFog;
 pub use headless::HeadlessContext;
-pub use ocean_pipeline::{OceanPipeline, OceanUniformsGpu, OceanVisuals};
+pub use ocean_pipeline::{OceanTint, OceanVisuals};
 pub use orbit_controller::OrbitCameraController;
-pub use particle_pipeline::{
-    ParticleBlendMode, ParticleBuffers, ParticleDrawCall, ParticleDrawData, ParticleInstance,
-    ParticlePipeline, ParticleUniforms,
-};
-pub use pipeline::{
-    DirectionalLight, LightUniforms, MaterialUniforms, PointLight, RenderPipeline, SceneLayouts,
-    SpotLight, TransformUniforms,
-};
-pub use postprocess::{
-    post_process_config_from_def, PostProcessConfig, PostProcessPipeline, PostProcessResources,
-    HDR_FORMAT,
-};
+pub use particle_pipeline::{ParticleBlendMode, ParticleDrawData, ParticleInstance};
+pub use pass_knobs::PassKnobs;
+pub use pipeline::LightUniforms;
+pub use postprocess::{post_process_config_from_def, PostProcessConfig, HDR_FORMAT};
 pub use primitives::{
     create_box_mesh, create_plane_mesh, generate_normal_arrows, generate_skeleton_lines,
     generate_skeleton_lines_colored, srgb_to_linear, triangles_to_wireframe_indices, Mesh,
@@ -98,28 +105,33 @@ pub use quality::{gpu_info, GpuInfo, QualitySettings, QualityValue};
 pub use render_scale::{clamp_render_scale, scaled_size, MIN_RENDER_SCALE};
 pub use render_stats::{format_count, RenderStats};
 pub use scene_renderer::{
-    load_grass_ground_in, load_scene_grass_ground, load_scene_particle_textures, ArchetypeVisual,
-    LightingLevers, LoadedGrassGround, LodSettings, RendererConfig, SceneRenderer,
+    load_grass_ground_in, load_scene_grass_ground, load_scene_particle_textures,
+    load_scene_splines, BoundGrass, BoundScene, DrawControls, DrawLimit, FrameHost, FrameInputs,
+    HeldFrameCapture, LightingLevers, LoadedGrassGround, LoadedSplines, LoadedTerrain, LodSettings,
+    RendererConfig, SceneBinding, SceneRenderer, SplineCollider, SteppedPass, View2d,
     DEFAULT_CLEAR_COLOR,
 };
-pub use skinned_pipeline::SkinnedPipeline;
-pub use sky_pipeline::{SkyParams, SkyPipeline, SkyUniformsGpu};
-pub use skybox_pipeline::SkyboxPipeline;
+/// The most bones one skinned mesh's buffer holds.
+pub use skinned_pipeline::MAX_BONES;
+pub use sky_pipeline::SkyParams;
 pub use split_view::SplitView;
-pub use sprite2d_pipeline::{
-    Sprite2dBatch, Sprite2dInstanceGpu, Sprite2dPipeline, Sprite2dUniforms,
-};
+
 pub use style_mask::{StyleIds, STYLE_MASK_FORMAT};
-pub use terrain_pipeline::{TerrainDrawCall, TerrainPipeline, TerrainUniforms};
-pub use texture_cache::{memoize_mip_chains, open_image, TextureCache};
+pub use surface_frame::{AcquireFrame, SurfaceError};
+pub use texture_cache::{memoize_mip_chains, open_image, TextureCache, KEPT_TEXTURE_LABEL};
+pub use trusted_shader::TrustedShader;
 pub use water_body::{river_points, RiverPoint, WaterBodyLook, WaterBodyMesh, WaterVertex};
 pub use wooze_pipeline::{ShallowWoozeDraw, WAVELENGTH_MIN};
+/// How far a world line's ends are pulled toward the eye, as a share of
+/// their distance (ADR 0083), so a line or text lying on a surface
+/// doesn't fight it for depth. The player's world text uses it too.
+pub use world_line_pipeline::DEPTH_SLACK as WORLD_LINE_DEPTH_SLACK;
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn shader_wgsl_parses_and_validates() {
-        let source = include_str!("shader.wgsl");
+        let source = crate::wgsl_sources::SCENE;
         let module = naga::front::wgsl::parse_str(source).expect("shader.wgsl failed to parse");
         naga::valid::Validator::new(
             naga::valid::ValidationFlags::all(),
@@ -136,8 +148,8 @@ mod tests {
     #[test]
     fn material_group_holds_no_samplers() {
         for (name, source) in [
-            ("shader.wgsl", include_str!("shader.wgsl")),
-            ("skinned_shader.wgsl", include_str!("skinned_shader.wgsl")),
+            ("shader.wgsl", crate::wgsl_sources::SCENE),
+            ("skinned_shader.wgsl", crate::wgsl_sources::SKINNED),
         ] {
             let module = naga::front::wgsl::parse_str(source).expect(name);
             let mut material_sampler = None;
@@ -164,9 +176,17 @@ mod tests {
     /// Both of the shading boil's passes, on the validator the player's GPU runs.
     #[test]
     fn shading_boil_shaders_validate() {
+        // With the helpers they're built with (#743)
         for source in [
-            include_str!("stylize/contour.wgsl"),
-            include_str!("stylize/kuwahara.wgsl"),
+            concat!(
+                include_str!("stylize/prelude_core.wgsl"),
+                include_str!("stylize/edges_read.wgsl"),
+                include_str!("stylize/contour.wgsl")
+            ),
+            concat!(
+                include_str!("stylize/prelude_core.wgsl"),
+                include_str!("stylize/kuwahara.wgsl")
+            ),
         ] {
             let module = naga::front::wgsl::parse_str(source).expect("failed to parse");
             naga::valid::Validator::new(
@@ -186,7 +206,7 @@ mod tests {
 
     #[test]
     fn skinned_shader_wgsl_parses() {
-        let source = include_str!("skinned_shader.wgsl");
+        let source = crate::wgsl_sources::SKINNED;
         naga::front::wgsl::parse_str(source).expect("skinned_shader.wgsl failed to parse");
     }
 
@@ -211,7 +231,7 @@ mod tests {
 
     #[test]
     fn terrain_shader_wgsl_parses() {
-        let source = include_str!("terrain_shader.wgsl");
+        let source = crate::wgsl_sources::TERRAIN;
         naga::front::wgsl::parse_str(source).expect("terrain_shader.wgsl failed to parse");
     }
 
@@ -220,7 +240,7 @@ mod tests {
         // Validated too: a failure here would otherwise only show as the
         // pipeline's catch_unwind quietly turning the ocean (and every water
         // body) off.
-        let source = include_str!("ocean_shader.wgsl");
+        let source = crate::wgsl_sources::OCEAN;
         let module =
             naga::front::wgsl::parse_str(source).expect("ocean_shader.wgsl failed to parse");
         naga::valid::Validator::new(
@@ -251,15 +271,20 @@ mod tests {
 
     #[test]
     fn composite_shader_wgsl_parses_and_validates() {
-        let source = crate::postprocess::COMPOSITE_WGSL;
-        let module =
-            naga::front::wgsl::parse_str(source).expect("composite_shader.wgsl failed to parse");
-        naga::valid::Validator::new(
-            naga::valid::ValidationFlags::all(),
-            naga::valid::Capabilities::default(),
-        )
-        .validate(&module)
-        .expect("composite_shader.wgsl failed validation");
+        // Both: the plain composite and the fog veil's (#513)
+        for source in [
+            crate::postprocess::COMPOSITE_WGSL,
+            crate::postprocess::COMPOSITE_VEILED_WGSL,
+        ] {
+            let module = naga::front::wgsl::parse_str(source)
+                .expect("composite_shader.wgsl failed to parse");
+            naga::valid::Validator::new(
+                naga::valid::ValidationFlags::all(),
+                naga::valid::Capabilities::default(),
+            )
+            .validate(&module)
+            .expect("composite_shader.wgsl failed validation");
+        }
     }
 
     #[test]
@@ -291,17 +316,17 @@ mod tests {
     #[test]
     fn post_process_uniforms_layout() {
         // Desaturate reused a pre-existing pad slot (176 bytes); the DoF row
-        // (strength/focus/range/_pad2) and the render-mode rows
-        // (render_mode/mode_mix/mode_time/pad + mode_params vec4) were
-        // appended after inv_view_proj (224); the color-grade rows
-        // (lift+enabled / gamma+pad / gain+pad, ADR 0050) grew it to 272,
-        // with film grain reusing the former _pad slot; the fog rows (aerial
-        // tint, height fog density, ADR 0101) grew it to 304, and the ground
-        // fog rows (ADR 0106) to 368. Any other size means the Rust struct
-        // and the WGSL mirror have diverged.
+        // (strength/focus/range/_pad2) and the post time row (the render
+        // modes' two rows until #746 made them styles) were appended after
+        // inv_view_proj (208); the color-grade rows (lift+enabled /
+        // gamma+pad / gain+pad, ADR 0050) grew it to 256, with film grain
+        // reusing the former _pad slot; the fog rows (aerial tint, height fog
+        // density, ADR 0101) grew it to 288, and the ground fog rows (ADR
+        // 0106) to 352. Any other size means the Rust struct and the WGSL
+        // mirror have diverged.
         let size = std::mem::size_of::<crate::postprocess::PostProcessUniforms>();
         assert_eq!(size % 16, 0, "PostProcessUniforms not 16-byte aligned");
-        assert_eq!(size, 368, "PostProcessUniforms size changed");
+        assert_eq!(size, 352, "PostProcessUniforms size changed");
     }
 
     #[test]
@@ -353,10 +378,10 @@ mod tests {
 
     #[test]
     fn light_uniforms_layout() {
-        // LightUniforms is mirrored field-for-field in SIX WGSL structs
-        // (shader / skinned / terrain / grass_render / volumetric / ocean);
-        // bind groups use min_binding_size: None, so a divergence surfaces
-        // as a draw-time wgpu validation error, not a compile error. The
+        // LightUniforms is declared once in WGSL, lights.wgsl (#738), and
+        // `wgsl_sources::tests::wgsl_layouts_match_rust` holds its size to
+        // this struct's in every shader; bind groups use min_binding_size:
+        // None, so a divergence would surface only at draw time. The
         // sheen vec4 (ADR 0048) grew the struct from 1264 to 1280 bytes;
         // PointLight's source_radius row (ADR 0056) grew it to 1536
         // (16 point lights × 16 extra bytes).
@@ -364,7 +389,7 @@ mod tests {
         assert_eq!(size % 16, 0, "LightUniforms not 16-byte aligned");
         assert_eq!(
             size, 1536,
-            "LightUniforms size changed — update all six WGSL mirrors"
+            "LightUniforms size changed — update lights.wgsl"
         );
     }
 
@@ -415,14 +440,60 @@ mod tests {
 
     #[test]
     fn shadow_uniforms_layout() {
-        // ShadowUniforms is mirrored in six WGSL shaders (same set as
-        // LightUniforms); the PCSS vec4 (ADR 0057) grew it 208 → 224 bytes.
+        // ShadowUniforms is declared once in WGSL, lights.wgsl (#738); the
+        // PCSS vec4 (ADR 0057) grew it 208 → 224 bytes, the spot's
+        // matrix and vec4 (ADR 0124) to 304, and the point light's six face
+        // matrices and two vec4s (ADR 0132) to 720.
         let size = std::mem::size_of::<crate::shadow::ShadowUniforms>();
         assert_eq!(size % 16, 0, "ShadowUniforms not 16-byte aligned");
         assert_eq!(
-            size, 224,
-            "ShadowUniforms size changed — update all six WGSL mirrors"
+            size, 720,
+            "ShadowUniforms size changed — update lights.wgsl"
         );
+        assert_eq!(
+            std::mem::offset_of!(crate::shadow::ShadowUniforms, spot_view_proj),
+            224,
+            "the spot's fields follow `pcss`"
+        );
+        assert_eq!(
+            std::mem::offset_of!(crate::shadow::ShadowUniforms, point_view_proj),
+            304,
+            "the point light's fields follow the spot's"
+        );
+    }
+
+    #[test]
+    fn shadow_uniforms_default_point_is_off() {
+        use bytemuck::Zeroable;
+        // point.w = 0 lights every point light as before (#1112)
+        assert_eq!(crate::shadow::ShadowUniforms::default().point, [0.0; 4]);
+        assert_eq!(crate::shadow::ShadowUniforms::zeroed().point, [0.0; 4]);
+    }
+
+    #[test]
+    fn point_shadow_mark_rides_the_old_pad() {
+        // `PointLight::shadow` is the former `_pad0`: the struct stays 48 bytes
+        use crate::pipeline::PointLight;
+        assert_eq!(std::mem::size_of::<PointLight>(), 48);
+        assert_eq!(std::mem::offset_of!(PointLight, shadow), 36);
+        assert_eq!(PointLight::default().shadow, 0.0);
+    }
+
+    #[test]
+    fn shadow_uniforms_default_spot_is_off() {
+        use bytemuck::Zeroable;
+        // spot.w = 0 lights every spot as before (#504)
+        assert_eq!(crate::shadow::ShadowUniforms::default().spot, [0.0; 4]);
+        assert_eq!(crate::shadow::ShadowUniforms::zeroed().spot, [0.0; 4]);
+    }
+
+    #[test]
+    fn spot_shadow_mark_rides_the_old_pad() {
+        // `SpotLight::shadow` is the former `_pad1`: the struct stays 64 bytes
+        use crate::pipeline::SpotLight;
+        assert_eq!(std::mem::size_of::<SpotLight>(), 64);
+        assert_eq!(std::mem::offset_of!(SpotLight, shadow), 56);
+        assert_eq!(SpotLight::default().shadow, 0.0);
     }
 
     #[test]
@@ -495,7 +566,7 @@ mod tests {
             .expect("GrassComputeUniforms in grass_compute.wgsl");
         assert_eq!(
             span as usize,
-            std::mem::size_of::<crate::GrassComputeUniforms>()
+            std::mem::size_of::<crate::grass_pipeline::GrassComputeUniforms>()
         );
     }
 
@@ -503,10 +574,7 @@ mod tests {
     fn grass_render_shader_wgsl_parses() {
         // As grass_pipeline.rs builds it: shallow wooze's noise first, for the
         // comb of woozy grass (#252).
-        let source = concat!(
-            include_str!("wooze_noise.wgsl"),
-            include_str!("grass_render.wgsl")
-        );
+        let source = crate::wgsl_sources::GRASS;
         let module =
             naga::front::wgsl::parse_str(source).expect("grass_render.wgsl failed to parse");
         naga::valid::Validator::new(
@@ -528,7 +596,7 @@ mod tests {
             .expect("GrassRenderUniforms in grass_render.wgsl");
         assert_eq!(
             span as usize,
-            std::mem::size_of::<crate::GrassRenderUniforms>()
+            std::mem::size_of::<crate::grass_pipeline::GrassRenderUniforms>()
         );
     }
 }

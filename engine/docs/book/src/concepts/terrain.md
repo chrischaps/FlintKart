@@ -93,6 +93,21 @@ Splat maps can be painted manually in any image editor that supports RGBA channe
 - **Steep slopes / high peaks** --- rock (blue channel)
 - **Very low areas** --- sand (alpha channel)
 
+## Generating Terrain From a Spec
+
+A `.terrain.toml` spec describes both maps as a recipe: `[geometry]` (size, height and resolution), a list of `[[height_layers]]` run in order (`op = "noise"`, `"flatten"` or `"erosion"`), and `[[splat_rules]]` that paint each layer by height, slope and noise. [`flint-examples/rolling_meadow.terrain.toml`](https://github.com/chrischaps/flint-examples/blob/main/rolling_meadow.terrain.toml) is one. Shape it by eye in the terrain editor (`flint edit x.terrain.toml`), or bake it from the command line:
+
+```bash
+flint gen flint-examples/rolling_meadow.terrain.toml -o terrain/meadow.png   # heightmap + terrain/meadow_splat.png
+flint gen flint-examples/rolling_meadow.terrain.toml -o terrain/             # terrain/rolling_meadow.png + _splat.png
+flint gen flint-examples/rolling_meadow.terrain.toml --seed 12 --dry-run     # what it would write
+flint gen flint-examples/rolling_meadow.terrain.toml -o terrain/ --json      # seed, coverage, each file's SHA-256
+```
+
+The heightmap is a 16-bit greyscale PNG and the splat map an RGBA8 PNG at the same resolution; point the `terrain` component's `heightmap` and `splat_map` at them. Both are the bytes the editor's Ctrl+E export writes, and the same spec and seed bake the same bytes every run. The summary says how much of the ground each layer covers, named by its texture's `label`.
+
+A key nothing reads is reported with its path and the key it was probably meant to be (``height_layers[1].octave: unknown key in `height_layers[1]`; did you mean `octaves`?``), as is a splat rule for a layer past 3. With `--strict` either is an error, before anything is written.
+
 ## Texture Tiling
 
 Layer textures are **tiled** across the terrain surface based on world position, not the terrain UV. The `texture_tile` field controls how many times the texture repeats per 100 world units:
@@ -248,7 +263,7 @@ Terrain is fully cleared and reloaded during [scene transitions](scripting.md). 
 The terrain system is split across crates to maintain clean dependency boundaries:
 
 - **`flint-terrain`** --- pure data crate (no GPU dependency). Generates chunked mesh geometry from heightmap data. Outputs raw positions, normals, UVs, and indices.
-- **`flint-render`** --- `TerrainPipeline` and `terrain_shader.wgsl`. Assembles GPU vertex buffers from terrain data, handles splat-map texture blending and PBR lighting. `GrassPipeline` with `grass_compute.wgsl` and `grass_render.wgsl` owns the grass layer; `flint-terrain` only holds its `GrassConfig`.
+- **`flint-render`** --- `TerrainPipeline` and `terrain_shader.wgsl`. Assembles GPU vertex buffers from terrain data and handles splat-map texture blending; its lighting is the meshes' own (`direct_light.wgsl`, #738). `GrassPipeline` with `grass_compute.wgsl` and `grass_render.wgsl` owns the grass layer; `flint-terrain` only holds its `GrassConfig`.
 - **`flint-physics`** --- reuses existing `register_static_trimesh()` for collision. No terrain-specific physics code needed.
 - **`flint-script`** --- `terrain_height(x, z)` Rhai function via callback pattern.
 
@@ -262,7 +277,7 @@ This separation means `flint-terrain` can be used independently for tools, CLI c
 - **CPU-side simulation** --- no GPU compute for terrain generation
 - **Fixed PBR parameters** --- metallic and roughness are uniform across the entire terrain surface
 
-See the [Terrain Roadmap](../../../TERRAIN_ROADMAP.md) for planned features including LOD, sculpting, auto-splatting, triplanar mapping, and more.
+See the [Terrain Roadmap](https://github.com/chrischaps/Flint/blob/main/docs/TERRAIN_ROADMAP.md) for planned features: chunk LOD, per-layer normal maps, triplanar mapping, several terrains a scene, and more.
 
 ## Further Reading
 
