@@ -226,8 +226,8 @@ fn draw_control(th, t, name, run, x, y, w, h, k, focus, sel_t, layer) {
         }
         let c = if on { th.c.ink } else { th.c.cream };
         let lift = if name == "auto" && tn == run { 2.0 * k } else { 0.0 };
-        draw_text_opts(sx + sw / 2.0, y + h / 2.0 - size * 0.62 - lift, label(t, tn), size,
-                       #{ font: th.f.label, color: c, align: "center", layer: layer + 2, spacing: size * 0.06 });
+        draw_text(sx + sw / 2.0, y + h / 2.0 - size * 0.62 - lift, label(t, tn), size,
+                  #{ font: th.f.label, color: c, align: "center", layer: layer + 2, spacing: size * 0.06 });
         if name == "auto" && tn == run {
             // Auto's tier: a sun dot under its label, breathing gently
             let r = 2.4 * k * (1.0 + 0.15 * sin(total_time() * 2.4));

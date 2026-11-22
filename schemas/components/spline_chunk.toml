@@ -2,13 +2,13 @@
 description = "Chunked section of spline mesh for camera occlusion fading"
 
 [component.spline_chunk.fields.chunk_index]
-type = "int"
+type = "i32"
 default = 0
 
 [component.spline_chunk.fields.t_start]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.spline_chunk.fields.t_end]
-type = "float"
+type = "f32"
 default = 0.0

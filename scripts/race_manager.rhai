@@ -31,7 +31,7 @@ let time_scale_now = 1.0;
 let start_grid = #{};
 
 fn on_init() {
-    let me = this_entity();
+    let me = self_entity();
     let karts = find_entities_with("kart_state");
     for kid in karts {
         let p = get_position(kid);
@@ -43,7 +43,7 @@ fn on_init() {
 }
 
 fn on_update() {
-    let me = this_entity();
+    let me = self_entity();
     let dt = delta_time();
     let state = get_field(me, "race_state", "state");
 
@@ -458,7 +458,7 @@ fn grace_period(total_laps, race_time) {
 // The scene file's stem ("scenes/oval_plus.scene.toml" -> "oval_plus"),
 // which names this track's records
 fn track_key() {
-    let path = current_scene();
+    let path = get_current_scene();
     path.replace("\\", "/");
     let parts = path.split("/");
     let file = parts[parts.len() - 1];

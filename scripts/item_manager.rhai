@@ -14,7 +14,7 @@ let trap_ids = [];
 let box_ids = [];
 
 fn on_init() {
-    manager_id = this_entity();
+    manager_id = self_entity();
     track_id = get_entity("track_path");
 
     // Discover pool entities

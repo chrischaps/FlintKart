@@ -6,13 +6,13 @@ type = "string"
 default = "Racer"
 
 [component.racer_info.fields.color_r]
-type = "float"
+type = "f32"
 default = 1.0
 
 [component.racer_info.fields.color_g]
-type = "float"
+type = "f32"
 default = 1.0
 
 [component.racer_info.fields.color_b]
-type = "float"
+type = "f32"
 default = 1.0

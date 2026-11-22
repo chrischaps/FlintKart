@@ -6,39 +6,39 @@ type = "string"
 default = "none"
 
 [component.drift_state.fields.drift_angle]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.drift_state.fields.drift_direction]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.drift_state.fields.drift_timer]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.drift_state.fields.boost_tier]
-type = "int"
+type = "i32"
 default = 0
 
 [component.drift_state.fields.boost_time_remaining]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.drift_state.fields.boost_speed_bonus]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.drift_state.fields.hop_timer]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.drift_state.fields.tier]
-type = "int"
+type = "i32"
 default = 0
 description = "Current drift charge tier (0-3) while hopping or drifting; 0 otherwise"
 
 [component.drift_state.fields.charge]
-type = "float"
+type = "f32"
 default = 0.0
 description = "Drift charge in seconds; faster when steering into the drift"

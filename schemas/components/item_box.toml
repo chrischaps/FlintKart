@@ -6,22 +6,22 @@ type = "bool"
 default = true
 
 [component.item_box.fields.respawn_timer]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.item_box.fields.respawn_duration]
-type = "float"
+type = "f32"
 default = 8.0
 
 [component.item_box.fields.spline_t]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.item_box.fields.lane]
-type = "float"
+type = "f32"
 default = 0.0
 description = "Offset along spline right vector"
 
 [component.item_box.fields.base_y]
-type = "float"
+type = "f32"
 default = 0.0

@@ -76,7 +76,7 @@ let fx_k = 1.0;
 let shown = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0];
 
 fn on_init() {
-    let me = this_entity();
+    let me = self_entity();
     if has_component(me, "kart_visuals_config") {
         kart_name = get_field(me, "kart_visuals_config", "kart");
         prefix = get_field(me, "kart_visuals_config", "prefix");

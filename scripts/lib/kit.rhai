@@ -149,11 +149,11 @@ fn ordinal(n) {
 // ── Primitives ─────────────────────────────────────────────────────────
 
 fn rect(x, y, w, h, c, radius, layer) {
-    draw_rect_ex(x, y, w, h, c[0], c[1], c[2], c[3], radius, layer);
+    draw_rect(x, y, w, h, #{ color: c, rounding: radius, layer: layer });
 }
 
 fn circle(x, y, radius, c, layer) {
-    draw_circle_ex(x, y, radius, c[0], c[1], c[2], c[3], layer);
+    draw_circle(x, y, radius, #{ color: c, layer: layer });
 }
 
 fn poly(points, c, layer) {
@@ -161,7 +161,7 @@ fn poly(points, c, layer) {
 }
 
 fn line(x1, y1, x2, y2, c, thick, layer) {
-    draw_line_ex(x1, y1, x2, y2, c[0], c[1], c[2], c[3], thick, layer);
+    draw_line(x1, y1, x2, y2, #{ color: c, thickness: thick, layer: layer });
 }
 
 // Arc from a0 to a1 degrees, 12 o'clock = 0, clockwise.
@@ -225,12 +225,12 @@ fn bubble(th, cx, cy, radius, face, k, a, layer) {
 // ── Text ───────────────────────────────────────────────────────────────
 
 fn measure(s, size, font) {
-    measure_text_ex(s, size, font, 0.0)
+    measure_text(s, size, #{ font: font })
 }
 
 // Plain text in a face. align: "left" | "center" | "right" (x is that edge).
 fn text(x, y, s, size, font, c, align, layer) {
-    draw_text_opts(x, y, s, size, #{ font: font, color: c, align: align, layer: layer });
+    draw_text(x, y, s, size, #{ font: font, color: c, align: align, layer: layer });
 }
 
 // Sticker lettering: the display face with a thick ink outline and a hard
@@ -250,11 +250,11 @@ fn shout_in(th, x, y, s, size, font, fill, align, a, layer) {
     // whole outlined sticker instead: the same text and stroke, all ink,
     // drawn first and straight down by sd.
     let sa = a * 0.85;
-    draw_text_opts(x, y + sd, s, size, #{
+    draw_text(x, y + sd, s, size, #{
         font: font, color: fade(ink, sa), align: align, layer: layer,
         stroke: [ink[0], ink[1], ink[2], sa, sw]
     });
-    draw_text_opts(x, y, s, size, #{
+    draw_text(x, y, s, size, #{
         font: font, color: fade(fill, a), align: align, layer: layer,
         stroke: [ink[0], ink[1], ink[2], a, sw]
     });
@@ -269,22 +269,22 @@ fn shout_c(th, cx, cy, s, size, fill, sc, a, layer) {
 
 // Small label in the label face, on a dark sticker.
 fn label(th, x, y, s, size, c, align, layer) {
-    draw_text_opts(x, y, s, size, #{ font: th.f.label, color: c, align: align, layer: layer, spacing: size * 0.04 });
+    draw_text(x, y, s, size, #{ font: th.f.label, color: c, align: align, layer: layer, spacing: size * 0.04 });
 }
 
 // A controls hint: small cream label on a dark pill, centred on cx, so it
 // reads over bright sky as well as asphalt.
 fn hint(th, cx, y, s, k, a, layer) {
     let size = th.t.sm * k;
-    let w = measure_text_ex(s, size, th.f.label, size * 0.04).width + 28.0 * k;
+    let w = measure_text(s, size, #{ font: th.f.label, spacing: size * 0.04 }).width + 28.0 * k;
     let h = size + 12.0 * k;
     rect(cx - w / 2.0, y, w, h, fade(th.c.panel, a), h / 2.0, layer);
-    draw_text_opts(cx, y + 5.0 * k, s, size, #{ font: th.f.label, color: fade(th.c.cream, a), align: "center", layer: layer, spacing: size * 0.04 });
+    draw_text(cx, y + 5.0 * k, s, size, #{ font: th.f.label, color: fade(th.c.cream, a), align: "center", layer: layer, spacing: size * 0.04 });
 }
 
 // Number in the panel face (tabular digits).
 fn number(th, x, y, s, size, c, align, layer) {
-    draw_text_opts(x, y, s, size, #{ font: th.f.number, color: c, align: align, layer: layer });
+    draw_text(x, y, s, size, #{ font: th.f.number, color: c, align: align, layer: layer });
 }
 
 // ── Icons (convex pieces only: draw_polygon fills convex shapes) ──────
@@ -313,7 +313,7 @@ fn item_icon(th, item, cx, cy, r, a, layer) {
         while i < 3 {
             let ly = cy - r * 0.42 + i * r * 0.42;
             let lx = cx - r * (0.95 + 0.12 * (i % 2));
-            draw_line_ex(lx, ly, cx - r * 0.35, ly, ink[0], ink[1], ink[2], ink[3], r * 0.16, layer);
+            draw_line(lx, ly, cx - r * 0.35, ly, #{ color: ink, thickness: r * 0.16, layer: layer });
             i += 1;
         }
         circle(cx + r * 0.18, cy, r * 0.72, ink, layer);

@@ -158,7 +158,7 @@ fn on_draw_ui() {
     }
     if !on { return; }
 
-    let paused = current_state() == "paused";
+    let paused = get_current_state() == "paused";
     let mgr = get_entity("race_manager");
     let racing = !paused && mgr >= 0 && transition_phase() == "idle"
                  && get_field(mgr, "race_state", "state") == "racing";

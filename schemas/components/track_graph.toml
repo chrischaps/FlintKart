@@ -2,11 +2,11 @@
 description = "Track graph topology — marks a branching track with segment children"
 
 [component.track_graph.fields.segment_count]
-type = "integer"
+type = "i32"
 default = 0
 
 [component.track_graph.fields.node_count]
-type = "integer"
+type = "i32"
 default = 0
 
 [component.track_graph.fields.closed]
@@ -14,7 +14,7 @@ type = "bool"
 default = true
 
 [component.track_graph.fields.total_length]
-type = "float"
+type = "f32"
 default = 0.0
 
 # Comma-separated segment entity names — scripts iterate these

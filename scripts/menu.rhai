@@ -365,8 +365,8 @@ fn on_update() {
 
     // Subtle bloom/exposure lift during straight boost
     if launch_state == "none" {
-        set_bloom_intensity(0.12 + mode_blend * 0.08);
-        set_exposure(1.15 + mode_blend * 0.10);
+        set_post("bloom_intensity", 0.12 + mode_blend * 0.08);
+        set_post("exposure", 1.15 + mode_blend * 0.10);
     }
 
     // FOV — widens during straight for speed feel, builds tension during launch
@@ -388,8 +388,8 @@ fn on_update() {
         let t = launch_timer / 0.8;
         if t > 1.0 { t = 1.0; }
 
-        set_bloom_intensity(0.12 + t * 0.23);
-        set_exposure(1.15 + t * 0.25);
+        set_post("bloom_intensity", 0.12 + t * 0.23);
+        set_post("exposure", 1.15 + t * 0.25);
         line_burst = 1.0 + t * 0.5;
 
         if launch_timer >= 0.8 {
@@ -400,9 +400,10 @@ fn on_update() {
     } else if launch_state == "burst" {
         launch_timer = launch_timer + dt;
 
-        set_bloom_intensity(0.5);
-        set_vignette(0.7);
-        set_exposure(1.6);
+        set_post("bloom_intensity", 0.5);
+        set_post("vignette_enabled", true);
+        set_post("vignette_intensity", 0.7);
+        set_post("exposure", 1.6);
         line_burst = 3.0;
 
         if launch_timer >= 0.3 {
@@ -454,7 +455,7 @@ fn on_draw_ui() {
     let phase = transition_phase();
     if phase == "exiting" {
         fade_alpha = transition_progress();
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, fade_alpha, 0.0, 30);
+        draw_rect(0.0, 0.0, sw, sh, #{ color: [0.0, 0.0, 0.0, fade_alpha], layer: 30 });
         if fade_alpha >= 1.0 { complete_transition(); }
         return;
     }
@@ -493,8 +494,8 @@ fn on_draw_ui() {
     // over the scene, so every alpha here stays small.
     let sun = th.c.sun;
     let gr = sh * 0.17 * (0.75 + 0.25 * line_burst) * (1.0 + 0.04 * sin(time * 1.3) * breathe);
-    draw_circle_ex(hub_x, hub_y, gr * 1.3, sun[0], sun[1], sun[2], 0.010 * flare, 0);
-    draw_circle_ex(hub_x, hub_y, gr, sun[0], sun[1], sun[2], 0.014 * flare, 0);
+    draw_circle(hub_x, hub_y, gr * 1.3, #{ color: [sun[0], sun[1], sun[2], 0.010 * flare] });
+    draw_circle(hub_x, hub_y, gr, #{ color: [sun[0], sun[1], sun[2], 0.014 * flare] });
 
     // Rays (make_rays): broad sun wedges and slim cream ones, each a little
     // off the even spacing and its own length. Two bands: a wedge from the
@@ -557,7 +558,7 @@ fn on_draw_ui() {
             let cb = c[2] + (cream[2] - c[2]) * shine;
             let sz = p.size * depth * k;
             if p.shape == 2 {
-                draw_circle_ex(p.x, p.y, sz * 0.42 * (0.85 + 0.15 * flip), cr, cg, cb, a, 2);
+                draw_circle(p.x, p.y, sz * 0.42 * (0.85 + 0.15 * flip), #{ color: [cr, cg, cb, a], layer: 2 });
             } else {
                 let rot = p.rot + time * p.twirl * spin_on;
                 let hl = if p.shape == 0 { sz * 0.9 } else { sz * 0.5 };
@@ -848,11 +849,11 @@ fn on_draw_ui() {
     if launch_state == "burst" {
         let bt = kit::clamp01(launch_timer / 0.3);
         let c = th.c.cream;
-        draw_rect_ex(0.0, 0.0, sw, sh, c[0], c[1], c[2], 0.5 * (1.0 - bt), 0.0, 29);
+        draw_rect(0.0, 0.0, sw, sh, #{ color: [c[0], c[1], c[2], 0.5 * (1.0 - bt)], layer: 29 });
     }
 
     if fade_alpha > 0.01 {
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, fade_alpha, 0.0, 30);
+        draw_rect(0.0, 0.0, sw, sh, #{ color: [0.0, 0.0, 0.0, fade_alpha], layer: 30 });
     }
 }
 
@@ -1030,7 +1031,7 @@ fn draw_preview(th, pv, x, y, w, h, accent, time, k, layer) {
         let i = 0;
         while i < l.len() {
             if ground[i][1] - road[i][1] > 6.0 * k {
-                draw_line_ex(road[i][0], road[i][1], ground[i][0], ground[i][1], ink[0], ink[1], ink[2], 0.5, 2.0 * k, layer);
+                draw_line(road[i][0], road[i][1], ground[i][0], ground[i][1], #{ color: [ink[0], ink[1], ink[2], 0.5], thickness: 2.0 * k, layer: layer });
             }
             i += 4;
         }
@@ -1045,7 +1046,7 @@ fn draw_preview(th, pv, x, y, w, h, accent, time, k, layer) {
             let c = th.c.sun;
             while j + 1 < road.len() {
                 if (j / 2) % 2 == 0 {
-                    draw_line_ex(road[j][0], road[j][1], road[j + 1][0], road[j + 1][1], c[0], c[1], c[2], 1.0, 4.0 * k, layer);
+                    draw_line(road[j][0], road[j][1], road[j + 1][0], road[j + 1][1], #{ color: [c[0], c[1], c[2], 1.0], thickness: 4.0 * k, layer: layer });
                 }
                 j += 1;
             }

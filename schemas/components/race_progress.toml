@@ -2,35 +2,35 @@
 description = "Per-entity lap tracking and race progress"
 
 [component.race_progress.fields.spline_t]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.race_progress.fields.prev_spline_t]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.race_progress.fields.current_lap]
-type = "integer"
+type = "i32"
 default = 0
 
 [component.race_progress.fields.total_laps]
-type = "integer"
+type = "i32"
 default = 3
 
 [component.race_progress.fields.lap_time]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.race_progress.fields.best_lap]
-type = "float"
+type = "f32"
 default = 999.0
 
 [component.race_progress.fields.race_time]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.race_progress.fields.finish_time]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.race_progress.fields.passed_start]
