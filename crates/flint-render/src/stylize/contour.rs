@@ -114,7 +114,8 @@ struct Contour {
     scene_bgl: wgpu::BindGroupLayout,
     depth_bgl: wgpu::BindGroupLayout,
     uniforms: wgpu::Buffer,
-    /// Depth is read by the nearest texel. One kept bind group holds it,
+    /// Depth and the shared edges are read by the nearest texel (the
+    /// edges through it since #1257). One kept bind group holds it,
     /// bound once a frame, so the DX12 sampler heap is safe.
     depth_sampler: wgpu::Sampler,
     /// Bound if the shared edge pass couldn't be built: one texel of no edge.
@@ -153,7 +154,7 @@ impl Contour {
         let pipeline = kit::fullscreen_pipeline(
             device,
             "Contour Pipeline",
-            &kit::shader(device, "Contour Shader", kit::wgsl!("prelude_core.wgsl", "edges_read.wgsl", "contour.wgsl")),
+            &kit::shader(device, "Contour Shader", kit::wgsl!("prelude_core.wgsl", "noise.wgsl", "edges_read.wgsl", "contour.wgsl")),
             &[&uniform_bgl, &scene_bgl, &depth_bgl],
             HDR_FORMAT,
         );

@@ -50,6 +50,39 @@ impl SceneRenderer {
     /// Timing (`fps`, `frame_time_ms`) and `resolution` are left at zero —
     /// the caller fills these from their own timing and context.
     /// `scene_resolution` is the renderer's own.
+    /// Whether the last frame drew any of `entities` (#1191, a playtest's
+    /// `frame draws`, which asks of an entity and its descendants: a
+    /// model's nodes): `None` when the draw list holds nothing of them,
+    /// `Some(false)` when every draw they have was culled (frustum, level
+    /// of detail, draw distance, hidden). Read after a frame is encoded,
+    /// before the next `prepare` rebuilds the list. A draw with no bounds
+    /// (a procedural box, a wireframe) is never culled (ADR 0074).
+    pub fn entities_drawn(&self, entities: &[flint_core::EntityId]) -> Option<bool> {
+        let mut found = None;
+        let ours = |i: &&DrawItem| i.entity.is_some_and(|e| entities.contains(&e));
+        for item in self.draws.iter().filter(ours) {
+            if item.drawn() {
+                return Some(true);
+            }
+            found = Some(false);
+        }
+        found
+    }
+
+    /// Whether style `name` reached the last frame (#1191, a playtest's
+    /// `frame style`): post-processing on, the style on over the frame or
+    /// for an entity asking for it, and a blend and reveal that leave some
+    /// of it in the picture. `None` for a name no registered style has.
+    pub fn style_drawn(&self, name: &str) -> Option<bool> {
+        let style = self.styles().find(name)?;
+        let config = self.effective_post_process_config();
+        Some(
+            config.enabled
+                && style.is_on(config, &self.style_mask.ids)
+                && config.styles.shows_in(name, config),
+        )
+    }
+
     pub fn collect_stats(&self) -> crate::render_stats::RenderStats {
         use crate::grass_pipeline::BLADE_INDEX_COUNT;
 
@@ -294,6 +327,39 @@ impl SceneRenderer {
     /// [`GpuTimer::end`]: crate::GpuTimer::end
     pub fn gpu_timer_mut(&mut self) -> Option<&mut crate::gpu_timer::GpuTimer> {
         self.gpu_timer.as_mut()
+    }
+
+    /// The scene pass's draws one frame times at most
+    /// ([`DrawControls::time_draws`](super::DrawControls::time_draws), #1203).
+    pub const DRAW_TIME_BATCH: usize = super::draw_times::BATCH;
+
+    /// The device features per-draw times need: timestamps, and timestamps
+    /// inside a pass.
+    pub const DRAW_TIME_FEATURES: wgpu::Features = super::draw_times::FEATURES;
+
+    /// The draws a pixel at which the overdraw heat map reaches its last
+    /// colour (#1203); each colour before it is half the draws.
+    pub const OVERDRAW_HEAT_TOP: u32 = super::overdraw::HEAT_TOP;
+
+    /// Read the draw times the last submitted frame took (#1203), waiting
+    /// for its GPU, into the times gathered since the last
+    /// [`reset_draw_times`](Self::reset_draw_times), which the next
+    /// described frame lays on its scene draws. `None` when that frame timed
+    /// nothing; it says how many draws the scene pass listed, so a host can
+    /// time the rest a batch a frame.
+    pub fn read_draw_times(&mut self, device: &wgpu::Device) -> Option<crate::DrawTimesRead> {
+        self.draw_times.read(device)
+    }
+
+    /// Why the last frame's asked-for draw times timed nothing (a device
+    /// without `TIMESTAMP_QUERY_INSIDE_PASSES`).
+    pub fn draw_times_refused(&self) -> Option<&'static str> {
+        self.draw_times.refused()
+    }
+
+    /// Forget the gathered draw times.
+    pub fn reset_draw_times(&mut self) {
+        self.draw_times.reset();
     }
 
     /// End the frame's GPU timing: pick up the times read back so far and

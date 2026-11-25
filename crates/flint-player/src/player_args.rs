@@ -136,8 +136,11 @@ pub struct PlayerArgs {
     #[arg(long)]
     pub list_keys: bool,
 
-    /// With --list-keys: the table as JSON
-    #[arg(long, requires = "list_keys")]
+    /// With --list-keys: the table as JSON. Not a flag here (#1184): each
+    /// binary sets it from its own `--json`, `flint-player`'s from
+    /// `PlayerCli::json` and `flint play`'s from flint's global one, which
+    /// a flag of the same name flattened in would take from it
+    #[arg(skip)]
     pub json: bool,
 
     /// `--vsync off|mailbox|fifo`, `--frame-latency 1..3` and
@@ -361,13 +364,18 @@ pub struct PlayerCli {
     #[arg(long, value_name = "FILE")]
     pub bundle: Option<PathBuf>,
 
+    /// With --list-keys: the table as JSON
+    #[arg(long, requires = "list_keys")]
+    pub json: bool,
+
     #[command(flatten)]
     pub args: PlayerArgs,
 }
 
 impl PlayerCli {
     /// Play what the command line names, from a bundle or the disk.
-    pub fn run(self) -> Result<()> {
+    pub fn run(mut self) -> Result<()> {
+        self.args.json = self.json;
         match self.bundle {
             Some(bundle) => launch_bundle(self.args, &bundle),
             None => launch(self.args),
@@ -546,6 +554,15 @@ impl PlayerArgs {
         // TEMPORARY, for one release (ADR 0114 decision 3, #765)
         for warning in schema_dirs.dropped_warnings() {
             tracing::warn!(target: "load", "{warning}");
+        }
+        // A package the project lists that this build left out (#1335):
+        // its scenes would play without it, so stop and name `flint build`
+        if let Some(unbuilt) = crate::packages::unbuilt(
+            &schema_dirs,
+            &crate::packages::this_binary(),
+            crate::packages::lacks,
+        ) {
+            return Err(unbuilt.into());
         }
         if schema_dirs.dirs.is_empty() {
             // The log is stderr: stdout is what a command answers with (#710)

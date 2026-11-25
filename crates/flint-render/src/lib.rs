@@ -5,6 +5,16 @@
 //! physically-based Cook-Torrance shading. Supports GPU vertex skinning
 //! for skeletal animation.
 
+// The lib's GPU unit tests share one device through the harness the
+// integration binaries use (#1275): a device per test hung this binary in
+// device creation (#598's loader-lock deadlock). The harness names the
+// crate as they do, hence the alias.
+#[cfg(test)]
+extern crate self as flint_render;
+#[cfg(test)]
+#[path = "../tests/shared_gpu/mod.rs"]
+mod shared_gpu;
+
 pub mod atlas;
 pub(crate) mod billboard_pipeline;
 pub mod bind_cache;
@@ -42,6 +52,7 @@ pub(crate) mod particle_pipeline;
 pub mod pass_knobs;
 mod pipeline;
 pub mod pipeline_cache;
+pub mod pipeline_twins;
 pub mod post_style;
 pub mod postprocess;
 mod primitives;
@@ -52,7 +63,6 @@ pub mod render_stats;
 mod scene_renderer;
 pub(crate) mod selection_outline;
 pub(crate) mod shadow;
-pub mod shallow_wooze;
 pub(crate) mod skinned_pipeline;
 pub(crate) mod sky_pipeline;
 pub(crate) mod skybox_pipeline;
@@ -106,9 +116,9 @@ pub use render_scale::{clamp_render_scale, scaled_size, MIN_RENDER_SCALE};
 pub use render_stats::{format_count, RenderStats};
 pub use scene_renderer::{
     load_grass_ground_in, load_scene_grass_ground, load_scene_particle_textures,
-    load_scene_splines, BoundGrass, BoundScene, DrawControls, DrawLimit, FrameHost, FrameInputs,
-    HeldFrameCapture, LightingLevers, LoadedGrassGround, LoadedSplines, LoadedTerrain, LodSettings,
-    RendererConfig, SceneBinding, SceneRenderer, SplineCollider, SteppedPass, View2d,
+    load_scene_splines, BoundGrass, BoundScene, DrawControls, DrawLimit, DrawTimesRead, FrameHost,
+    FrameInputs, HeldFrameCapture, LightingLevers, LoadedGrassGround, LoadedSplines, LoadedTerrain,
+    LodSettings, RendererConfig, SceneBinding, SceneRenderer, SplineCollider, SteppedPass, View2d,
     DEFAULT_CLEAR_COLOR,
 };
 /// The most bones one skinned mesh's buffer holds.
@@ -129,6 +139,55 @@ pub use world_line_pipeline::DEPTH_SLACK as WORLD_LINE_DEPTH_SLACK;
 
 #[cfg(test)]
 mod tests {
+    /// The lib's tests take the binary's one device (#1275): only the two
+    /// hosts' contexts ask for a device, and nothing here makes a
+    /// `HeadlessContext` (each is a device of its own). A device per test
+    /// hung this binary in `vkCreateDevice` against a thread's exit (#598).
+    #[test]
+    #[allow(clippy::disallowed_methods)] // a test reading the crate's own source tree
+    fn only_the_hosts_contexts_make_a_device() {
+        fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    walk(&path, out);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        walk(&src, &mut files);
+        // Spelled in pieces so this file doesn't find itself
+        let asks = [
+            format!(".{}(", "request_device"),
+            format!("HeadlessContext::{}(", "new"),
+            format!("HeadlessContext::{}(", "with_features"),
+        ];
+        let mut found = Vec::new();
+        for file in &files {
+            let name = file
+                .strip_prefix(&src)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            let text = std::fs::read_to_string(file).unwrap();
+            for (n, line) in text.lines().enumerate() {
+                let host = matches!(name.as_str(), "context.rs" | "headless.rs");
+                if asks.iter().any(|a| line.contains(a.as_str())) && !host {
+                    found.push(format!("src/{name}:{}: {}", n + 1, line.trim()));
+                }
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "a lib test takes `crate::shared_gpu::lease()` (#1275), not a device \
+             of its own:\n{}",
+            found.join("\n")
+        );
+    }
+
     #[test]
     fn shader_wgsl_parses_and_validates() {
         let source = crate::wgsl_sources::SCENE;
@@ -180,11 +239,12 @@ mod tests {
         for source in [
             concat!(
                 include_str!("stylize/prelude_core.wgsl"),
+                include_str!("stylize/noise.wgsl"),
                 include_str!("stylize/edges_read.wgsl"),
                 include_str!("stylize/contour.wgsl")
             ),
             concat!(
-                include_str!("stylize/prelude_core.wgsl"),
+                include_str!("stylize/noise.wgsl"),
                 include_str!("stylize/kuwahara.wgsl")
             ),
         ] {
@@ -200,7 +260,7 @@ mod tests {
 
     #[test]
     fn shadow_shader_wgsl_parses() {
-        let source = include_str!("shadow_shader.wgsl");
+        let source = crate::wgsl_sources::SHADOW;
         naga::front::wgsl::parse_str(source).expect("shadow_shader.wgsl failed to parse");
     }
 
@@ -218,7 +278,7 @@ mod tests {
 
     #[test]
     fn particle_shader_wgsl_parses_and_validates() {
-        let source = include_str!("particle_shader.wgsl");
+        let source = crate::wgsl_sources::PARTICLE;
         let module =
             naga::front::wgsl::parse_str(source).expect("particle_shader.wgsl failed to parse");
         naga::valid::Validator::new(
@@ -259,7 +319,7 @@ mod tests {
 
     #[test]
     fn skinned_wire_shader_wgsl_parses() {
-        let source = include_str!("skinned_wire_shader.wgsl");
+        let source = crate::wgsl_sources::WIRE;
         naga::front::wgsl::parse_str(source).expect("skinned_wire_shader.wgsl failed to parse");
     }
 

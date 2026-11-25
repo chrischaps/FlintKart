@@ -32,9 +32,10 @@ pub use extension::CliExtension;
 use anyhow::Result;
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use commands::{
-    asset, bundle, capture, check as check_cmd, dxc, edit_router, entity, env, examples, export,
-    frame, gen, gen_preview, init, music, play, playtest, prefab, preview, profile, query, render,
-    render_goldens, scene, schema, script, spline_edit, style, terrain_edit, tex_edit, validate,
+    asset, build, bundle, capture, check as check_cmd, dxc, edit_router, entity, env, examples,
+    export, frame, gen, gen_preview, init, music, package, play, playtest, prefab, preview,
+    profile, query, render, render_goldens, scene, schema, script, spline_edit, style,
+    terrain_edit, tex_edit, validate,
 };
 use std::ffi::OsString;
 
@@ -164,6 +165,15 @@ enum Commands {
     #[command(subcommand)]
     Asset(Box<asset::AssetCommands>),
 
+    /// The engine's packages, from their manifests: `flint package list
+    /// [--json]` gives each one's tier, version and what it owns
+    #[command(subcommand)]
+    Package(Box<package::PackageCommands>),
+
+    /// Build the project's flint-player and flint with the packages its
+    /// flint.toml lists (`--dry-run` prints the cargo command)
+    Build(Box<build::BuildArgs>),
+
     /// Play a scene with first-person controls and physics
     Play(Box<play::PlayArgs>),
 
@@ -219,6 +229,8 @@ enum Commands {
 /// (book: guides/player-extensions.md); flint-cli's `build.rs` reaches only
 /// flint-cli's own targets.
 pub fn run_with(extensions: Vec<Box<dyn CliExtension>>) -> std::process::ExitCode {
+    // What `flint build` set aside last time (#1335), if it has stopped
+    flint_player::packages::sweep_set_aside();
     let argv: Vec<OsString> = std::env::args_os().collect();
     let mut added = match extension::Added::new(extensions, &Cli::command()) {
         Ok(added) => added,
@@ -270,6 +282,15 @@ pub fn run_with(extensions: Vec<Box<dyn CliExtension>>) -> std::process::ExitCod
                 .with(flint_player::playtest_warning_layer())
                 .init();
         }
+        // The editors' windows say what they say through the player's
+        // subscriber, and the scene viewer its one load summary (#1164)
+        Commands::Edit(edit) => edit.log.init(),
+        Commands::Serve { .. }
+        | Commands::SplineEdit(_)
+        | Commands::Preview(_)
+        | Commands::GenPreview(_)
+        | Commands::TerrainEdit(_)
+        | Commands::TexEdit(_) => edit_router::EditLogArgs::default().init(),
         _ => default_logging(),
     }
     output::set_json(cli.json);
@@ -362,6 +383,8 @@ fn run(cli: Cli) -> Result<()> {
         Commands::Capture(args) => capture::run(*args),
         Commands::Prefab(cmd) => prefab::run(*cmd),
         Commands::Asset(cmd) => asset::run(*cmd),
+        Commands::Package(cmd) => package::run(*cmd),
+        Commands::Build(args) => build::run(*args),
         Commands::Edit(args) => edit_router::run(*args),
         Commands::SplineEdit(args) => spline_edit::run(*args),
         Commands::Preview(args) => preview::run(*args),
@@ -413,13 +436,19 @@ impl Commands {
         Some(match self {
             Commands::Serve { .. } => "serve",
             Commands::SplineEdit(_) => "spline-edit",
+            // A build without the package opens no window: its stand-in
+            // names the package, under --json too (#1333)
             Commands::Music(cmd) => match &**cmd {
+                #[cfg(feature = "music")]
                 music::MusicCommands::Play(_) => "music play",
+                #[cfg(feature = "rhythm")]
                 music::MusicCommands::Calibrate(_) => "music calibrate",
+                #[cfg(feature = "rhythm")]
                 music::MusicCommands::Chart(music::ChartCommands::Play(_)) => "music chart play",
                 _ => return None,
             },
-            Commands::Play(_) => "play",
+            // `--list-keys` prints the debug-key table and exits (#717, #1184)
+            Commands::Play(args) if !args.player.list_keys => "play",
             Commands::Preview(args) if args.render.is_none() => "preview",
             Commands::GenPreview(_) => "gen-preview",
             Commands::TerrainEdit(_) => "terrain-edit",

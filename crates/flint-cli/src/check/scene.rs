@@ -121,6 +121,26 @@ impl Memo {
             })
             .0
     }
+
+    /// The styles of every folder that can take a look kept at `home`
+    /// (#1272): `home`'s own first, then each scene folder under it the run
+    /// has loaded. A scene finds a look by walking up, so these are the
+    /// registries of the scenes that can name it.
+    pub(super) fn styles_able_to_take(
+        &mut self,
+        home: &Path,
+    ) -> Vec<&flint_render::stylize::StyleRegistry> {
+        self.styles_for(home);
+        let own = &self.style_dirs[home].0;
+        std::iter::once(own)
+            .chain(
+                self.style_dirs
+                    .iter()
+                    .filter(|(dir, _)| dir.as_path() != home && dir.starts_with(home))
+                    .map(|(_, (styles, _))| styles),
+            )
+            .collect()
+    }
 }
 
 /// What a scene's check found, and the files it reached: the scripts,
@@ -173,8 +193,15 @@ fn check_all(
         .flatten();
     let registry = with_styles.as_ref().unwrap_or(&schemas.registry);
     let mut found = flint_scene::diagnose_all(scene, registry, project);
+    // A component or table of a package `[packages]` leaves out (#1334)
+    if let Some(in_use) = &schemas.dirs.packages {
+        in_use.name_unlisted(&mut found);
+    }
     if with_styles.is_some() {
         say_user_styles_clamp(&mut found, memo.styles_for(scene_dir));
+    }
+    if checks.schema || checks.styles {
+        say_unmasked_user_styles(&mut found, memo.styles_for(scene_dir));
     }
     if strict {
         diagnostic::promote_strict(&mut found);
@@ -646,7 +673,15 @@ fn styles(
     // The scene's look (#356) must be found and fit under its keys
     if let Some(name) = post.look.clone().filter(|name| !name.trim().is_empty()) {
         post.authored = flint_scene::PostProcessDef::authored_table(text);
-        if let Err(e) = flint_render::look::resolve(&post, Some(&name), scene) {
+        let resolved = flint_render::look::resolve(&post, Some(&name), scene);
+        // Its tables for styles that aren't built in, against the styles
+        // this scene is drawn with (#1272): the load would warn of each
+        if resolved.is_ok() {
+            if let Ok(look) = flint_render::look::find(&name, scene) {
+                found.extend(super::looks::style_diagnostics(&look, &[&styles]));
+            }
+        }
+        if let Err(e) = resolved {
             // A look that isn't found lists where it was looked for
             let (what, tried) = match e.split_once(" Tried:\n") {
                 Some((what, tried)) => (what, tried.lines().map(|l| l.trim().into()).collect()),
@@ -683,6 +718,36 @@ fn say_user_styles_clamp(found: &mut [Diagnostic], styles: &flint_render::styliz
     }
 }
 
+/// A `<name>_style` on an entity, where the user style `name` reads no
+/// mask, is the warning a drawing host gives it (#1320), not an
+/// `unknown-component` error asking for a schema file: the style has no
+/// component, so the table does nothing.
+fn say_unmasked_user_styles(
+    found: &mut [Diagnostic],
+    styles: &flint_render::stylize::StyleRegistry,
+) {
+    for d in found
+        .iter_mut()
+        .filter(|d| d.code == codes::UNKNOWN_COMPONENT)
+    {
+        let Some(component) = d.component.clone() else {
+            continue;
+        };
+        let said = styles
+            .iter()
+            .filter(|s| styles.is_user_style(s.name))
+            .find_map(|s| {
+                flint_render::stylize::component_schema::unmasked_style_component(s, &component)
+            });
+        if let Some(said) = said {
+            let (file, entity) = (d.file.take(), d.entity.take());
+            *d = said;
+            d.file = file;
+            d.entity = entity;
+        }
+    }
+}
+
 /// `registry` with the component schema of each style `styles` holds
 /// whose component it declares open or not at all (#556:
 /// `flint_render::stylize::add_component_schemas`), or `None` when there
@@ -691,6 +756,13 @@ fn with_style_schemas(
     registry: &flint_schema::SchemaRegistry,
     styles: &flint_render::stylize::StyleRegistry,
 ) -> Option<flint_schema::SchemaRegistry> {
+    // With no schema at all the scene pass says so once (`no-schemas`).
+    // The built-in styles' components would make the registry look loaded
+    // and turn every engine table into an `unknown-component` error: an
+    // `--engine none` project failed `flint check` that way (#1228)
+    if registry.component_names().is_empty() && registry.archetype_names().is_empty() {
+        return None;
+    }
     let wanted = styles.iter().filter_map(|d| d.component).any(|component| {
         registry
             .get_component(component)
@@ -896,6 +968,19 @@ fn fields(scene: &Path, file: &SceneFile) -> Vec<Diagnostic> {
         .collect()
 }
 
+/// The values of a species table the player would leave out.
+#[cfg(feature = "living")]
+fn species_problems(def: &flint_procgen::LivingSpeciesDef) -> Vec<String> {
+    flint_player::species_problems(def)
+}
+
+/// Built without the living package (#1333), whose player grows no props:
+/// only the species no prop grows from are said.
+#[cfg(not(feature = "living"))]
+fn species_problems(_: &flint_procgen::LivingSpeciesDef) -> Vec<String> {
+    Vec::new()
+}
+
 /// What's wrong with the scene's `[living.species.<spec>]` tables (#246): a
 /// value the player would leave out, and a species no living prop in the
 /// scene grows from, which is most likely a misspelt spec name and would
@@ -916,7 +1001,7 @@ fn species(scene: &Path, file: &SceneFile, world: Option<&FlintWorld>) -> Vec<Di
             .iter()
             .filter_map(|entity| {
                 let comps = world.get_components(entity.id)?;
-                comps.get(flint_core::components::LIVING_PROP)?;
+                comps.get(super::LIVING_PROP)?;
                 let asset = comps.get(flint_core::components::MODEL)?.get("asset")?;
                 Some(asset.as_str()?.to_string())
             })
@@ -936,7 +1021,7 @@ fn species(scene: &Path, file: &SceneFile, world: Option<&FlintWorld>) -> Vec<Di
     names.sort_unstable();
     let mut found = Vec::new();
     for name in names {
-        for message in flint_player::species_problems(&living.species[name]) {
+        for message in species_problems(&living.species[name]) {
             found.push(problem(name, message));
         }
         // Which specs grow is the loaded world's to say

@@ -3,14 +3,15 @@
 //! as samples.
 
 use super::backend::{Held, MixerBackend, On, Unhosted, Voice};
-use super::{AudioBackend, MixCounts};
+use super::MixCounts;
 use crate::bus::Bus;
+use crate::clocked::{ClockedMixer, RemoteMixer};
 use crate::handle::{SoundHandle, SpatialTrack};
 use crate::pan::Falloff;
 use crate::remote::{protocol, Command, Link, RemoteTrack, RemoteVoice, SoundLoad, Target};
 use flint_core::{FlintError, Result};
 use kira::sound::static_sound::StaticSoundData;
-use kira::{AudioManager, Decibels};
+use kira::Decibels;
 use std::collections::HashMap;
 use std::time::Duration;
 use web_time::Instant;
@@ -23,6 +24,8 @@ pub(crate) struct Remote {
     sounds: HashMap<String, u32>,
     lengths: HashMap<u32, f64>,
     listener: bool,
+    /// What a music suite plays on (#1216), over the same link.
+    clocked: RemoteMixer,
     /// The worklet behind the link, while it starts and once it runs.
     #[cfg(target_arch = "wasm32")]
     pub(crate) stream: Option<crate::worklet::WorkletStream>,
@@ -31,6 +34,7 @@ pub(crate) struct Remote {
 impl Remote {
     pub(crate) fn new(link: Link) -> Self {
         Self {
+            clocked: RemoteMixer::new(link.clone()),
             link,
             sounds: HashMap::new(),
             lengths: HashMap::new(),
@@ -110,13 +114,22 @@ impl MixerBackend for Remote {
         self.lengths.get(self.sounds.get(name)?).copied()
     }
 
-    fn add_bus(&mut self, bus: Bus, parent: Option<Bus>, db: Decibels) -> Result<()> {
+    fn add_bus(&mut self, bus: Bus, parent: Option<Bus>, db: Decibels, lowpass: f32) -> Result<()> {
         self.link.send(Command::BusNew {
             bus: bus.code(),
             parent: parent.map_or(protocol::BUS_MAIN, Bus::code),
             db: db.0,
+            lowpass,
         });
         Ok(())
+    }
+
+    fn set_bus_lowpass(&mut self, bus: Bus, hz: f32, tween_secs: f64) {
+        self.link.send(Command::BusLowpass {
+            bus: bus.code(),
+            hz,
+            tween: tween_secs as f32,
+        });
     }
 
     fn set_bus_volume(&mut self, bus: Bus, db: Decibels, tween_secs: f64) {
@@ -259,7 +272,9 @@ impl MixerBackend for Remote {
         self.link.clock().map(|[_, latency]| latency)
     }
 
-    fn host(&mut self) -> std::result::Result<&mut AudioManager<AudioBackend>, Unhosted> {
-        Err(Unhosted::Worklet)
+    /// Commands sent while the worklet starts wait for it, as every call's
+    /// do; the clock's ticks come back in its reports.
+    fn host(&mut self) -> std::result::Result<&mut dyn ClockedMixer, Unhosted> {
+        Ok(&mut self.clocked)
     }
 }

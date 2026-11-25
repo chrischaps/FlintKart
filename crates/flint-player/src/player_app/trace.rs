@@ -10,8 +10,11 @@
 //! between its marks, the GPU's scopes by the frame that drew them), and at
 //! a save copies the last seconds of all of it on the frame thread
 //! ([`TraceJob`]), then writes Chrome trace-event JSON on a thread of its
-//! own. Hitches and frame notes come from the frame history and the hitch
-//! detector, which keep them anyway.
+//! own. The frame thread copies the scopes' records as they lie in the
+//! rings (`profile::snapshot_records`, a `memcpy` of the window); turning
+//! them into named, timed scopes is the writer's (`TraceJob::read_out`,
+//! #1267). Hitches and frame notes come from the frame history and the
+//! hitch detector, which keep them anyway.
 //!
 //! A save is taken at the frame's end, after `finish_frame`: no scope is
 //! open on the frame thread then, so the frame just ended is whole. A
@@ -50,9 +53,15 @@ pub const RECORDS_PER_SECOND: usize = 32_768;
 /// Bytes a record takes in a ring (ADR 0128).
 pub const RECORD_BYTES: usize = 40;
 
+/// Bytes a ring takes at most for each record it holds: the record and the
+/// text it keeps beside it ([`profile::TEXT_BYTES_PER_RECORD`], #1259; a
+/// thread that records no text detail takes none of that).
+pub const RING_BYTES_PER_RECORD: usize = RECORD_BYTES + profile::TEXT_BYTES_PER_RECORD;
+
 /// How many times its first size a ring may grow to (#1288), doubling
 /// whenever a lap of it spans less than the look-back (by [`LAP_MARGIN`]):
-/// 1 310 720 records, 52 MB, for the default 5 s. Float uncapped at 405
+/// 1 310 720 records, 52 MB of them and 42 MB of text, for the default
+/// 5 s. Float uncapped at 405
 /// fps records about 150 000 scopes a second, which is 4.6 times
 /// [`RECORDS_PER_SECOND`]; a game past even this says so in the run's
 /// line, with the `--trace-seconds` that would hold its window.
@@ -65,6 +74,16 @@ pub const LAP_MARGIN: f64 = 1.25;
 /// Frames a hitch's trace waits for after the hitch, so the file shows
 /// what followed it too (the hitch log's eight).
 const FRAMES_AFTER_HITCH: u32 = 8;
+/// A GPU pass starting this little before the last one ended is a rounding
+/// sliver, not an overlap: it is laid at that end (#1266).
+const SLIVER_NS: u64 = 1_000;
+
+/// Frames a save asked for now (the `save_trace` key, a capture's trace)
+/// waits (#1267): long enough for `profile::warm_copies` to touch the
+/// memory the frame thread's copy writes to, which halves the copy (90 000
+/// records: 0.35 ms warm, 0.7 cold). Two frames are 33 ms at 60 Hz; a save
+/// that comes before the warming is done copies cold, as before.
+const FRAMES_TO_WARM: u32 = 2;
 
 /// The records a thread's ring holds for `seconds` of look-back; 0 (every
 /// record) for a whole session.
@@ -331,6 +350,10 @@ pub(crate) struct Header {
 /// so it can be written anywhere.
 pub(crate) struct TraceJob {
     pub(crate) path: PathBuf,
+    /// The scopes as the frame thread copied them, records as they lay in
+    /// the rings (#1267); [`TraceJob::read_out`] turns them into `threads`
+    /// on the thread that writes the file.
+    records: profile::Records,
     threads: Vec<ThreadScopes>,
     frames: Vec<Span>,
     phases: Vec<(Phase, Span)>,
@@ -353,6 +376,15 @@ pub(crate) struct Cut {
 }
 
 impl TraceJob {
+    /// Turn the copied records into the file's scopes: the conversion a
+    /// save once did on the frame thread (3.6 ms for 90 000 scopes, #1267),
+    /// done by its writer. Everything below reads `threads`, so a writer
+    /// calls this first.
+    pub(crate) fn read_out(&mut self) {
+        let records = std::mem::take(&mut self.records);
+        self.threads.extend(records.scopes());
+    }
+
     /// Scopes in the file, every thread's.
     pub(crate) fn scopes(&self) -> usize {
         self.threads.iter().map(|t| t.scopes.len()).sum()
@@ -473,12 +505,33 @@ impl TraceJob {
                 continue;
             };
             let total: f32 = g.passes.iter().map(|p| p.ms).sum();
+            // The ends of the passes still open around this one (a scope
+            // inside another), so a pass that starts a rounding sliver before
+            // the last one ended is laid at that end: an f32 ms truncated to
+            // ns put Bloom 1 ns inside SSAO, which Perfetto refuses to nest
+            // and counts as an import error (#1266)
+            let mut open: Vec<u64> = Vec::new();
             for p in &g.passes {
+                let mut start = base + (p.start_ms as f64 * 1e6) as u64;
+                let end = start + (p.ms as f64 * 1e6) as u64;
+                while open.last().is_some_and(|&e| e <= start) {
+                    open.pop();
+                }
+                if let Some(&last) = open.last() {
+                    if end > last && last - start < SLIVER_NS {
+                        start = last;
+                        while open.last().is_some_and(|&e| e <= start) {
+                            open.pop();
+                        }
+                    }
+                }
+                let end = end.max(start);
+                open.push(end);
                 trace.complete(
                     gpu,
                     p.label,
-                    base + (p.start_ms as f64 * 1e6) as u64,
-                    (p.ms as f64 * 1e6) as u64,
+                    start,
+                    end - start,
                     &[
                         ("frame", Arg::Int(g.tag as i64)),
                         ("gpu_frame_ms", Arg::Num(total as f64)),
@@ -544,7 +597,7 @@ impl TraceJob {
             features.push("profile");
         }
         let features = features.join(",");
-        let ring_bytes = (h.ring_capacity * RECORD_BYTES) as i64;
+        let ring_bytes = (h.ring_capacity * RING_BYTES_PER_RECORD) as i64;
         let written_at = written_at.unwrap_or_default();
         let ms = |ns: u64| ns as f64 / 1e6;
         // Only when the GPU track is empty for it (#1316)
@@ -646,7 +699,8 @@ impl TraceJob {
 /// Write `job` to its path; the line to say, or why not.
 #[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::disallowed_methods)] // a write path: the trace file the run asked for
-fn write(job: TraceJob) -> Result<String, String> {
+fn write(mut job: TraceJob) -> Result<String, String> {
+    job.read_out();
     let found = crate::provenance::Provenance::of(&job.header.project_root);
     let text = job.to_json(&found, Some(super::frame_capture::utc_now()));
     let shown = flint_core::project::shown(&job.path);
@@ -737,6 +791,9 @@ impl PlayerApp {
                 },
                 due: profile::frame() + FRAMES_AFTER_HITCH,
             });
+            // The save is eight frames off: touch the memory its copy
+            // will write to meanwhile, on a thread of its own (#1267)
+            drop(profile::warm_copies());
         }
     }
 
@@ -762,13 +819,14 @@ impl PlayerApp {
         };
         tracer.pending.push(Pending {
             reason: Reason::Key(key.to_string()),
-            due: profile::frame(),
+            due: profile::frame() + FRAMES_TO_WARM,
         });
+        drop(profile::warm_copies());
     }
 
     /// The frame captures just handed to their writers: each gets the
-    /// trace in its folder as `trace.json`, at this frame's end (or now,
-    /// when the run is ending). Desktop only, as captures are.
+    /// trace in its folder as `trace.json`, [`FRAMES_TO_WARM`] frames on
+    /// (or now, when the run is ending). Desktop only, as captures are.
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub(crate) fn traces_into_captures(&mut self) {
         if !profile::COMPILED_IN {
@@ -778,12 +836,16 @@ impl PlayerApp {
         let Some(tracer) = self.stats.perf.trace.as_deref_mut() else {
             return;
         };
+        if handed.is_empty() {
+            return;
+        }
         for dir in handed {
             tracer.pending.push(Pending {
                 reason: Reason::Capture(dir),
-                due: profile::frame(),
+                due: profile::frame() + FRAMES_TO_WARM,
             });
         }
+        drop(profile::warm_copies());
     }
 
     /// After `finish_frame`: the saves due by now, and the writers done.
@@ -861,11 +923,17 @@ impl PlayerApp {
             .push((reason, std::thread::spawn(move || write(job))));
         #[cfg(target_arch = "wasm32")]
         {
+            // The web has no writer thread: the download is made here
+            let mut job = job;
+            job.read_out();
             let name = job
                 .path
                 .file_name()
                 .map_or("trace.json".into(), |n| n.to_string_lossy().into_owned());
-            let text = job.to_json(&crate::provenance::Provenance::built(), None);
+            let text = job.to_json(
+                &crate::provenance::Provenance::built(),
+                Some(super::frame_capture::utc_now()),
+            );
             let line = match super::web_page::download_text(&name, &text) {
                 Ok(()) => match job.coverage_line() {
                     Some(cut) => format!(
@@ -986,7 +1054,9 @@ impl PlayerApp {
             .collect();
         TraceJob {
             path,
-            threads: profile::snapshot(since),
+            // The records alone, as they lie: the writer reads them out
+            records: profile::snapshot_records(since),
+            threads: Vec::new(),
             frames,
             phases,
             gpu,
@@ -1078,7 +1148,12 @@ mod tests {
         assert_eq!(
             ring_records(5.0) * RECORD_BYTES,
             6_553_600,
-            "6.6 MB a thread"
+            "6.6 MB of records a thread"
+        );
+        assert_eq!(
+            ring_records(5.0) * RING_BYTES_PER_RECORD,
+            11_796_480,
+            "and 5.2 MB of text beside them (#1259)"
         );
         assert_eq!(ring_records(0.0), 0, "0 keeps the whole session");
     }
@@ -1100,6 +1175,65 @@ mod tests {
             "1 s of look-back and a second of slack, not 3.9 s: {kept}"
         );
         assert!(tracks.phases.len() <= 22, "{}", tracks.phases.len());
+    }
+
+    /// Back-to-back GPU passes stay back to back (#1266): f32 ms truncated
+    /// to ns put Bloom's start 1 ns before SSAO's end in a Chrome trace, and
+    /// Perfetto counted each frame's as an import error. A sliver is laid at
+    /// the end before it; a pass inside another stays inside it.
+    #[test]
+    fn back_to_back_gpu_passes_never_overlap_by_a_rounding_sliver() {
+        let pass = |label, start_ms, ms| flint_render::TracedPass {
+            label,
+            start_ms,
+            ms,
+        };
+        let job = TraceJob {
+            path: PathBuf::new(),
+            records: Default::default(),
+            threads: Vec::new(),
+            frames: vec![Span {
+                start_ns: 1_000_000,
+                end_ns: 17_000_000,
+                frame: 7,
+            }],
+            phases: Vec::new(),
+            gpu: vec![TracedGpuFrame {
+                tag: 7,
+                passes: vec![
+                    pass("SSAO", 1.0, 6.636_544),
+                    // starts a nanosecond short of where SSAO ends
+                    pass("Bloom", 7.636_543, 0.15),
+                    pass("Stylize", 7.786_543, 2.0),
+                    pass("ASCII", 7.9, 1.0),
+                ],
+            }],
+            gpu_unavailable: None,
+            hitches: Vec::new(),
+            notes: Vec::new(),
+            header: Header::default(),
+        };
+        let doc: serde_json::Value =
+            serde_json::from_str(&job.to_json(&Default::default(), None)).expect("JSON");
+        let events = doc["traceEvents"].as_array().expect("traceEvents");
+        let ns = |e: &serde_json::Value, k: &str| (e[k].as_f64().unwrap() * 1000.0).round() as u64;
+        let span = |name: &str| {
+            let e = events
+                .iter()
+                .find(|e| e["ph"] == "X" && e["name"] == name)
+                .unwrap_or_else(|| panic!("{name} on the gpu track"));
+            (ns(e, "ts"), ns(e, "ts") + ns(e, "dur"))
+        };
+        let (ssao, bloom) = (span("SSAO"), span("Bloom"));
+        assert_eq!(
+            bloom.0, ssao.1,
+            "Bloom starts where SSAO ends: {ssao:?} {bloom:?}"
+        );
+        let (stylize, ascii) = (span("Stylize"), span("ASCII"));
+        assert!(
+            ascii.0 > stylize.0 && ascii.1 <= stylize.1,
+            "a pass inside another stays inside: {stylize:?} {ascii:?}"
+        );
     }
 
     /// The Pixel 8 Pro's zeros (#1316): a GPU track of 0 ms spans reads as
@@ -1125,6 +1259,7 @@ mod tests {
         };
         let job = |gpu_unavailable: Option<String>| TraceJob {
             path: PathBuf::new(),
+            records: Default::default(),
             threads: Vec::new(),
             frames: vec![Span {
                 start_ns: 1_000_000,
@@ -1188,6 +1323,7 @@ mod tests {
     fn the_header_names_the_engine_built_and_the_project_apart() {
         let job = TraceJob {
             path: PathBuf::new(),
+            records: Default::default(),
             threads: Vec::new(),
             frames: Vec::new(),
             phases: Vec::new(),
@@ -1255,21 +1391,26 @@ mod tests {
             "tracks: {per_frame:.0} ns a frame (a frame and ten phases, Instant reads included)"
         );
 
+        // A ring as the player sizes it, before this thread's first record
+        profile::set_ring_capacity(ring_records(5.0));
         profile::set_recording(true);
         static SITE: flint_core::profile::Site = flint_core::profile::Site {
             name: "bench",
             file: file!(),
             line: line!(),
         };
-        for _ in 0..(5 * 240 * 20) {
+        // #1096's coverage: 300 scopes a frame, 5 s at 60 fps
+        for _ in 0..(5 * 60 * 300) {
             let _s = profile::Scope::enter(&SITE);
         }
+        profile::set_ring_capacity(profile::DEFAULT_RING_CAPACITY);
         let t0 = Instant::now();
-        let threads = profile::snapshot(None);
+        let records = profile::snapshot_records(None);
         let copy = t0.elapsed();
-        let job = TraceJob {
+        let mut job = TraceJob {
             path: PathBuf::new(),
-            threads,
+            records,
+            threads: Vec::new(),
             frames: tracks.frames.iter().copied().collect(),
             phases: tracks.phases.iter().copied().collect(),
             gpu: Vec::new(),
@@ -1279,14 +1420,19 @@ mod tests {
             header: Header::default(),
         };
         let t0 = Instant::now();
+        job.read_out();
+        let read_out = t0.elapsed();
+        let t0 = Instant::now();
         let text = job.to_json(&Default::default(), None);
         let json = t0.elapsed();
         let events = job.scopes() + job.frames.len() + job.phases.len();
         println!(
-            "save: copy {:.2} ms for {} scopes (frame thread); JSON of {events} events \
-             (scopes, frames, phases) {:.1} ms, {:.1} MB, {:.0} bytes an event (writer)",
+            "save: copy {:.2} ms for {} scopes (frame thread); read-out {:.2} ms and JSON of \
+             {events} events (scopes, frames, phases) {:.1} ms, {:.1} MB, {:.0} bytes an event \
+             (writer)",
             copy.as_secs_f64() * 1e3,
             job.scopes(),
+            read_out.as_secs_f64() * 1e3,
             json.as_secs_f64() * 1e3,
             text.len() as f64 / 1e6,
             text.len() as f64 / events as f64
@@ -1332,6 +1478,7 @@ mod tests {
         };
         let mut job = TraceJob {
             path: PathBuf::new(),
+            records: Default::default(),
             threads: vec![main, worker],
             frames,
             phases: Vec::new(),

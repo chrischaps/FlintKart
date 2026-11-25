@@ -86,6 +86,10 @@ impl PlayerApp {
             // input config, whose game_id names the save folder of a game
             // with no `[project] id`. A transition keeps the store.
             self.load_persistent_store();
+            // The player's own bus volumes (#1217), before the scene's
+            // sounds load and its scripts start, so the first note and
+            // on_init both have them. Placed by the same id as the saves.
+            self.load_user_audio();
         }
 
         // The project's collision layers and the mesh colliders' triangles,
@@ -142,8 +146,7 @@ impl PlayerApp {
         let context = self.render_context.take();
         let mut renderer = self.scene_renderer.take();
         let gpu = context.as_ref().map(|c| (&c.device, &c.queue));
-        #[cfg(test)]
-        let gpu = gpu.or(self.test_gpu.map(|g| (&g.device, &g.queue)));
+        let gpu = gpu.or(self.windowless_gpu().map(|g| (&g.device, &g.queue)));
         let grass = match (renderer.as_mut(), gpu) {
             (Some(renderer), Some((device, queue))) => self.stage_scene(renderer, device, queue),
             _ => None,
@@ -431,6 +434,8 @@ impl PlayerApp {
             &self.core.scene_path,
             &mut self.core.script,
         );
+        // A playtest's own checks (#1192), on entities of their own
+        self.attach_test_scripts();
         self.core
             .script
             .set_current_scene(&self.core.scene_path, &self.core.project);

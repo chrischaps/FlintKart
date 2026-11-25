@@ -81,6 +81,9 @@ pub mod codes {
     /// `collider` with no `rigidbody`. Found by the system that reads it,
     /// while the game runs (#685).
     pub const NEEDS_COMPONENT: &str = "needs-component";
+    /// A `character_controller` on a second entity: one is the player, the
+    /// first by name, and the others' are never read (#1212).
+    pub const SECOND_PLAYER: &str = "second-player";
     /// An `entity` field (or an entity's `parent`) that names no entity of
     /// the scene. An empty string is "not set" and passes.
     pub const UNKNOWN_ENTITY: &str = "unknown-entity";
@@ -140,6 +143,15 @@ pub mod codes {
     pub const SCENE_LOAD: &str = "scene-load";
     /// `flint.toml` does not read.
     pub const BAD_MANIFEST: &str = "bad-manifest";
+    /// A package's `package.toml` does not read, or claims what another
+    /// package's does (ADR 0136 decision 8, #1331).
+    pub const BAD_PACKAGE: &str = "bad-package";
+    /// A component, scene table or script function of a package the
+    /// project's `[packages]` leaves out (ADR 0136 decision 9, #1334).
+    pub const UNLISTED_PACKAGE: &str = "unlisted-package";
+    /// A package the project's `[packages]` lists that the running binary
+    /// was built without (#1335): `flint build` builds one with it.
+    pub const UNBUILT_PACKAGE: &str = "unbuilt-package";
     /// A schema directory is missing, or a schema file does not read.
     pub const BAD_SCHEMAS: &str = "bad-schemas";
     /// A constraint file does not read, or a constraint's query does not
@@ -286,6 +298,11 @@ pub mod codes {
             "a component that does nothing without another the entity lacks",
         ),
         (
+            SECOND_PLAYER,
+            Severity::Warning,
+            "a character_controller on an entity that is not the player",
+        ),
+        (
             UNKNOWN_ENTITY,
             Severity::Error,
             "an entity reference that names no entity in the scene",
@@ -336,6 +353,21 @@ pub mod codes {
             "the scene parses and its load still fails",
         ),
         (BAD_MANIFEST, Severity::Error, "flint.toml does not read"),
+        (
+            BAD_PACKAGE,
+            Severity::Error,
+            "a package.toml does not read, or provides what another package does",
+        ),
+        (
+            UNLISTED_PACKAGE,
+            Severity::Error,
+            "a scene or script uses a package flint.toml's [packages] leaves out",
+        ),
+        (
+            UNBUILT_PACKAGE,
+            Severity::Error,
+            "flint.toml's [packages] lists a package this binary was built without",
+        ),
         (
             BAD_SCHEMAS,
             Severity::Error,
@@ -783,6 +815,7 @@ pub const NOT_ALLOWABLE: &[&str] = &[
     codes::FILE_UNREADABLE,
     codes::SCENE_LOAD,
     codes::BAD_MANIFEST,
+    codes::BAD_PACKAGE,
     codes::BAD_PREFAB,
 ];
 
@@ -1024,7 +1057,7 @@ mod tests {
                 "{code} is not kebab-case"
             );
         }
-        assert_eq!(seen.len(), 54);
+        assert_eq!(seen.len(), 59);
     }
 
     /// A problem in a scene-level table names the table as its header is

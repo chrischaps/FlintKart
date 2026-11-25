@@ -61,8 +61,11 @@ impl SceneRenderer {
             panels,
             notes,
             targets: held,
+            page_camera,
             ..
         } = log;
+        // The frame's camera: a page's own, else its one view's
+        let camera = page_camera.or_else(|| views.first().and_then(|v| v.camera.clone()));
         let styles = views.last().map(|v| v.styles.clone()).unwrap_or_default();
         let mut views = views.into_iter();
         let (passes, panels) = if panels.is_empty() {
@@ -76,6 +79,7 @@ impl SceneRenderer {
                 .map(|(i, v)| fc::PanelDescription {
                     name: format!("again {}", i + 1),
                     size: v.size,
+                    camera: v.camera,
                     passes: v.passes.into_iter().map(|p| names.pass(p)).collect(),
                 })
                 .collect();
@@ -86,6 +90,7 @@ impl SceneRenderer {
                 .map(|(v, name)| fc::PanelDescription {
                     name,
                     size: v.size,
+                    camera: v.camera,
                     passes: v.passes.into_iter().map(|p| names.pass(p)).collect(),
                 })
                 .collect();
@@ -129,6 +134,7 @@ impl SceneRenderer {
             casts_shadow,
         };
         let mut described = FrameDescription {
+            camera,
             frame: fc::FrameInfo {
                 index: None,
                 game_time: None,
@@ -167,8 +173,34 @@ impl SceneRenderer {
             notes,
             ..Default::default()
         };
+        self.lay_draw_times(&mut described);
         name_images(&mut described);
         Some(described)
+    }
+
+    /// The scene pass's draws' GPU times a replay gathered (#1203), each on
+    /// its draw; a count that isn't the pass's list is said, not laid.
+    fn lay_draw_times(&self, described: &mut FrameDescription) {
+        let times = self.draw_times.times();
+        if times.is_empty() {
+            return;
+        }
+        let Some(scene) = described.passes.iter_mut().find(|p| p.name == "Scene") else {
+            return;
+        };
+        if times.len() != scene.draws.len() {
+            let note = format!(
+                "the draw times counted {} scene draws where the Scene pass lists {}: \
+                 left off the draws",
+                times.len(),
+                scene.draws.len()
+            );
+            described.notes.push(note);
+            return;
+        }
+        for (draw, ms) in scene.draws.iter_mut().zip(times) {
+            draw.gpu_ms = ms.map(|ms| ms as f32);
+        }
     }
 
     /// Every texture this frame's view draws into or reads, each once.
@@ -239,6 +271,11 @@ impl SceneRenderer {
         }
         if let Some(sp) = &self.shadow_pass {
             out.push(fc::target("shadow_map", &sp.shadow_texture));
+        }
+        // A replay's overdraw view (#1203)
+        if let (true, Some((count, heat))) = (self.overdraw.wanted, self.overdraw_textures()) {
+            out.push(fc::target("overdraw_count", count));
+            out.push(fc::target("overdraw", heat));
         }
         if let Some((t, _)) = &self.water.grab.color {
             out.push(fc::target("ocean_grab_color", t));

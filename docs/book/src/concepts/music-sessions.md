@@ -1,5 +1,7 @@
 # Music Sessions
 
+> **Package:** `music`, a feature package: a game has `music_session` and the `music` script module only when its `[packages]` lists `music = "*"`. Charts judged against the music, and the `conducted` module, are the `rhythm` package's, which brings `music` with it ([Packages](packages.md)).
+
 A music session gives a scene its music: a suite's stems play sample-locked on the audio clock, and scripts keep time by it with `music_beat()`, `music_bar()` and `music_section()`. Give it a beatmap chart as well and it becomes a rhythm game: the chart says what the player's controller should be doing on each beat, and the world's audio and visuals come apart or re-gather as one thing depending on how well the two agree. The machinery lives in three engine crates, `flint-music`, `flint-rhythm` and `flint-input-capture`, and is switched on per scene by a `music_session` component. The rhythm half grew out of Starchild but nothing in it is game-specific: any scene with a suite manifest and a chart can run one.
 
 The design rule throughout is "linear composition, adaptive playback": the music is authored once as a suite, and the engine adapts *how it is played back*, never what it is.
@@ -30,6 +32,8 @@ A suite with no chart is music for a scene to keep time by. [`flint-examples/mus
 <!-- script-api:end -->
 
 In play the beat is the audio clock's, compensated for the measured output latency, so a light that flashes on the beat flashes when the ear hears it. Under `--frame-step`, in `flint render --scripts`, and with no sound device, it is the game clock's: the session's two-beat count-in, then the suite, so a capture lands each beat on the same frame every run, and `flint render flint-examples/music_clock.scene.toml --scripts --time 8.4` shows bar 3 every time. With no music in the scene the functions return `-1.0`, `-1` and `""`.
+
+In the browser the suite plays in the `AudioWorklet`, on the audio thread, with the rest of the game's sound, and its stems and bus changes land on the same samples as on the desktop. The clock the beat is read from comes back from the worklet every 1024 frames (about 21 ms) and is carried forward between reports. If the worklet can't run, the page mixes on the main thread and the suite starts again there. The mixer underneath is `flint_music::clocked` ([ADR 0135](https://github.com/chrischaps/Flint/blob/main/docs/adr/0135-clocked-content-plays-on-a-mixer-seam.md)).
 
 ## Verb Space
 
@@ -90,7 +94,7 @@ file = "stems/harmony.wav"
 silent = true
 ```
 
-The buses are the manifest's own: as many as the suite has, named as it likes, built and mixed in the order the manifest declares them. Each has a `file` or `silent = true`, and at least one must have a file. Optional `[[degraded_alternates]]` entries name a pre-composed degraded take for a bus over a sample range ([ADR 0032](https://github.com/chrischaps/Flint/blob/main/docs/adr/0032-degraded-alternate-playback.md), degraded alternate playback). A suite that only plays music needs nothing else: no `[reintegration]` and no `pulse_window_ms`, as in this one, which the showcase film's `flint-examples/tools/showcase/music/*.suite.toml` are like:
+The buses are the manifest's own: as many as the suite has, named as it likes, built and mixed in the order the manifest declares them. Each has a `file` or `silent = true`, and at least one must have a file. Optional `[[degraded_alternates]]` entries name a pre-composed degraded take for a bus over a sample range ([ADR 0032](https://github.com/chrischaps/Flint/blob/main/docs/adr/0032-degraded-alternate-playback.md), degraded alternate playback). A suite that only plays music needs nothing else: no `[reintegration]` and no `pulse_window_ms`, as in this one, which the showcase film's `flint-examples/film/music/*.suite.toml` are like:
 
 ```toml
 [[sections]]

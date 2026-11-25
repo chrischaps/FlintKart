@@ -6,15 +6,20 @@
 //! ```bash
 //! flint playtest flint-examples/phase4_runtime.scene.toml \
 //!     --input-script flint-examples/playtests/phase4_runtime.input --exit-after 6
+//! flint playtest scenes/level1.scene.toml --test-script playtests/coins.rhai --timeout 30
 //! flint playtest scenes/level1.scene.toml --timeout 30 --report out.json
 //! flint playtest scenes/level1.scene.toml --strict --dump player --json
+//! flint playtest scenes/level1.scene.toml --render --screenshot out/t2.png --screenshot-at 2
 //! ```
 //!
 //! The run is `flint_player::playtest` (the player's frames with no window,
 //! GPU or sound device); this command adds the terminal's text, the
 //! `--report` file and, under `--strict`, `flint check`'s findings on the
 //! scene before it plays, which catch what a run with no renderer can't
-//! (a model that isn't there).
+//! (a model that isn't there). `--render` (#1191) draws every frame
+//! offscreen through the player's renderer and HUD, so models load and
+//! `--screenshot` and an input script's `screenshot` and `frame` lines see
+//! what was drawn.
 
 use crate::check::{self, Checks, Subject};
 use crate::output::{self, say};
@@ -32,6 +37,12 @@ pub struct PlaytestArgs {
     /// `--input-script`)
     #[arg(long, value_name = "FILE")]
     pub input_script: Option<String>,
+
+    /// The playtest's own Rhai checks (repeatable): each is attached to an
+    /// entity the run spawns in every scene (`playtest`, `playtest_2` ...),
+    /// with the whole script API and `test_*`, and ships with nothing
+    #[arg(long, value_name = "FILE", action = clap::ArgAction::Append)]
+    pub test_script: Vec<PathBuf>,
 
     /// Game seconds a frame
     #[arg(long, default_value_t = flint_player::PLAYTEST_STEP, value_name = "S")]
@@ -56,6 +67,12 @@ pub struct PlaytestArgs {
     #[arg(long)]
     pub strict: bool,
 
+    /// Start from this save file, loaded as the player loads a save (its
+    /// version, `on_persist_migrate`, a file that doesn't parse); the run
+    /// still writes nothing, and the file is left as it is
+    #[arg(long, value_name = "FILE")]
+    pub save_from: Option<PathBuf>,
+
     /// Put this entity's components at the end in the report (repeatable)
     #[arg(long, value_name = "ENTITY", action = clap::ArgAction::Append)]
     pub dump: Vec<String>,
@@ -68,16 +85,43 @@ pub struct PlaytestArgs {
     #[arg(long)]
     pub timings: bool,
 
-    /// The screen scripts see, in points
+    /// The screen scripts see, in points (with --render, the frame's
+    /// pixels too)
     #[arg(long, default_value_t = 1280)]
     pub width: u32,
     #[arg(long, default_value_t = 720)]
     pub height: u32,
 
+    #[command(flatten)]
+    pub drawn: DrawnArgs,
+
     /// Schema directories, later ones overriding earlier (repeatable).
     /// Without it: the project's flint.toml `schemas`, else discovery
     #[arg(long, action = clap::ArgAction::Append)]
     pub schemas: Vec<String>,
+}
+
+/// What a rendered playtest draws (#1191), apart so the args struct stays
+/// small (#990).
+#[derive(clap::Args)]
+pub struct DrawnArgs {
+    /// Draw every frame offscreen, with no window: models load, the HUD is
+    /// painted, and screenshots and `frame` checks see what was drawn
+    #[arg(long)]
+    pub render: bool,
+
+    /// Write the frame at --screenshot-at as a PNG here (needs --render);
+    /// with --screenshot-every, numbered frames from it
+    #[arg(long, value_name = "FILE")]
+    pub screenshot: Option<PathBuf>,
+
+    /// The game time of the --screenshot frame
+    #[arg(long, default_value_t = 0.0, value_name = "SECONDS")]
+    pub screenshot_at: f64,
+
+    /// A --screenshot every this many game seconds from --screenshot-at
+    #[arg(long, value_name = "SECONDS")]
+    pub screenshot_every: Option<f64>,
 }
 
 /// `flint check` on the scene, under `--strict`: its findings, and a
@@ -86,7 +130,29 @@ fn preflight(args: &PlaytestArgs, report: &mut PlaytestReport) -> Result<serde_j
     let mut subject = Subject::scene(Path::new(&args.scene), &args.schemas);
     subject.strict = true;
     subject.script_api = Some(check::scripts::ScriptApiArgs::default().api()?);
-    let found = check::run(&subject, Checks::ALL);
+    let mut found = check::run(&subject, Checks::ALL);
+    // The playtest's own scripts (#1192), held to the script API as the
+    // scene's are, importing from where the scene's would. One that isn't
+    // there is the run's start failure already.
+    let scene = Path::new(&args.scene);
+    let project = flint_core::project::Project::for_scene(scene);
+    let scene_dir = scene
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let test_scripts = args
+        .test_script
+        .iter()
+        .filter(|path| path.is_file())
+        .map(|path| {
+            flint_script::check::ScriptFile::in_scene(path.clone(), project.clone(), scene_dir)
+        })
+        .collect();
+    if let Some(api) = &subject.script_api {
+        let (diagnostics, read) = check::scripts::check(api, test_scripts);
+        found.diagnostics.extend(diagnostics);
+        found.scripts.extend(read);
+    }
     for d in &found.diagnostics {
         report.failures.push(PlaytestFailure::new(
             "preflight",
@@ -124,6 +190,40 @@ fn summary(report: &PlaytestReport) -> String {
         report.warnings.while_running,
         if report.warnings.counted { "" } else { " (not counted)" }
     ));
+    if let Some(drawn) = &report.render {
+        out.push_str(&format!(
+            "  drew {} frames at {}x{}, {} draw calls; {} screenshot{}\n",
+            drawn.frames,
+            drawn.width,
+            drawn.height,
+            drawn.draw_calls,
+            report.screenshots.len(),
+            if report.screenshots.len() == 1 {
+                ""
+            } else {
+                "s"
+            }
+        ));
+    }
+    if let Some(save) = &report.save {
+        let found = if save.loaded == "read" {
+            format!(
+                "read {} keys at version {} (the game's {}), at {} by the end",
+                save.keys, save.version, save.game_version, save.version_at_end
+            )
+        } else {
+            "corrupt, so the store began empty".to_string()
+        };
+        out.push_str(&format!(
+            "  from save {}: {found}; the file {}\n",
+            save.file,
+            if save.untouched {
+                "is untouched"
+            } else {
+                "changed"
+            }
+        ));
+    }
     for line in report.failure_lines() {
         out.push_str(&format!("  {line}\n"));
     }
@@ -134,6 +234,7 @@ pub fn run(args: PlaytestArgs) -> Result<()> {
     let mut options = PlaytestOptions::new(args.scene.clone());
     options.schemas = args.schemas.clone();
     options.input_script = args.input_script.clone();
+    options.test_scripts = args.test_script.clone();
     options.frame_step = args.frame_step;
     options.seed = args.seed;
     options.exit_after = args.exit_after;
@@ -142,6 +243,11 @@ pub fn run(args: PlaytestArgs) -> Result<()> {
     options.dump = args.dump.clone();
     options.timings = args.timings;
     options.screen = (args.width as f32, args.height as f32);
+    options.render = args.drawn.render;
+    options.screenshot = args.drawn.screenshot.clone();
+    options.screenshot_at = args.drawn.screenshot_at;
+    options.screenshot_every = args.drawn.screenshot_every;
+    options.save_from = args.save_from.clone();
 
     output::progress!("playtest: {}", args.scene);
     let mut report = flint_player::playtest(&options);

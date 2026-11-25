@@ -1,5 +1,7 @@
 # Schemas
 
+> **Package:** `engine`, the kernel: every game has it ([Packages](packages.md)).
+
 Schemas define the structure of your game world. They specify what components exist, what fields they contain, and how they bundle together into archetypes. Schemas are TOML files stored in the `schemas/` directory of your project.
 
 ## Component Schemas
@@ -222,6 +224,7 @@ The codes are stable: a code keeps its meaning, and a new kind of problem gets a
 | `bad-prefab` | error | a `[prefabs.<name>]` instance whose template is missing, doesn't parse, or collides with an entity; the rest of the scene is still checked |
 | `no-schemas` | warning | no schema is loaded at all, so nothing was checked (said once, not per entity) |
 | `needs-component` | warning | a component that does nothing without another the entity lacks: a `collider` with no `rigidbody` (written or from its archetype; a terrain or spline mesh makes its own body). Raised by `flint validate` and at load, and again [while the game runs](#diagnostics-while-the-game-runs) by the system that reads it |
+| `second-player` | warning | a `character_controller` (written or from its archetype) on an entity that is not the player. The player is the first entity by name carrying one; the others' controllers are never read, and each is told which entity is the player. Raised by `flint validate`, `flint check` and at load |
 | `unknown-entity` | error | an `entity` field, or an entity's `parent`, names no entity of the scene; the hint is the nearest name. An empty string is "not set" and passes |
 | `parent-cycle` | error | the entities' `parent`s close into a loop: one parented to itself, or `a` under `b` under `a`. Said once a loop, on its first entity by name, with the chain; the scene does not load |
 | `missing-asset` | error | an `asset` field names no file the project's asset search finds; the hint lists every path tried |
@@ -259,15 +262,18 @@ A schema file inside a Flint engine checkout (the engine's repository, or the `e
 | `bad-emitter` | error | an inline `particle_emitter` has a key the emitter doesn't read or a value it can't use (a curve or range of the wrong form, a zero lifetime, an unknown shape), named by entity and key; it replaces the schema's `unknown-field`, `bad-type` and `bad-enum-value` for that component, so one mistake is said once, in the emitter's words (the schema declares every key the emitter reads, its many-form keys as `any`) |
 | `bad-input-config` | error | the input config the scene or the manifest names does not parse |
 | `bad-user-style` | error | a user style does not load or its shader does not compile (a warning for what the style's own check only warns about) |
-| `bad-style-setting` | warning | `[post_process.styles]` names a style, a key or a value there is not |
-| `bad-look` | error | the look a scene names is not found, or does not fit under the scene's keys |
+| `bad-style-setting` | warning | `[post_process.styles]` names a style, a key or a value there is not; in a look, a style no folder that can take the look has (a game's own Rust style is known only to its binary, so this is a warning there too) |
+| `bad-look` | error | the look a scene names is not found, or does not fit under the scene's keys; or a look file the project holds does not read |
 | `bad-wooze` | error | the scene's `[wooze]` table, or the preset it names, is wrong |
 | `bad-species` | error | a `[living.species.<spec>]` table is wrong, or no living prop grows from that spec |
 | `bad-field` | error | a field the scene declares (`[field.<name>]`) has a key or zone that is wrong, named by the field and the key (`weather.keys.wind`) or zone (`weather.zone.storm`) as the field; the player warns and plays without the part that's wrong ([Scripting](scripting.md#fields-a-scene-declares)) |
 | `constraint` | the constraint's | a [constraint](constraints.md) the scene breaks (`info` reads as a warning) |
 | `bad-constraint` | error | a constraint file does not read, or a constraint's query does not parse or does not select entities |
-| `bad-manifest` | error | `flint.toml` does not read |
+| `bad-manifest` | error | `flint.toml` does not read, or a line of its `[packages]` names no package or leaves out one that can't be ([Packages a game uses](../guides/building-a-game-project.md#packages-a-game-uses)) |
+| `bad-package` | error | a package's `package.toml` does not read, or provides what another package's does ([The `package` Command](../cli-reference/overview.md#the-package-command)) |
 | `bad-schemas` | error | a schema directory is missing, or a schema file does not read |
+| `unlisted-package` | error | a component, archetype, scene table or script function of a package the project's `[packages]` leaves out; the hint is the line to add (`living = "*"`) ([Packages a game uses](../guides/building-a-game-project.md#packages-a-game-uses)) |
+| `unbuilt-package` | error | `flint check`: the project's `[packages]` lists a package this `flint` was built without; the hint is `flint build`, which builds a pair with it ([Building the game](../guides/building-a-game-project.md#building-the-game-flint-build)) |
 | `missing-cargo-patch` | warning | a game's Cargo workspace root lacks a `[patch.crates-io]` line of the engine it builds by path, or points it elsewhere; the hint is the line to add ([Upgrading the Engine](../guides/upgrading-the-engine.md#cargo)) |
 | `stale-cargo-lock` | warning | a game's `Cargo.lock` gives gpu-allocator a different `windows` crate from wgpu-hal's (a lock moved forward from before wgpu 30), so wgpu-hal fails on Windows with ``expected `ID3D12Device`, found a different `ID3D12Device` ``; the hint is the `cargo update` that mends it ([Upgrading the Engine](../guides/upgrading-the-engine.md#cargo)) |
 
@@ -343,7 +349,7 @@ $ flint validate scenes/road.scene.toml
 scenes/road.scene.toml: 1 warning (2 allowed by flint.toml)
 ```
 
-With `--format json` (and `flint check --json`) the count is `allowed`. An allowed error no longer fails the scene. `flint bundle` reads the list from the `flint.toml` it packs and leaves out the same diagnostics `flint check` does, so a bundle refuses only what the check reports; it counts them too (`check: no problems (1 allowed by flint.toml)`, and `allowed` in `flint --json bundle`). A code that is none of the table's is refused when the manifest is read, with the nearest code (`project.diagnostics.allow[0]`: `unknown-feild` is no diagnostic code (did you mean `unknown-field`?)), and so are the codes that mean the file did not load at all (`toml-parse`, `file-unreadable`, `scene-load`, `bad-manifest`, `bad-prefab`), since nothing behind them was checked.
+With `--format json` (and `flint check --json`) the count is `allowed`. An allowed error no longer fails the scene. `flint bundle` reads the list from the `flint.toml` it packs and leaves out the same diagnostics `flint check` does, so a bundle refuses only what the check reports; it counts them too (`check: no problems (1 allowed by flint.toml)`, and `allowed` in `flint --json bundle`). A code that is none of the table's is refused when the manifest is read, with the nearest code (`project.diagnostics.allow[0]`: `unknown-feild` is no diagnostic code (did you mean `unknown-field`?)), and so are the codes that mean the file did not load at all (`toml-parse`, `file-unreadable`, `scene-load`, `bad-manifest`, `bad-package`, `bad-prefab`), since nothing behind them was checked.
 
 ### A component only scripts read
 
@@ -361,7 +367,7 @@ Not checked by this pass: what only the reader of a table can know. `[post_proce
 
 ## Built-in Components
 
-Every component the engine reads has a schema in `schemas/components/`, and `flint schema <name>` prints it with each field's type, default and meaning. A test (`cargo test -p flint-schema --test engine_schemas`) keeps the two in step: every component constant in `flint_core::components` has a schema, and every schema is read by engine code. A few of them:
+Every component the engine reads has a schema in `schemas/components/`, or in its package's `packages/<name>/schemas/components/` ([above](#the-packages-schemas-come-with-the-engines)), and `flint schema <name>` prints it with each field's type, default and meaning. A test (`cargo test -p flint-schema --test engine_schemas`) keeps the two in step: every component constant in `flint_core::components` has a schema, and every schema is read by engine code. A few of them:
 
 ### Model and Light
 
@@ -461,10 +467,15 @@ description = "First-person character controller"
 [component.character_controller.fields]
 move_speed = { type = "f32", default = 5.0, min = 0.0 }
 jump_force = { type = "f32", default = 7.0, min = 0.0 }
-height = { type = "f32", default = 1.8, min = 0.1 }
-radius = { type = "f32", default = 0.4, min = 0.1 }
-camera_mode = { type = "enum", values = ["first_person", "orbit"], default = "first_person" }
+height = { type = "f32", min = 0.1 }
+
+# Fields taken out, each with what a scene still writing one is told (#1212)
+[component.character_controller.retired]
+radius = "nothing read it: the capsule is the entity's `collider` (...); remove it"
+camera_mode = "nothing read it: a character's camera is always first person (...); remove it"
 ```
+
+A `[component.<name>.retired]` table names fields a component no longer has. A scene that still writes one gets `unknown-field`, as for any field the schema doesn't declare, but the message ends `any more` and the hint is the reason written there instead of the nearest field's name. An extension's `retired` adds to the declaring layer's.
 
 ### Sprite
 
@@ -779,11 +790,9 @@ Components:
 
 Defaults:
   [character_controller]
-    camera_mode = "first_person"   [1]
     height = 1.8   [1]
     jump_force = 6   [1]
     move_speed = 7.5   [2]
-    radius = 0.3   [1]
   ...
 ```
 
@@ -808,6 +817,12 @@ cargo run --manifest-path engine/Cargo.toml --bin flint-player -- \
 
 A directory named by a flag or by the manifest that doesn't exist is an error naming the directory and where the name came from (`schema directory not found: nope (named by --schemas)`). See [Building a Game Project](../guides/building-a-game-project.md#multi-schema-layering).
 
+### The packages' schemas come with the engine's
+
+The engine's `schemas/` holds the kernel's components and those of the parts every game has. An optional package keeps its own beside its manifest, in `packages/<name>/schemas/`, laid out the same way (`components/`, `archetypes/`, `scene/`): `living_prop`, `shallow_wooze`, `[living]` and `[wooze]` are in `packages/living/schemas/`, and `music_session` is in `packages/music/schemas/`.
+
+You never list them. Whichever way the list was given (flags, the manifest or discovery), a schema directory with the engine's package manifests beside it (`packages/engine/package.toml`, as in a Flint checkout or a game's `engine/` subtree) brings each package's `schemas/` in after it, in package-name order. So `schemas = ["engine/schemas", "schemas"]` loads `engine/schemas`, `engine/packages/living/schemas`, `engine/packages/music/schemas` and then the game's `schemas`, and the game's layer still wins. `flint schema living_prop` names the file it came from. A bundle packs these folders and lists them, an Android build copies them, and the web player has them compiled in.
+
 ### Game Project Directory Structure
 
 Game projects live in their own repositories with the engine included as a git subtree:
@@ -817,6 +832,7 @@ my_game/                    (standalone git repo)
 ├── engine/                 (git subtree ← Flint repo)
 │   ├── crates/
 │   ├── schemas/            (engine schemas)
+│   ├── packages/           (package manifests; each optional package's schemas/)
 │   └── Cargo.toml
 ├── schemas/
 │   ├── components/

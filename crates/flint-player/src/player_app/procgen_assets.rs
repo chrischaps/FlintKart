@@ -277,6 +277,7 @@ pub fn image_set_name(name: &str, index: usize, semantics: ChannelSemantics) -> 
         ChannelSemantics::Metallic => "metallic",
         ChannelSemantics::Height => "height",
         ChannelSemantics::Mask => "mask",
+        ChannelSemantics::Splat => "splat",
     };
     format!("{name}_{suffix}")
 }
@@ -485,7 +486,8 @@ impl AssetSink for GpuSink<'_> {
             name,
             image.width,
             image.height,
-            &image.pixels,
+            // A terrain_v1 heightmap is 16-bit grey (#1168): drawn as grey
+            &image.to_rgba8(),
             is_normal,
         ) {
             tracing::warn!("Failed to upload procgen texture '{name}': {e}");
@@ -582,6 +584,7 @@ pub fn resolve_scene(
         scene_path,
         world,
         procgen_resolver: resolver,
+        collider_sources,
         #[cfg(feature = "living")]
         living_props,
         ..
@@ -599,7 +602,12 @@ pub fn resolve_scene(
         return;
     }
     let before = resolver.cache_stats();
-    resolve(&requests, resolver, &mut sink, mode);
+    // Each mesh's triangles kept for the colliders naming it (#1222)
+    let mut recording = super::collider_meshes::Recording {
+        sink: &mut sink,
+        sources: collider_sources,
+    };
+    resolve(&requests, resolver, &mut recording, mode);
     let stats = resolver.cache_stats();
     // A frame note (#1077) when the scene had assets to make or find
     flint_core::frame_notes::note(

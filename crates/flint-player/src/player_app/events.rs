@@ -428,6 +428,15 @@ impl Escape {
     }
 }
 
+/// Whether a left click catches the cursor for mouse look: in a scene with
+/// a first-person player, while the cursor is free and the game state runs
+/// physics. A pause menu's state stops physics (`menu::toggle_pause` pushes
+/// `paused`), and then a click is the menu's: catching the cursor there
+/// would hide the pointer over the buttons it was meant for (#1228).
+pub(crate) fn click_captures(cursor_captured: bool, has_player: bool, physics_runs: bool) -> bool {
+    !cursor_captured && has_player && physics_runs
+}
+
 /// The axes read again when the window regains focus.
 const STICKS: [Axis; 8] = [
     Axis::LeftStickX,
@@ -557,6 +566,14 @@ impl ApplicationHandler for PlayerApp {
 
             WindowEvent::CursorMoved { position, .. } => {
                 self.input.process_mouse_move(position.x, position.y);
+            }
+
+            // An input method's finished text, for a UI document's
+            // text_input (#1229)
+            WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
+                if let Some(edit) = flint_runtime::TextEdit::typed(&text) {
+                    self.input.process_text_edit(edit);
+                }
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
@@ -756,6 +773,12 @@ impl PlayerApp {
                         return;
                     }
 
+                    // What it typed, repeats too, for a UI document's
+                    // text_input (#1229); the web's keys come this way too
+                    let typed = flint_runtime::TextEdit::of_key(key_code, event.text.as_deref());
+                    if let Some(edit) = typed {
+                        self.input.process_text_edit(edit);
+                    }
                     self.input.process_key_down(key_code);
 
                     // On Android, DPad maps to ArrowKeys — also fire gamepad
@@ -913,7 +936,16 @@ impl PlayerApp {
             ScriptEvent::Capture(at) => {
                 self.ask_frame_capture(super::frame_capture::Trigger::Script(at), "capture");
             }
+            // Written from the next frame drawn (#1191)
+            ScriptEvent::Screenshot(path, at) => self.capture.scripted.push((path, at)),
             ScriptEvent::Text(text) => {
+                // A UI document's text_input types it too, unless an egui
+                // field has the keyboard (#1229)
+                if !self.text_has_focus() {
+                    if let Some(edit) = flint_runtime::TextEdit::typed(&text) {
+                        self.input.process_text_edit(edit);
+                    }
+                }
                 if self.egui_sees_input() {
                     if let Some(egui_winit) = &mut self.hud.egui_winit {
                         egui_winit
@@ -984,6 +1016,9 @@ impl PlayerApp {
                 self.focus.debug_keys_held.insert(key);
                 return;
             }
+            if let Some(edit) = flint_runtime::TextEdit::of_key(key, character) {
+                self.input.process_text_edit(edit);
+            }
             self.input.process_key_down(key);
         } else if !self.focus.debug_keys_held.remove(&key) {
             self.input.process_key_up(key);
@@ -1016,7 +1051,7 @@ impl PlayerApp {
         }
     }
 
-    fn handle_mouse_input(&mut self, state: ElementState, button: MouseButton) {
+    pub(super) fn handle_mouse_input(&mut self, state: ElementState, button: MouseButton) {
         // Mouse button state always reaches InputState so scripts can
         // read it (`is_mouse_pressed`, menus, screen-space UI) and the
         // mouse-as-touch emulation keeps working. FPS scenes (a player
@@ -1034,9 +1069,16 @@ impl PlayerApp {
             }
         }
 
-        if !self.focus.cursor_captured
-            && self.core.physics.has_player_entity()
-            && state == ElementState::Pressed
+        let physics_runs = self
+            .core
+            .state_machine
+            .active_config()
+            .runs(flint_runtime::state::PHYSICS);
+        if click_captures(
+            self.focus.cursor_captured,
+            self.core.physics.has_player_entity(),
+            physics_runs,
+        ) && state == ElementState::Pressed
             && button == MouseButton::Left
         {
             #[cfg(feature = "debug-hud")]

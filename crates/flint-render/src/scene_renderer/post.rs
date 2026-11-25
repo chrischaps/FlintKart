@@ -163,7 +163,7 @@ impl SceneRenderer {
     }
 
     /// This frame's drawing for the shading boil (#214), from the wooze field.
-    pub(crate) fn set_boil(&mut self, boil: flint_wooze::BoilFrame) {
+    pub(crate) fn set_boil(&mut self, boil: flint_core::field_frame::BoilFrame) {
         self.postprocess_config.boil = boil;
         self.authored_postprocess.boil = boil;
     }
@@ -362,11 +362,15 @@ impl SceneRenderer {
                 resources.binds.clear();
             }
         }
-        // A user style replaced by an edit (#275) left its old groups under
-        // names nothing asks for again (#427). Asked of whichever view is
-        // swapped in, so each comic panel's cache drops them at its draw
+        // A user style replaced by an edit (#275) left its old install's
+        // groups, which nothing asks for again (#427). Gone is what this
+        // renderer's registry no longer holds, never what another renderer
+        // replaced (#1271). Asked of whichever view is swapped in, so each
+        // comic panel's cache drops them at its draw
         if let Some(resources) = &self.postprocess_resources {
-            resources.binds.evict_retired();
+            resources
+                .binds
+                .evict_gone_installs(|install| self.styles.holds_install(install));
         }
         for failed in failures {
             if failed.is_user() {

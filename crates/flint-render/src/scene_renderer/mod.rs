@@ -6,6 +6,7 @@ mod binding;
 mod capture;
 mod describe;
 mod draw_list;
+mod draw_times;
 mod draws;
 mod extract;
 mod fog_veil;
@@ -15,6 +16,7 @@ mod grass_ground;
 mod helpers;
 mod lights;
 mod msaa;
+mod overdraw;
 mod panels;
 mod particles;
 mod pipelines;
@@ -33,6 +35,7 @@ pub use binding::{BoundGrass, BoundScene, LoadedTerrain, SceneBinding};
 pub use capture::HeldFrameCapture;
 pub use describe::FrameHost;
 use draw_list::{Blend, Draw, DrawItem, DrawList, Layer, VertexStage};
+pub use draw_times::DrawTimesRead;
 pub(crate) use fog_veil::FOG_VEIL_FORMAT;
 pub use frame::{DrawControls, DrawLimit, FrameInputs, SteppedPass, View2d};
 pub use grass_ground::{load_grass_ground_in, load_scene_grass_ground, LoadedGrassGround};
@@ -62,7 +65,7 @@ use crate::primitives::create_grid_mesh;
 use crate::shadow::{ShadowPass, DEFAULT_SHADOW_RESOLUTION};
 use crate::sprite2d_pipeline::Sprite2dInstanceGpu;
 use crate::texture_cache::TextureCache;
-use crate::wooze_pipeline::{grow_bounds, ShallowWoozeDraw, ShallowWoozeUniforms};
+use crate::wooze_pipeline::{grow_bounds, DriftUniforms, ShallowWoozeDraw, ShallowWoozeUniforms};
 use flint_core::components as comp;
 use flint_core::Transform;
 use flint_ecs::FlintWorld;
@@ -532,6 +535,9 @@ pub struct SceneRenderer {
     extract_frame: u64,
     /// Runtime meshes uploaded as ray targets, by name (ADR 0105).
     ray_meshes: HashMap<String, Arc<flint_geometry::ray_mesh::RayMesh>>,
+    /// Bumped whenever a runtime mesh is uploaded, removed, or made or
+    /// unmade a ray target, so a host can tell when to look again (#1222)
+    runtime_mesh_generation: u64,
     /// Where the ray targets stood at the last `update_from_world`.
     ray_scene: Arc<flint_geometry::ray_mesh::RayScene>,
     grid_draw: Option<DrawCall>,
@@ -584,6 +590,11 @@ pub struct SceneRenderer {
     /// `set_pass_knobs`). `None` unless a host asked: a part then asks one
     /// `Option`.
     pass_knobs: Option<Box<crate::pass_knobs::KnobRun>>,
+    /// A replay's per-draw GPU times (#1203): nothing unless its draw
+    /// controls name draws to time.
+    draw_times: draw_times::DrawTimes,
+    /// A replay's overdraw view of the scene pass (#1203).
+    overdraw: overdraw::Overdraw,
     /// Comic panels (#880, ADR 0120): the layout and each panel's view
     panel_state: panels::PanelState,
     /// Per-entity styles (#263): who is styled, how far, the mask and
@@ -613,10 +624,10 @@ pub struct SceneRenderer {
     style_dt: f32,
     /// The boil the last `prepare` took (#739), stamped into the config
     /// `encode_to` draws. `None` until a host prepares a frame.
-    frame_boil: Option<flint_wooze::BoilFrame>,
+    frame_boil: Option<flint_core::field_frame::BoilFrame>,
     /// A split view's other side's boil (`prepare_again`), drawn by the
     /// next `encode_again_to` only.
-    again_boil: Option<flint_wooze::BoilFrame>,
+    again_boil: Option<flint_core::field_frame::BoilFrame>,
     // Particles (ADR 0068): their pipeline is in `pipelines`, and what it
     // draws from here, so instances uploaded before an MSAA change still draw.
     particle_buffers: Option<ParticleBuffers>,
@@ -803,6 +814,7 @@ impl SceneRenderer {
             box_mesh_cache: HashMap::new(),
             extract_frame: 0,
             ray_meshes: HashMap::new(),
+            runtime_mesh_generation: 0,
             ray_scene: Arc::default(),
             skinning: Default::default(),
             grid_draw,
@@ -829,6 +841,8 @@ impl SceneRenderer {
             frame_log: None,
             frame_taps: None,
             pass_knobs: None,
+            draw_times: Default::default(),
+            overdraw: Default::default(),
             panel_state: Default::default(),
             style_mask: style_mask::StyleMaskState::new(),
             fog_veil: fog_veil::FogVeilState::default(),

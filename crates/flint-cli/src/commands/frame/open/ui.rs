@@ -4,7 +4,7 @@
 //! bottom. Everything links: a pass selects its image and its draws, a
 //! draw selects its entity, and the entity is marked in every pass.
 
-use super::super::display::{Channel, Mode};
+use super::super::display::{metres_text, Channel, DepthCamera, Mode};
 use super::super::read::Capture;
 use super::loader::{Loader, Slot};
 use super::model::{Model, Sort, TableQuery};
@@ -351,7 +351,9 @@ impl App {
     fn request(&mut self, image: usize) {
         let im = &self.model.images[image];
         let path = self.capture.file(&im.image);
-        self.loader.request(image, path, &im.image, self.exposure);
+        let camera = DepthCamera::of(&self.capture.description, &im.image);
+        self.loader
+            .request(image, path, &im.image, self.exposure, camera);
     }
 
     fn style(&mut self, ctx: &egui::Context) {
@@ -1155,7 +1157,35 @@ impl App {
                     self.view.ev = 0.0;
                 }
             }
-            if current == Mode::Depth {
+            if let (Mode::Metres, Some(m)) = (current, loaded.and_then(|l| l.auto.metres)) {
+                // The log scale's ends, metres from the camera (#1176)
+                let (mut lo, mut hi) = self.view.metres.unwrap_or((m.lo, m.hi));
+                let far = m.camera.far.max(m.hi);
+                ui.label(RichText::new("metres").color(ink::DIM));
+                let a = ui.add(
+                    egui::DragValue::new(&mut lo)
+                        .speed(0.05)
+                        .range(0.0..=far)
+                        .max_decimals(2),
+                );
+                let b = ui.add(
+                    egui::DragValue::new(&mut hi)
+                        .speed(0.05)
+                        .range(0.0..=far)
+                        .max_decimals(2),
+                );
+                if a.changed() || b.changed() {
+                    self.view.metres = Some((lo, hi));
+                }
+                if self.view.metres.is_some()
+                    && ui
+                        .small_button("drawn")
+                        .on_hover_text("The nearest and farthest the frame drew")
+                        .clicked()
+                {
+                    self.view.metres = None;
+                }
+            } else if matches!(current, Mode::Depth | Mode::Metres) {
                 if let Some(l) = loaded {
                     let (mut lo, mut hi) = self.view.depth.unwrap_or((l.auto.lo, l.auto.hi));
                     ui.label(RichText::new("depth").color(ink::DIM));
@@ -1589,7 +1619,12 @@ impl App {
         let all = self.query.all_passes;
         let details_h = if self.draw.is_some() { 270.0 } else { 0.0 };
         let table_h = (ui.available_height() - details_h).max(80.0);
-        let cols = columns(ui.available_width(), all, self.query.show_culled);
+        let cols = columns(
+            ui.available_width(),
+            all,
+            self.query.show_culled,
+            self.model.draws_timed(),
+        );
 
         // The header, clickable to sort
         let (head, _) =
@@ -1710,6 +1745,7 @@ impl App {
                             }
                             Sort::Blend => d.draw.blend.clone(),
                             Sort::Culled => d.draw.culled.clone().unwrap_or_default(),
+                            Sort::Gpu => d.draw.gpu_ms.map_or("-".into(), |ms| format!("{ms:.3}")),
                         };
                         let pad = if col.right { 8.0 } else { 6.0 };
                         let cell = Rect::from_min_size(
@@ -2288,6 +2324,14 @@ fn describe(d: &super::super::display::Display, auto_words: &str, untouched: boo
     match d.mode {
         Mode::Tonemap => format!("tonemapped at exposure {:.3}", d.exposure),
         Mode::Linear => format!("linear at exposure {:.3}", d.exposure),
+        Mode::Metres => match &d.metres {
+            Some(m) => format!(
+                "depth {}..{} m, log scale",
+                metres_text(m.lo),
+                metres_text(m.hi)
+            ),
+            None => format!("depth {:.5}..{:.5} (no camera named)", d.lo, d.hi),
+        },
         Mode::Depth => format!("depth {:.5}..{:.5}", d.lo, d.hi),
         Mode::Ids => "ids coloured".into(),
         Mode::Log => format!("log over 0..{:.3}", d.max),
@@ -2305,13 +2349,17 @@ struct Col {
     right: bool,
 }
 
-fn columns(width: f32, with_pass: bool, with_culled: bool) -> Vec<Col> {
+fn columns(width: f32, with_pass: bool, with_culled: bool, with_gpu: bool) -> Vec<Col> {
     // Fixed columns, the entity and pipeline sharing what is left
     let mut fixed: Vec<(&'static str, Sort, f32, bool)> = vec![
         ("Kind", Sort::Kind, 58.0, false),
         ("Tris", Sort::Triangles, 60.0, true),
         ("Blend", Sort::Blend, 64.0, false),
     ];
+    // A replay's draw times (#1203)
+    if with_gpu {
+        fixed.push(("GPU ms", Sort::Gpu, 62.0, true));
+    }
     if with_culled {
         fixed.push(("Culled", Sort::Culled, 78.0, false));
     }
@@ -2349,14 +2397,18 @@ mod tests {
 
     #[test]
     fn the_columns_fill_the_width_and_put_the_pass_first_when_asked() {
-        let cols = columns(460.0, false, true);
+        let cols = columns(460.0, false, true, false);
         let end = cols.last().map(|c| c.x + c.w).unwrap();
         assert!((end - 460.0).abs() < 0.5, "{end}");
         assert_eq!(cols[0].name, "Entity");
-        assert_eq!(columns(560.0, true, false)[0].name, "Pass");
-        assert!(columns(560.0, true, false)
+        assert_eq!(columns(560.0, true, false, false)[0].name, "Pass");
+        assert!(columns(560.0, true, false, false)
             .iter()
-            .all(|c| c.name != "Culled"));
+            .all(|c| c.name != "Culled" && c.name != "GPU ms"));
+        let timed = columns(560.0, false, false, true);
+        assert!(timed.iter().any(|c| c.name == "GPU ms"));
+        let end = timed.last().map(|c| c.x + c.w).unwrap();
+        assert!((end - 560.0).abs() < 0.5, "{end}");
     }
 }
 
