@@ -22,17 +22,17 @@ type = "string"
 default = "default"
 
 [component.segment_info.fields.min_speed]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.segment_info.fields.min_score]
-type = "integer"
+type = "i32"
 default = 0
 
 [component.segment_info.fields.progress_start]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.segment_info.fields.progress_end]
-type = "float"
+type = "f32"
 default = 0.0

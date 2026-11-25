@@ -61,7 +61,7 @@ let prev_shield_on = false;
 let paint_before_shield = ();
 
 fn on_init() {
-    let me = this_entity();
+    let me = self_entity();
 
     // Check for configurable target
     if has_component(me, "kart_visuals_config") {

@@ -6,7 +6,7 @@ type = "string"
 default = "countdown"
 
 [component.race_state.fields.countdown_timer]
-type = "float"
+type = "f32"
 default = 4.0
 
 [component.race_state.fields.countdown_display]
@@ -14,27 +14,27 @@ type = "string"
 default = ""
 
 [component.race_state.fields.finishing_timer]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.race_state.fields.music_volume]
-type = "float"
+type = "f32"
 default = 0.0
 
 # Real (unscaled) seconds since the player crossed the line; -1 before.
 # Drives the finish slow motion, the finish camera and the results reveal.
 [component.race_state.fields.finish_elapsed]
-type = "float"
+type = "f32"
 default = -1.0
 
 # Per-track records (persisted as best_lap.<track> / best_race.<track>),
 # written when the player finishes. 0 = no record yet.
 [component.race_state.fields.record_lap]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.race_state.fields.record_race]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.race_state.fields.new_lap_record]

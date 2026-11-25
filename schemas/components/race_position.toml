@@ -2,9 +2,9 @@
 description = "Computed race standing for each kart"
 
 [component.race_position.fields.position]
-type = "int"
+type = "i32"
 default = 1
 
 [component.race_position.fields.total_racers]
-type = "int"
+type = "i32"
 default = 1

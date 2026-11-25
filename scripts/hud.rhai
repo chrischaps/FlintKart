@@ -164,7 +164,7 @@ fn on_draw_ui() {
         quality::apply(qt, gfx_tier);
     }
     if track_name == "" {
-        let cur = current_scene();
+        let cur = get_current_scene();
         for t in tracks {
             let parts = t.scene.split("/");
             if cur.contains(parts[parts.len() - 1]) { track_name = t.name; }
@@ -176,7 +176,7 @@ fn on_draw_ui() {
     let phase = transition_phase();
     if phase == "exiting" {
         hud_fade_alpha = transition_progress();
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 30);
+        draw_rect(0.0, 0.0, sw, sh, #{ color: [0.0, 0.0, 0.0, hud_fade_alpha], layer: 30 });
         if hud_fade_alpha >= 1.0 {
             complete_transition();
         }
@@ -215,7 +215,7 @@ fn on_draw_ui() {
     }
 
     // ── Pause system ──
-    let cur_state = current_state();
+    let cur_state = get_current_state();
 
     // The engine's touch stick and buttons (config/input.toml) are out while
     // racing and put away under the pause and finish menus, so every tap
@@ -305,7 +305,7 @@ fn on_draw_ui() {
         }
 
         if hud_fade_alpha > 0.01 {
-            draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 30);
+            draw_rect(0.0, 0.0, sw, sh, #{ color: [0.0, 0.0, 0.0, hud_fade_alpha], layer: 30 });
         }
         return;
     }
@@ -343,7 +343,7 @@ fn on_draw_ui() {
 
     if kart_id < 0 || manager_id < 0 {
         if hud_fade_alpha > 0.01 {
-            draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 30);
+            draw_rect(0.0, 0.0, sw, sh, #{ color: [0.0, 0.0, 0.0, hud_fade_alpha], layer: 30 });
         }
         return;
     }
@@ -428,7 +428,7 @@ fn on_draw_ui() {
 
     if boost_flash_alpha > 0.01 && !reduce_motion {
         let c = boost_flash_c;
-        draw_rect_ex(0.0, 0.0, sw, sh, c[0], c[1], c[2], boost_flash_alpha, 0.0, -2);
+        draw_rect(0.0, 0.0, sw, sh, #{ color: [c[0], c[1], c[2], boost_flash_alpha], layer: -2 });
     }
     boost_flash_alpha = max(boost_flash_alpha - dt * 1.6, 0.0);
 
@@ -667,15 +667,15 @@ fn on_draw_ui() {
             let si = 0;
             while si < n {
                 let nx = (si + 1) % n;
-                draw_line_ex(minimap_pts_x[si], minimap_pts_y[si], minimap_pts_x[nx], minimap_pts_y[nx],
-                             ink[0], ink[1], ink[2], 1.0, 9.0 * k, 1);
+                draw_line(minimap_pts_x[si], minimap_pts_y[si], minimap_pts_x[nx], minimap_pts_y[nx],
+                          #{ color: [ink[0], ink[1], ink[2], 1.0], thickness: 9.0 * k, layer: 1 });
                 si += 1;
             }
             si = 0;
             while si < n {
                 let nx = (si + 1) % n;
-                draw_line_ex(minimap_pts_x[si], minimap_pts_y[si], minimap_pts_x[nx], minimap_pts_y[nx],
-                             cr[0], cr[1], cr[2], 0.85, 4.0 * k, 1);
+                draw_line(minimap_pts_x[si], minimap_pts_y[si], minimap_pts_x[nx], minimap_pts_y[nx],
+                          #{ color: [cr[0], cr[1], cr[2], 0.85], thickness: 4.0 * k, layer: 1 });
                 si += 1;
             }
             // start line: a little sun tick
@@ -906,7 +906,7 @@ fn on_draw_ui() {
 
     // ── Transition fade overlay (on top of everything) ──
     if hud_fade_alpha > 0.01 {
-        draw_rect_ex(0.0, 0.0, sw, sh, 0.0, 0.0, 0.0, hud_fade_alpha, 0.0, 30);
+        draw_rect(0.0, 0.0, sw, sh, #{ color: [0.0, 0.0, 0.0, hud_fade_alpha], layer: 30 });
     }
 }
 
@@ -947,10 +947,10 @@ fn sort_by_position(ids) {
 
 // Coloured bands at the screen edges (wall hit, spinout).
 fn edge_flash(sw, sh, edge, c, a) {
-    draw_rect_ex(0.0, 0.0, sw, edge, c[0], c[1], c[2], a * 0.7, 0.0, -2);
-    draw_rect_ex(0.0, sh - edge, sw, edge, c[0], c[1], c[2], a * 0.7, 0.0, -2);
-    draw_rect_ex(0.0, 0.0, edge, sh, c[0], c[1], c[2], a * 0.5, 0.0, -2);
-    draw_rect_ex(sw - edge, 0.0, edge, sh, c[0], c[1], c[2], a * 0.5, 0.0, -2);
+    draw_rect(0.0, 0.0, sw, edge, #{ color: [c[0], c[1], c[2], a * 0.7], layer: -2 });
+    draw_rect(0.0, sh - edge, sw, edge, #{ color: [c[0], c[1], c[2], a * 0.7], layer: -2 });
+    draw_rect(0.0, 0.0, edge, sh, #{ color: [c[0], c[1], c[2], a * 0.5], layer: -2 });
+    draw_rect(sw - edge, 0.0, edge, sh, #{ color: [c[0], c[1], c[2], a * 0.5], layer: -2 });
 }
 
 // Which rect (from a list of #{x, y, w, h}) contains the point, or -1.

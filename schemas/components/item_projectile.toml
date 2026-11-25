@@ -10,17 +10,17 @@ type = "string"
 default = ""
 
 [component.item_projectile.fields.dir_x]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.item_projectile.fields.dir_z]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.item_projectile.fields.speed]
-type = "float"
+type = "f32"
 default = 40.0
 
 [component.item_projectile.fields.lifetime]
-type = "float"
+type = "f32"
 default = 5.0

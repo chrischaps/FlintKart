@@ -2,15 +2,15 @@
 description = "Virtual input bridge for AI-controlled karts"
 
 [component.ai_input.fields.throttle]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.ai_input.fields.steering]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.ai_input.fields.brake]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.ai_input.fields.drift]

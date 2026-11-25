@@ -53,7 +53,7 @@ let road_half_width = 6.0;
 let track_splines = [];
 
 fn on_init() {
-    let me = this_entity();
+    let me = self_entity();
 
     // Check for configurable target
     if has_component(me, "kart_audio_config") {

@@ -22,7 +22,7 @@ To render manually with custom framing:
 ```bash
 engine/target/release/flint render scenes/oval_plus.scene.toml --output test.png ^
   --schemas engine/schemas --schemas schemas --width 1280 --height 720 ^
-  --no-grid --shadows --distance 15 --pitch 30 --target 0,1,5
+  --no-grid --distance 15 --pitch 30 --target 0,1,5
 ```
 
 ## Project Structure
@@ -53,6 +53,7 @@ The engine lives at `engine/` as a git subtree. Remote: `engine` → `https://gi
 - Kart is a parent entity with child entities for wheels, driver, and lights (transform hierarchy)
 - The driver is a body with a head on the neck pivot (`driver_head`) and an optional `driver_topper`. Each race scene picks a racer's helmet with a `driver_head.model` override; `kart_visuals.rhai` tints AI helmets and suits from `racer_info`, and springs the head on steering, acceleration and the `kart_bump` / `wall_hit` / `kart_landed` events. Euler degrees: +X tilts back, +Y turns left, +Z tilts left
 - Track is a spline path (`spline` component) with swept cross-section meshes (`spline_mesh` component)
+- A gap in a road is a control point's `gap_after = true` attr: `spline_point_attr(s, "gap_after", t) == true` and `spline_point_attr_span` (Flint #855 removed `spline_is_gap` / `spline_gap_at`). After an engine pull, `flint script check scripts --schemas engine/schemas --schemas schemas` must say no problems: a deprecated name works for one release, then is an unknown function
 - Race state machine in `race_manager.rhai`: countdown -> racing -> finished
 - `on_update()` is parameterless — use `delta_time()` API for frame delta
 - Scene TOML uses `asset = "name"` without .glb extension (engine appends it)

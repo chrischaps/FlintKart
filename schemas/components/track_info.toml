@@ -2,7 +2,7 @@
 description = "Track metadata: name, length, etc."
 
 [component.track_info.fields.length]
-type = "float"
+type = "f32"
 default = 660.0
 description = "Total track length in meters (sample_count * spacing)"
 
@@ -11,6 +11,6 @@ type = "string"
 default = "Unknown Track"
 
 [component.track_info.fields.fog_density]
-type = "float"
+type = "f32"
 default = 0.003
 description = "Base fog density for speed-based fog scaling in scripts"

@@ -2,31 +2,31 @@
 description = "Kart runtime state (written each frame by kart_controller.rhai)"
 
 [component.kart_state.fields.speed]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.velocity_x]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.velocity_y]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.velocity_z]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.forward_x]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.forward_y]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.forward_z]
-type = "float"
+type = "f32"
 default = -1.0
 
 [component.kart_state.fields.grounded]
@@ -34,19 +34,19 @@ type = "bool"
 default = false
 
 [component.kart_state.fields.surface_normal_x]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.surface_normal_y]
-type = "float"
+type = "f32"
 default = 1.0
 
 [component.kart_state.fields.surface_normal_z]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.yaw]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.input_enabled]
@@ -54,7 +54,7 @@ type = "bool"
 default = false
 
 [component.kart_state.fields.wall_impact]
-type = "float"
+type = "f32"
 default = 0.0
 
 [component.kart_state.fields.respawned]
@@ -62,7 +62,7 @@ type = "bool"
 default = false
 
 [component.kart_state.fields.lateral_speed]
-type = "float"
+type = "f32"
 default = 0.0
 description = "Sideways slip along the travel direction's right vector, m/s"
 
@@ -77,6 +77,6 @@ default = false
 description = "True while scraping a wall"
 
 [component.kart_state.fields.draft]
-type = "float"
+type = "f32"
 default = 0.0
 description = "Slipstream 0-1: tucked in behind another kart, for a little more top speed"

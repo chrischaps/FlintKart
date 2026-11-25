@@ -45,7 +45,7 @@ let was_racing = false;
 let ROLL_SPEED = 0.35;       // victory-roll pace once over the line, x max_speed
 
 fn on_init() {
-    let me = this_entity();
+    let me = self_entity();
     let kart_name = get_field(me, "ai_driver", "kart");
     kart_id = get_entity(kart_name);
     track_id = get_entity("track_path");
@@ -200,7 +200,7 @@ fn segment_time(seg, seg_len, turn_low, turn_high, max_speed) {
 fn on_update() {
     if kart_id < 0 || track_id < 0 { return; }
 
-    let me = this_entity();
+    let me = self_entity();
     let dt = delta_time();
     if dt <= 0.0 { return; }
 
@@ -424,7 +424,7 @@ fn on_update() {
     }
 
     // Airborne over a gap: hold the heading and keep the foot down
-    if spline_is_gap(seg, seg_t) {
+    if spline_point_attr(seg, "gap_after", seg_t) == true {
         set_field(kart_id, "ai_input", "throttle", 1.0);
         set_field(kart_id, "ai_input", "steering", smoothed_steering * 0.3);
         set_field(kart_id, "ai_input", "brake", 0.0);

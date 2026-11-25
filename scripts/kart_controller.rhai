@@ -21,7 +21,7 @@
 //   - Fires kart_bump, wall_hit, kart_landed and drift_* (docs/glow-up.md).
 //   All tuning constants are kart_physics fields.
 
-let me = this_entity();
+let me = self_entity();
 
 // Per-kart state that only this script needs (callbacks see module lets)
 let att_roll = 0.0;
@@ -53,7 +53,7 @@ fn tune(id, field, fallback) {
 }
 
 fn on_update() {
-    let me = this_entity();
+    let me = self_entity();
     let dt = delta_time();
     if dt <= 0.0 { return; }
     if dt > 0.05 { dt = 0.05; } // a hitch must not tunnel or explode the springs
@@ -664,11 +664,9 @@ fn on_update() {
                 }
                 if respawn_t >= 1.0 { respawn_t = respawn_t - 1.0; }
                 // If the nearest point is inside a gap, respawn at the landing zone
-                if spline_is_gap(road_eid, respawn_t) {
-                    let gap_info = spline_gap_at(road_eid, respawn_t);
-                    if gap_info != () {
-                        respawn_t = gap_info["end_t"];
-                    }
+                let gap = spline_point_attr_span(road_eid, "gap_after", respawn_t);
+                if gap != () && gap["value"] == true {
+                    respawn_t = gap["end_t"];
                 }
                 let sample = spline_sample_at(road_eid, respawn_t);
                 if sample != () {

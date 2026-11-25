@@ -776,7 +776,8 @@ fn on_update() {
     let hit_vig = 0.3 + trauma * 0.45;
     if speed_vignette < hit_vig { speed_vignette = hit_vig; }
     if finishing { speed_vignette = if slowmo { 0.8 } else { 0.55 }; }
-    set_vignette(speed_vignette);
+    set_post("vignette_enabled", speed_vignette > 0.001);
+    set_post("vignette_intensity", speed_vignette);
 
     // Boost bloom spike: brighter bloom during drift boost
     let bloom_val = 0.05; // baseline
@@ -793,7 +794,7 @@ fn on_update() {
     // Slight bloom lift at high speed (subtle heat haze feeling)
     bloom_val = bloom_val + speed_ratio * 0.02;
     if finishing { bloom_val = bloom_val + 0.06; }
-    set_bloom_intensity(bloom_val);
+    set_post("bloom_intensity", bloom_val);
 
     // Exposure: slight lift during boost for "blown out" speed feel, and a
     // warm golden lift for the finish
@@ -802,7 +803,7 @@ fn on_update() {
         exposure_val = exposure_val + 0.15;
     }
     if finishing { exposure_val = exposure_val + 0.1; }
-    set_exposure(exposure_val);
+    set_post("exposure", exposure_val);
 
     // Chromatic aberration: ramps with speed, boost adds more
     let ca_val = 0.0;
@@ -816,7 +817,7 @@ fn on_update() {
         ca_val = ca_val + boost_ca;
     }
     if finishing { ca_val = 0.0; }
-    set_chromatic_aberration(ca_val * motion);
+    set_post("chromatic_aberration", ca_val * motion);
 
     // Radial blur: ramps with speed, boost adds more
     let rb_val = 0.0;
@@ -830,12 +831,13 @@ fn on_update() {
         rb_val = rb_val + boost_rb;
     }
     if finishing { rb_val = 0.0; }
-    set_radial_blur(rb_val * motion);
+    set_post("radial_blur", rb_val * motion);
 
     // Depth of field belongs to the finish orbit; written every frame
     // because the override is sticky
-    set_dof(dof_strength);
-    set_dof_focus(dof_focus, 2.5);
+    set_post("dof_strength", dof_strength);
+    set_post("dof_focus_distance", dof_focus);
+    set_post("dof_focus_range", 2.5);
 
     // ── Fog clears with speed: full density at rest, 20% at max ──
     let track_id = get_entity("track_path");
@@ -850,7 +852,7 @@ fn on_update() {
             fog_scale = fog_scale - boost_clear;
         }
         if fog_scale < 0.0 { fog_scale = 0.0; }
-        set_fog_density(base_fog * fog_scale);
+        set_post("fog_density", base_fog * fog_scale);
     }
 
     // ── Audio Focus: low-pass filter at high speed ──
@@ -983,6 +985,6 @@ fn on_update() {
 fn on_draw_ui() {
     if flash > 0.01 {
         // Cream wash for cuts and the finish line
-        draw_rect_ex(0.0, 0.0, screen_width(), screen_height(), 1.0, 0.97, 0.90, flash * flash_alpha, 0.0, 9);
+        draw_rect(0.0, 0.0, screen_width(), screen_height(), #{ color: [1.0, 0.97, 0.90, flash * flash_alpha], layer: 9 });
     }
 }
