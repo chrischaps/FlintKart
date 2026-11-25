@@ -123,7 +123,7 @@ impl ScriptInstance {
             self.profiled = Some(crate::fn_times::profiled(
                 engine,
                 &self.calls,
-                &self.source_path,
+                crate::fn_times::Naming::Script(&self.source_path),
             ));
         }
     }
@@ -305,7 +305,8 @@ pub(crate) enum CallbackProblem<'a> {
 }
 
 impl CallbackProblem<'_> {
-    /// The `fn` it is about.
+    /// The `fn` it is about: `flint script check`'s, to place it.
+    #[cfg(feature = "check")]
     pub(crate) fn name(&self) -> &str {
         match self {
             CallbackProblem::Arity { name, .. } | CallbackProblem::Unknown { name, .. } => name,

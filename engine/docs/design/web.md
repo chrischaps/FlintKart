@@ -1838,8 +1838,12 @@ thread talks to it by `postMessage`:
   error, no `ready` within 4 s), `AudioEngine::poll` notices, starts the old
   main-thread stream, and `AudioSystem` replays its sources. `?mixer=main`
   asks for the main thread outright, for comparisons. A scene with a
-  `music_session` also stays on the main thread: the suite clocks itself on
-  kira's manager (`manager_mut`), which only exists there.
+  `music_session` mixes in the worklet too since #1216 (ADR 0135): the suite
+  plays on `flint_audio::clocked::ClockedMixer`, whose remote side is the
+  `ClockNew`/`StemBusNew`/`StemPlay`/`..At` commands, and its clock's ticks
+  come back in the worklet's reports. Until #1216 it stayed on the main
+  thread. If the worklet fails, the suite starts again on the main-thread
+  mixer (`AudioEngine::mixer_epoch`).
 - The worklet's `AudioContext` asks for `latencyHint: "balanced"` and runs at
   the device's own rate (48 kHz on most phones), so the browser no longer
   resamples kira's 44.1 kHz output.
@@ -1969,6 +1973,37 @@ gzip -9:
 | after #754, without `music`, `rhythm`, `procgen` and `living` | | 11.23 MB | 4.28 MB |
 | after #754, `--no-default-features` | | 10.92 MB | 4.14 MB |
 
+### Packages (#1336)
+
+What leaving the feature packages out saves, measured once by hand on
+2026-11-25 at `8c4501ec` plus #1336's branch (Windows 11, x86_64 MSVC, rustc
+1.99.1, trunk 0.21.14 with its wasm-opt 123 `-Oz`, gzip -9 of the `.wasm`).
+**All** is the default build: every package. **None** leaves out every
+package (living, music, rhythm, procgen, debug-hud) and keeps the devices
+(`audio`, `gamepad`) and `frame-history`. **Standard** keeps the standard
+tier (procgen, debug-hud): what a game listing none of the feature packages
+gets. The desktop builds share one target dir, one after the other; the web
+builds run from `crates/flint-player`, where `index.html` is.
+
+| Build | Command | Size | gzip -9 |
+|---|---|---|---|
+| Release player, all | `cargo build --release -p flint-player --bin flint-player` | 77.04 MB | |
+| Release player, standard | the same `--no-default-features --features audio,gamepad,frame-history,debug-hud,procgen` | 74.26 MB (-3.6%) | |
+| Release player, none | the same `--no-default-features --features audio,gamepad,frame-history` | 70.20 MB (-8.9%) | |
+| Web `.wasm`, all | `trunk build --release --cargo-profile web-release` | 18.25 MB | **6.84 MB** |
+| Web `.wasm`, standard | the same `--no-default-features --features audio,gamepad,frame-history,debug-hud,procgen` | 17.65 MB | 6.60 MB (-3.5%) |
+| Web `.wasm`, none | the same `--no-default-features --features audio,gamepad,frame-history` | 16.62 MB | **6.19 MB** (-9.5%) |
+
+The packages are a tenth of either binary. Leaving them out saves 6.8 MB of
+desktop player and 0.65 MB on the wire. The rest is the kernel, and the
+render features and standard packages that have no switch yet (ADR 0136's
+later phases).
+
+The default web build is now 6.84 MB gzipped, against 4.70 MB at #754 and
+the "4 MB gzip line" above. A second `wasm-opt -Oz` pass over it saves 0.2%,
+so it was optimized. What grew between #754 and now is not measured here
+(#1526).
+
 The **size probe** is a throwaway bin, not committed. It builds a
 `PlayerApp` from a `black_box` world and passes opaque bytes to
 `rhai::Engine::eval`, `image::load_from_memory`, `toml::from_str` and
@@ -1996,7 +2031,7 @@ The showcase film is not part of the wasm or any bundle, so the 4 MB gzip
 line above doesn't count it. It is a click-to-play film on the Flint page,
 loaded on its own (`preload="none"` with its poster), and these are its
 sizes, recorded so the next cut can be held to them. The storyboard
-(`flint-examples/tools/showcase/storyboard.md`, "The 16:9 cut") has the whole table.
+(`flint-examples/film/storyboard.md`, "The 16:9 cut") has the whole table.
 
 | File | Size | |
 |---|---|---|

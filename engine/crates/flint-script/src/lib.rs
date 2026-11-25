@@ -117,6 +117,12 @@ impl ScriptSystem {
         self.engine.errors()
     }
 
+    /// Count an error a host found about a script outside any callback (a
+    /// playtest's `--test-script` that has no entity to go on, #1192).
+    pub fn record_error(&mut self, failure: errors::Failure) {
+        self.engine.record_error(failure);
+    }
+
     /// What the scripts' `test_*` calls said so far (#714): assertions by
     /// place, the first `test_pass` / `test_fail`, and `test_log`'s values.
     /// A copy: the record lives in the script context.
@@ -283,6 +289,7 @@ impl ScriptSystem {
             touch_just_ended,
             touch_taps,
             touch_swipes,
+            text_edits: input.text_edits().to_vec(),
         };
 
         self.engine
@@ -502,6 +509,16 @@ impl ScriptSystem {
         c.sounds_playing.extend(handles);
     }
 
+    /// The player's own bus volumes, by name, for `user_bus_volume`
+    /// (#1217): the host's at start and after each change. A bus missing
+    /// from it reads as 1.
+    pub fn set_user_bus_volumes<'a>(&mut self, volumes: impl IntoIterator<Item = (&'a str, f64)>) {
+        let mut c = crate::lock_or_recover(&self.engine.ctx);
+        c.user_bus_volumes.clear();
+        c.user_bus_volumes
+            .extend(volumes.into_iter().map(|(name, v)| (name.to_string(), v)));
+    }
+
     /// Load the script a `script.source` names for a specific entity (for
     /// chunk loading), searched for from `from_dir`, the chunk's own
     /// directory, by the project's one rule (`AssetKind::Scripts`), and
@@ -548,6 +565,48 @@ impl ScriptSystem {
                 let entity = format!("entity {}", entity_id.raw());
                 self.engine
                     .record_error(errors::Failure::compile(&file, &entity, &e));
+            }
+        }
+    }
+
+    /// Attach the script at `script_path` (as given, not searched for) to
+    /// `entity_id`, named `entity_name` in its errors and test records: a
+    /// host's own script beside the scene's, such as `flint playtest
+    /// --test-script`'s (#1192). The entity is marked found either way, so
+    /// a `script` component it carries is never searched for by name; a
+    /// file that doesn't read or compile is the script's `load` or
+    /// `compile` error. Its top level and `on_init` run with the scene's
+    /// at the next `initialize`. Not followed by hot reload.
+    pub fn attach_script_file(
+        &mut self,
+        entity_id: flint_core::EntityId,
+        entity_name: &str,
+        script_path: &std::path::Path,
+    ) {
+        self.sync.discovered.insert(entity_id);
+        let file = errors::shown_file(script_path);
+        if !flint_core::vfs::exists(script_path) {
+            self.engine.record_error(errors::Failure::load(
+                &file,
+                entity_name,
+                &format!("no script file at {file}"),
+            ));
+            return;
+        }
+        match self.engine.compile_file(script_path) {
+            Ok(ast) => {
+                tracing::debug!(target: "load", kind = "script", "[script] Loaded: {entity_name} → {file}");
+                self.engine.add_named_script(
+                    entity_id,
+                    ast,
+                    file.clone(),
+                    entity_name,
+                    Some(&file),
+                );
+            }
+            Err(e) => {
+                self.engine
+                    .record_error(errors::Failure::compile(&file, entity_name, &e));
             }
         }
     }
@@ -605,15 +664,12 @@ impl ScriptSystem {
         f(&mut c.ui_system)
     }
 
-    /// Generate draw commands from the data-driven UI system (unclipped)
+    /// Generate draw commands from the data-driven UI system, each clipped
+    /// to the scrolling lists it is inside (#1229)
     pub fn generate_ui_draw_commands(&mut self, screen_w: f32, screen_h: f32) -> Vec<DrawItem> {
         flint_core::scope!("script::ui_layout");
         let mut c = crate::lock_or_recover(&self.engine.ctx);
-        c.ui_system
-            .generate_draw_commands(screen_w, screen_h)
-            .into_iter()
-            .map(DrawItem::unclipped)
-            .collect()
+        c.ui_system.generate_draw_commands(screen_w, screen_h)
     }
 
     /// Call on_animation_end(clip_name) for entities whose sprite animation finished

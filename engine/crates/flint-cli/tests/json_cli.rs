@@ -15,6 +15,10 @@
 //!
 //! The renders (`render`, `goldens`, `edit <model> --render`) need a GPU and
 //! are skipped, said on stderr, on a machine with none.
+//!
+//! It runs every command, so it needs every package (#1333): a build
+//! without one answers that package's commands with exit 2 instead.
+#![cfg(feature = "packages")]
 
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -273,6 +277,32 @@ fn every_command_answers_with_one_json_document() {
     run("env");
     assert!(json(&dir, &["env"]).1["switches"].is_array());
 
+    // The engine's packages (#1331): this project names the engine by path,
+    // so the list is the manifests of the tree flint was built from. The
+    // shape is held by `package_list_has_the_shape_kept_in_the_repo`
+    run("package list");
+    assert_eq!(ok(&dir, &["package", "list"])["valid"], true);
+    // What the scaffold uses (#1334): no feature package
+    run("package used");
+    assert!(ok(&dir, &["package", "used"])["lines"].is_array());
+    // What `flint build` would run (#1335): a dry run builds nothing
+    run("build");
+    let build = ok(&dir, &["build", "--dry-run"]);
+    assert_eq!(build["dry_run"], true);
+    assert!(build["commands"][0]
+        .as_str()
+        .unwrap()
+        .starts_with("cargo build"));
+
+    // `play` is a window, but `--list-keys` only prints its debug keys,
+    // under flint's global --json (#1184: the player's own took it)
+    let keys = ok(&dir, &["play", scene, "--list-keys"]);
+    assert!(keys["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|k| k["action"] == "keys"));
+
     // Its takes open player windows, so the case is the plan (#722);
     // tests/capture_cli.rs captures for real
     run("capture");
@@ -429,7 +459,7 @@ fn every_command_answers_with_one_json_document() {
             "--dry-run",
         ],
     );
-    assert_eq!(terrain["files"][1]["role"], "splat", "{terrain:#}");
+    assert_eq!(terrain["generator"], "terrain_v1", "{terrain:#}");
     ok(
         &dir,
         &[
@@ -652,6 +682,91 @@ fn every_command_answers_with_one_json_document() {
     );
 }
 
+/// The JSON type names the shape file uses.
+fn type_of(v: &Value) -> &'static str {
+    match v {
+        Value::Null => "null",
+        Value::Bool(_) => "bool",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
+/// `object`'s keys, each to its type, and the shape's keys must be the
+/// same; a shape type `a|b` takes either.
+fn holds_shape(what: &str, object: &Value, shape: &Value) {
+    let object = object.as_object().unwrap();
+    let shape = shape.as_object().unwrap();
+    let keys: BTreeSet<&String> = object.keys().collect();
+    let wanted: BTreeSet<&String> = shape.keys().collect();
+    assert_eq!(keys, wanted, "{what}: its keys");
+    for (key, ty) in shape {
+        let found = type_of(&object[key]);
+        assert!(
+            ty.as_str().unwrap().split('|').any(|t| t == found),
+            "{what}: `{key}` is {found}, the shape says {ty}"
+        );
+    }
+}
+
+/// `flint package list --json` lists the seven packages of ADR 0136
+/// decision 8 in the shape `tests/package_list.shape.json` keeps (#1331),
+/// from the engine checkout itself and with `--dir`.
+#[test]
+fn package_list_has_the_shape_kept_in_the_repo() {
+    let shape: Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/package_list.shape.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let repo = std::path::absolute(repo()).unwrap();
+    let dir = repo.join("packages").display().to_string();
+    for (from, args) in [
+        (repo.clone(), vec!["package", "list"]),
+        (scratch("packages"), vec!["package", "list", "--dir", &dir]),
+    ] {
+        let doc = ok(&from, &args);
+        holds_shape("the document", &doc, &shape["document"]);
+        assert_eq!(doc["valid"], true);
+        assert_eq!(doc["problems"], serde_json::json!([]));
+        let packages = doc["packages"].as_array().unwrap();
+        let listed: Vec<Value> = packages
+            .iter()
+            .map(|p| serde_json::json!([p["name"], p["tier"]]))
+            .collect();
+        assert_eq!(Value::Array(listed), shape["packages"]);
+        for p in packages {
+            holds_shape(&format!("package {}", p["name"]), p, &shape["package"]);
+            assert!(p["file"].as_str().unwrap().ends_with("/package.toml"));
+        }
+    }
+
+    // A manifest with a mistake: listed among the problems by file and
+    // key, the rest still listed, exit 1
+    let broken = scratch("packages_broken");
+    for name in ["engine", "living"] {
+        let from = repo.join("packages").join(name).join("package.toml");
+        std::fs::create_dir_all(broken.join(name)).unwrap();
+        let mut text = std::fs::read_to_string(from).unwrap();
+        if name == "living" {
+            text = text.replace("tier = \"feature\"", "tier = \"feture\"");
+        }
+        std::fs::write(broken.join(name).join("package.toml"), text).unwrap();
+    }
+    let doc = fails(&broken, &["package", "list", "--dir", "."]);
+    assert_eq!(doc["valid"], false);
+    assert_eq!(doc["packages"].as_array().unwrap().len(), 1);
+    let problem = &doc["problems"][0];
+    assert_eq!(problem["code"], "bad-package");
+    assert_eq!(problem["field"], "package.tier");
+    assert_eq!(problem["file"], "living/package.toml");
+    assert_eq!(problem["hint"], "did you mean `feature`?");
+}
+
 #[test]
 fn an_unknown_schema_name_exits_non_zero() {
     let dir = scratch("schema");
@@ -678,6 +793,86 @@ fn a_window_command_refuses_json() {
         let message = error["error"]["message"].as_str().unwrap();
         assert!(message.contains("opens a window"), "{message}");
     }
+}
+
+/// #1199's table, row by row, with `--json` where a user puts it: before
+/// `play` it is flint's global flag, after it clap used to hand it to the
+/// player's own (#717), which asked for `--list-keys` (exit 2) or was
+/// refused as a window (#1184 made the global the only one). `--list-keys`
+/// opens no window, so it answers; a plain play refuses either way.
+#[test]
+fn play_answers_json_only_for_its_key_table_wherever_json_goes() {
+    let top = scratch("play_json");
+    assert!(flint(&top, &["init", "game"]).status.success());
+    let dir = top.join("game");
+    let scene = "scenes/main.scene.toml";
+    let stdout = |out: &Output| String::from_utf8_lossy(&out.stdout).into_owned();
+
+    // Rows 1 and 2: the table, the same bytes whichever side --json is on
+    let after = flint(&dir, &["play", "--list-keys", "--json", scene]);
+    let before = flint(&dir, &["--json", "play", "--list-keys", scene]);
+    for (words, out) in [
+        ("play --list-keys --json", &after),
+        ("--json play --list-keys", &before),
+    ] {
+        assert!(
+            out.status.success(),
+            "`flint {words}` exit {:?}:\n{}{}",
+            out.status.code(),
+            stdout(out),
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    let table: Value = serde_json::from_str(&stdout(&after)).expect("one JSON document");
+    assert!(table["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|k| k["action"] == "keys"));
+    assert_eq!(stdout(&after), stdout(&before));
+
+    // Rows 3 and 4: a plain play is a window, refused with exit 1 and an
+    // error document, never clap's "--list-keys is required" (exit 2).
+    // --exit-after only bounds the test if the refusal ever stops holding.
+    for words in [
+        &["play", "--json", scene, "--exit-after", "1"][..],
+        &["--json", "play", scene, "--exit-after", "1"],
+    ] {
+        let out = flint(&dir, words);
+        assert_eq!(out.status.code(), Some(1), "`flint {}`", words.join(" "));
+        let error: Value = serde_json::from_str(&stdout(&out)).expect("one JSON document");
+        let message = error["error"]["message"].as_str().unwrap();
+        assert!(message.contains("opens a window"), "{message}");
+    }
+
+    // Row 5: flint-player's own --json prints the same table. Its exe sits
+    // beside flint's when the workspace was built (plain `cargo test`); a
+    // `-p flint-cli` run may not have it, or may have an old one
+    let player =
+        Path::new(FLINT).with_file_name(format!("flint-player{}", std::env::consts::EXE_SUFFIX));
+    if !player.exists() {
+        eprintln!(
+            "no {}: flint-player's table is not compared",
+            player.display()
+        );
+        return;
+    }
+    let out = Command::new(&player)
+        .args([scene, "--list-keys", "--json"])
+        .current_dir(&dir)
+        .output()
+        .expect("flint-player runs");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        stdout(&out),
+        stdout(&after),
+        "flint play's table is not flint-player's (an old {}? cargo build -p flint-player)",
+        player.display()
+    );
 }
 
 #[test]

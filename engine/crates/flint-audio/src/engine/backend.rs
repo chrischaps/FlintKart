@@ -15,14 +15,15 @@
 //! and `every_op_reads_back` checks the reader).
 
 use crate::bus::Bus;
+use crate::clocked::ClockedMixer;
 use crate::handle::{SoundHandle, SpatialTrack};
 use crate::pan::Falloff;
 use flint_core::Result;
 use kira::sound::static_sound::StaticSoundData;
-use kira::{AudioManager, Decibels};
+use kira::Decibels;
 use web_time::Instant;
 
-use super::{AudioBackend, MixCounts};
+use super::MixCounts;
 
 /// One sound to start: the engine's decoded copy of it when it keeps one,
 /// and how it plays. `db` already has the master volume in it.
@@ -50,22 +51,18 @@ pub(crate) struct Held {
     pub keyed: usize,
 }
 
-/// Why a mixer can't host content that builds its own kira graph (a music
-/// suite, ADR 0017).
+/// Why a mixer can't host clocked content (a music suite, ADR 0017). Every
+/// mixer with a device hosts it since #1216, the browser's worklet too.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unhosted {
     /// No device yet (or none at all).
     Silent,
-    /// The mix runs in the browser's worklet, which has no command for a
-    /// clock or a stem; the scene mixes on the main thread instead.
-    Worklet,
 }
 
 impl std::fmt::Display for Unhosted {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Unhosted::Silent => "no audio device",
-            Unhosted::Worklet => "the browser's worklet mixer hosts no clocked content",
         })
     }
 }
@@ -98,10 +95,13 @@ pub(crate) trait MixerBackend {
     fn sound_length(&self, name: &str) -> Option<f64>;
 
     /// Make a bus the engine's table declares, under `parent` (`None`: the
-    /// main track). The built-in two exist from the start; this comes for
-    /// each other bus, in number order.
-    fn add_bus(&mut self, bus: Bus, parent: Option<Bus>, db: Decibels) -> Result<()>;
+    /// main track), its low-pass at `lowpass` Hz (#1218). The built-in two
+    /// exist from the start, open; this comes for each other bus, in
+    /// number order.
+    fn add_bus(&mut self, bus: Bus, parent: Option<Bus>, db: Decibels, lowpass: f32) -> Result<()>;
     fn set_bus_volume(&mut self, bus: Bus, db: Decibels, tween_secs: f64);
+    /// A bus's own low-pass cutoff, Hz (#1218).
+    fn set_bus_lowpass(&mut self, bus: Bus, hz: f32, tween_secs: f64);
     fn set_filter_cutoff(&mut self, hz: f32, tween_secs: f64);
 
     fn create_listener(&mut self, pos: glam::Vec3, orientation: glam::Quat) -> Result<()>;
@@ -138,9 +138,9 @@ pub(crate) trait MixerBackend {
     /// How long after it is mixed a sound is heard, seconds, if known.
     fn output_latency(&self) -> Option<f64>;
 
-    /// The kira manager content with its own clock and tracks starts on
-    /// (a music suite), or why there is none here.
-    fn host(&mut self) -> std::result::Result<&mut AudioManager<AudioBackend>, Unhosted>;
+    /// The mixer content with its own clock and stem buses starts on (a
+    /// music suite, #1216), or why there is none here.
+    fn host(&mut self) -> std::result::Result<&mut dyn ClockedMixer, Unhosted>;
 }
 
 /// No mixer: before the device opens (the web's Begin), or with none.
@@ -177,10 +177,11 @@ impl MixerBackend for Silent {
         None
     }
     // The engine remembers the table and the volumes for the mixer to come.
-    fn add_bus(&mut self, _: Bus, _: Option<Bus>, _: Decibels) -> Result<()> {
+    fn add_bus(&mut self, _: Bus, _: Option<Bus>, _: Decibels, _: f32) -> Result<()> {
         Ok(())
     }
     fn set_bus_volume(&mut self, _: Bus, _: Decibels, _: f64) {}
+    fn set_bus_lowpass(&mut self, _: Bus, _: f32, _: f64) {}
     fn set_filter_cutoff(&mut self, _: f32, _: f64) {}
     fn create_listener(&mut self, _: glam::Vec3, _: glam::Quat) -> Result<()> {
         Ok(())
@@ -217,7 +218,7 @@ impl MixerBackend for Silent {
     fn output_latency(&self) -> Option<f64> {
         None
     }
-    fn host(&mut self) -> std::result::Result<&mut AudioManager<AudioBackend>, Unhosted> {
+    fn host(&mut self) -> std::result::Result<&mut dyn ClockedMixer, Unhosted> {
         Err(Unhosted::Silent)
     }
 }

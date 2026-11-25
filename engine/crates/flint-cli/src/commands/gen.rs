@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{ArgGroup, Args, ValueEnum};
+#[cfg(feature = "ai")]
 use flint_asset_gen::StyleGuide;
 use flint_core::ContentHash;
 use flint_procgen::{
@@ -14,10 +15,14 @@ use flint_procgen::{
 };
 use serde::Serialize;
 
+#[cfg(feature = "ai")]
 use super::gen_ai;
 use super::gen_catalog;
 use super::gen_store::{self, WrittenFile};
+#[cfg(feature = "living")]
 use super::gen_strip::{self, StripOptions};
+#[cfg(not(feature = "ai"))]
+use no_style_guide::StyleGuide;
 
 /// Human lines go to stdout, unless stdout is carrying something a program
 /// reads: the spec (`--print-spec`) or the JSON report (`--report json`, #185).
@@ -55,9 +60,9 @@ pub struct GenArgs {
     /// Path to a .procgen.toml spec file (not needed with --ai-create,
     /// --cost-report, --list-generators or --describe), or a .glyphs.toml
     /// glyph set to preview: its atlas, ramps and a specimen as one sheet
-    /// (-o x.png) or every piece (-o dir/), or a .terrain.toml to bake: its
-    /// 16-bit heightmap (-o x.png, or <name>.png in -o dir/) and x_splat.png
-    /// beside it
+    /// (-o x.png) or every piece (-o dir/), or a .terrain.toml, which is a
+    /// terrain_v1 spec: its 16-bit heightmap and splat map, x_height.png and
+    /// x_splat.png for -o x.png
     #[arg(required_unless_present_any = ["ai_create", "cost_report", "list_generators", "describe"])]
     pub spec: Option<String>,
 
@@ -312,10 +317,108 @@ fn parse_format(s: &str) -> std::result::Result<String, String> {
 }
 
 fn parse_usd(s: &str) -> std::result::Result<f64, String> {
-    super::ai_costs::parse_usd(s)
+    super::common_args::parse_usd(s)
+}
+
+/// The AI steps (`--ai-create`, `--ai-assist`, `--ai-refine`): the spec they
+/// make, or `None` after a dry run said what they would do.
+#[cfg(feature = "ai")]
+fn ai_steps(
+    args: &GenArgs,
+    steps: gen_ai::Steps,
+    loaded: Option<ProcGenSpec>,
+    stdout_reserved: bool,
+) -> Result<Option<ProcGenSpec>> {
+    let config = gen_ai::resolve_config(args, Path::new(gen_ai::CONFIG_PATH))?;
+    if args.dry_run {
+        // With --print-spec a dry run has no spec to print, so the plan
+        // keeps stdout; only the JSON report needs it kept clear.
+        let plan = gen_ai::plan_lines(&config, steps, args);
+        for line in &plan {
+            if stdout_reserved {
+                eprintln!("{line}");
+            } else {
+                println!("{line}");
+            }
+        }
+        crate::output::when_json(|| serde_json::json!({ "dry_run": true, "plan": plan }));
+        return Ok(None);
+    }
+    let meter = gen_ai::build_meter(&config, args)?;
+    let agent = gen_ai::build_agent(config, meter.clone(), args.refine_rounds)?;
+    gen_ai::run_steps(args, agent.as_ref(), &meter, loaded).map(Some)
+}
+
+/// Built without the ai package: [`refuse_ai`] turned every AI flag away
+/// before a step could be asked for.
+#[cfg(not(feature = "ai"))]
+fn ai_steps(
+    _: &GenArgs,
+    _: gen_ai::Steps,
+    _: Option<ProcGenSpec>,
+    _: bool,
+) -> Result<Option<ProcGenSpec>> {
+    unreachable!("refuse_ai turns the AI flags away first")
+}
+
+/// The flags that need the ai package (#1333), refused with exit 2 in a
+/// build without it.
+#[cfg(not(feature = "ai"))]
+fn refuse_ai(args: &GenArgs) -> Result<()> {
+    let flag = [
+        (args.cost_report, "--cost-report"),
+        (args.ai_create.is_some(), "--ai-create"),
+        (args.ai_assist, "--ai-assist"),
+        (args.ai_refine, "--ai-refine"),
+        (args.style_guide.is_some(), "--style-guide"),
+    ]
+    .into_iter()
+    .find_map(|(given, flag)| given.then_some(flag));
+    match flag {
+        Some(flag) => Err(super::absent::missing(format!("flint gen {flag}"), "ai")),
+        None => Ok(()),
+    }
+}
+
+/// What the AI steps are without the ai package: none.
+#[cfg(not(feature = "ai"))]
+mod gen_ai {
+    #[derive(Clone, Copy)]
+    pub struct Steps;
+
+    impl Steps {
+        pub fn of(_: &super::GenArgs) -> Self {
+            Steps
+        }
+
+        pub fn any(self) -> bool {
+            false
+        }
+    }
+}
+
+/// A style guide (`--style-guide`) is the ai package's (flint-asset-gen);
+/// without it the flag is refused first, so none is ever loaded.
+#[cfg(not(feature = "ai"))]
+mod no_style_guide {
+    use flint_procgen::ValidationConstraints;
+
+    pub enum StyleGuide {}
+
+    impl StyleGuide {
+        pub fn load(_: &std::path::Path) -> Result<Self, &'static str> {
+            Err("a style guide needs the ai package")
+        }
+
+        pub fn validation_constraints(&self) -> ValidationConstraints {
+            match *self {}
+        }
+    }
 }
 
 pub fn run(args: GenArgs) -> Result<()> {
+    #[cfg(not(feature = "ai"))]
+    refuse_ai(&args)?;
     // The global --json (#710) asks for either catalog as one document
     let as_json = crate::output::json();
     if args.list_generators {
@@ -330,6 +433,7 @@ pub fn run(args: GenArgs) -> Result<()> {
         };
         return gen_catalog::describe(&GeneratorRegistry::with_built_ins(), name, format);
     }
+    #[cfg(feature = "ai")]
     if args.cost_report {
         return super::ai_costs::cost_report(&super::ai_costs::ledger(), args.since.as_deref());
     }
@@ -339,13 +443,6 @@ pub fn run(args: GenArgs) -> Result<()> {
         .is_some_and(super::glyph_preview::is_glyph_set)
     {
         return super::glyph_preview::run(&args);
-    }
-    if args
-        .spec
-        .as_deref()
-        .is_some_and(super::terrain_gen::is_terrain_spec)
-    {
-        return super::terrain_gen::run(&args);
     }
     // `--report json` is a JSON line a variant; the global --json is one
     // document for the run, with each variant's report in it
@@ -371,24 +468,10 @@ pub fn run(args: GenArgs) -> Result<()> {
     // The AI steps run first: they make the spec everything below checks.
     // A dry run only says what they would do.
     let mut spec = if steps.any() {
-        let config = gen_ai::resolve_config(&args, Path::new(gen_ai::CONFIG_PATH))?;
-        if args.dry_run {
-            // With --print-spec a dry run has no spec to print, so the plan
-            // keeps stdout; only the JSON report needs it kept clear.
-            let plan = gen_ai::plan_lines(&config, steps, &args);
-            for line in &plan {
-                if json || document {
-                    eprintln!("{line}");
-                } else {
-                    println!("{line}");
-                }
-            }
-            crate::output::when_json(|| serde_json::json!({ "dry_run": true, "plan": plan }));
-            return Ok(());
+        match ai_steps(&args, steps, loaded, json || document)? {
+            Some(spec) => spec,
+            None => return Ok(()),
         }
-        let meter = gen_ai::build_meter(&config, &args)?;
-        let agent = gen_ai::build_agent(config, meter.clone(), args.refine_rounds)?;
-        gen_ai::run_steps(&args, agent.as_ref(), &meter, loaded)?
     } else {
         loaded.expect("clap requires a spec unless --ai-create or --cost-report")
     };
@@ -450,6 +533,12 @@ pub fn run(args: GenArgs) -> Result<()> {
         bail!("{ignored} spec parameter(s) would be ignored (--strict)");
     }
 
+    // A [living] spec over time is the living package's (#1333)
+    #[cfg(not(feature = "living"))]
+    if args.strip {
+        return Err(super::absent::missing("flint gen --strip", "living"));
+    }
+    #[cfg(feature = "living")]
     if args.strip {
         return gen_strip::run(
             generator,
@@ -1058,12 +1147,19 @@ fn write_output(
                 let size = std::fs::metadata(&img_path)?.len();
                 total_size += size;
                 say!(
-                    "  {} ({}x{}, {})",
+                    "  {} ({}x{}{}, {})",
                     img_path.display(),
                     img.width,
                     img.height,
+                    match img.format {
+                        flint_procgen::PixelFormat::L16 => " 16-bit grey",
+                        flint_procgen::PixelFormat::Rgba8 => "",
+                    },
                     format_bytes(size)
                 );
+                if img.channel_semantics == flint_procgen::ChannelSemantics::Splat {
+                    say!("    coverage: {}", splat_coverage(img));
+                }
                 written.push(WrittenFile {
                     role: Some(role),
                     path: img_path,
@@ -1104,6 +1200,25 @@ fn write_output(
         });
     }
     Ok(written)
+}
+
+/// How much of a splat map each layer paints, `layer 0 61.2%, layer 2 ...`:
+/// the mean of each channel, leaving out a layer that paints nothing.
+fn splat_coverage(img: &flint_procgen::ImageData) -> String {
+    let mut sums = [0u64; 4];
+    for texel in img.pixels.as_chunks::<4>().0 {
+        for (sum, &w) in sums.iter_mut().zip(texel) {
+            *sum += u64::from(w);
+        }
+    }
+    let total: u64 = sums.iter().sum::<u64>().max(1);
+    let shares: Vec<String> = sums
+        .iter()
+        .enumerate()
+        .filter(|(_, &s)| s * 2000 >= total)
+        .map(|(i, &s)| format!("layer {i} {:.1}%", s as f64 * 100.0 / total as f64))
+        .collect();
+    shares.join(", ")
 }
 
 /// Resolve output path for batch mode, inserting the seed into the filename.
@@ -1458,6 +1573,7 @@ target_triangles = 1000
         assert_eq!(constraints.max_triangles, None);
     }
 
+    #[cfg(feature = "ai")]
     #[test]
     fn test_build_validation_constraints_from_style() {
         let spec = ProcGenSpec::parse(

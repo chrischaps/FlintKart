@@ -9,7 +9,8 @@
 //! leaves out is presentation: the window, the renderer and the sound
 //! device. A model is not loaded (nothing draws it); a sound is (a missing
 //! file still warns). Saves stay in memory: a playtest starts from no save
-//! file and writes none. Hot reload is off, and `random()` is seeded.
+//! file, or from the one `save_from` names (#1193), and writes none. Hot
+//! reload is off, and `random()` is seeded.
 //!
 //! The run ends at the first of: a script's `test_pass()` or `test_fail()`,
 //! `quit_game()`, a failed scene transition, `exit_after` (the end of a
@@ -22,7 +23,7 @@
 //! the wall clock only with `timings`.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -47,6 +48,10 @@ pub struct PlaytestOptions {
     pub schemas: Vec<String>,
     /// An input script's path.
     pub input_script: Option<String>,
+    /// The playtest's own Rhai checks (#1192), each attached to an entity
+    /// it spawns in every scene (`playtest`, `playtest_2` ...): the whole
+    /// script API and the `test_*` functions, with nothing in the scene.
+    pub test_scripts: Vec<PathBuf>,
     /// Game seconds a frame.
     pub frame_step: f64,
     /// `random()`'s seed; `None` is the player's stepped-run seed.
@@ -62,8 +67,22 @@ pub struct PlaytestOptions {
     pub dump: Vec<String>,
     /// Put wall-clock times in the report (then no two runs are alike).
     pub timings: bool,
-    /// The screen scripts see, in points.
+    /// The screen scripts see, in points; with `render`, the frame's
+    /// pixels too.
     pub screen: (f32, f32),
+    /// Draw every frame offscreen (#1191): models load, the HUD is painted,
+    /// and screenshots and `frame` checks see what was drawn.
+    pub render: bool,
+    /// Write the frame at `screenshot_at` (or every `screenshot_every`
+    /// from it, numbered) as a PNG here; needs `render`.
+    pub screenshot: Option<PathBuf>,
+    pub screenshot_at: f64,
+    pub screenshot_every: Option<f64>,
+    /// Start from this save file (#1193): its text is the default slot's,
+    /// loaded as the player loads a save (its version, the scripts'
+    /// `on_persist_migrate`, a file that doesn't parse), and the file is
+    /// never written.
+    pub save_from: Option<PathBuf>,
 }
 
 impl PlaytestOptions {
@@ -72,6 +91,7 @@ impl PlaytestOptions {
             scene: scene.into(),
             schemas: Vec::new(),
             input_script: None,
+            test_scripts: Vec::new(),
             frame_step: DEFAULT_STEP,
             seed: None,
             exit_after: None,
@@ -80,6 +100,11 @@ impl PlaytestOptions {
             dump: Vec::new(),
             timings: false,
             screen: (1280.0, 720.0),
+            render: false,
+            screenshot: None,
+            screenshot_at: 0.0,
+            screenshot_every: None,
+            save_from: None,
         }
     }
 }
@@ -108,8 +133,8 @@ pub enum Ended {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Failure {
     /// `assertion`, `test_fail`, `check`, `script_error`, `scene`,
-    /// `timeout`, `start` or `load_warning`; `preflight` for what `flint
-    /// playtest --strict` adds from `flint check`.
+    /// `timeout`, `start`, `load_warning`, `screenshot` or `save_from`; `preflight` for
+    /// what `flint playtest --strict` adds from `flint check`.
     pub kind: &'static str,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -206,6 +231,56 @@ pub struct PerfReport {
     pub wall_ms_per_frame: Option<f64>,
 }
 
+/// What a rendered run drew (#1191), on game time: the target and the
+/// draws summed over its frames.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RenderReport {
+    pub width: u32,
+    pub height: u32,
+    /// Frames drawn: every frame the run stepped.
+    pub frames: u64,
+    /// The renderer's draw calls summed over the frames (the F2 overlay's
+    /// `Draw calls`), and the draws the culls left out.
+    pub draw_calls: u64,
+    pub culled_draws: u64,
+}
+
+/// A screenshot the run wrote.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ScreenshotReport {
+    /// As asked for, `/`-separated.
+    pub file: String,
+    /// The game time of the frame it holds.
+    pub at: f64,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// The save a run started from (`save_from`, #1193), and what the run left
+/// of it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SaveReport {
+    /// The file, as given.
+    pub file: String,
+    /// What the load found: `read`, or `corrupt` (the text didn't parse,
+    /// the store began empty and scripts see `persist_corrupt()`).
+    pub loaded: &'static str,
+    /// The keys read.
+    pub keys: usize,
+    /// The version the file was saved at (`[meta] version`, 0 with none).
+    pub version: i64,
+    /// The game's version (`[project] save_version`): a file below it is
+    /// migrated by the scripts' `on_persist_migrate(from)`.
+    pub game_version: i64,
+    /// The data's version at the end: the game's once migrated.
+    pub version_at_end: i64,
+    /// Why it didn't parse, when it didn't.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// The file holds the bytes it held before the run.
+    pub untouched: bool,
+}
+
 /// Everything a playtest found, as `flint playtest` writes it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PlaytestReport {
@@ -230,6 +305,15 @@ pub struct PlaytestReport {
     /// entity that isn't there is `null`.
     pub entities: BTreeMap<String, Value>,
     pub perf: PerfReport,
+    /// What was drawn, with `render`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub render: Option<RenderReport>,
+    /// The screenshots written, in order.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub screenshots: Vec<ScreenshotReport>,
+    /// The save the run started from, with `save_from`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub save: Option<SaveReport>,
 }
 
 impl PlaytestReport {
@@ -282,6 +366,9 @@ fn not_started(options: &PlaytestOptions, why: String) -> PlaytestReport {
             wall_ms: None,
             wall_ms_per_frame: None,
         },
+        render: None,
+        screenshots: Vec::new(),
+        save: None,
     }
 }
 
@@ -299,6 +386,14 @@ fn start(options: &PlaytestOptions) -> anyhow::Result<PlayerApp> {
     if options.frame_step.is_nan() || options.frame_step <= 0.0 {
         anyhow::bail!("--frame-step must be over 0 (got {})", options.frame_step);
     }
+    if options.screenshot.is_some() && !options.render {
+        anyhow::bail!("--screenshot needs --render: a playtest without it draws no frame");
+    }
+    if let Some(every) = options.screenshot_every {
+        if every.is_nan() || every <= 0.0 {
+            anyhow::bail!("--screenshot-every must be over 0 (got {every})");
+        }
+    }
     let scene = options.scene.clone();
     let scene_path = Path::new(&scene);
     let (registry, schema_dirs) =
@@ -307,10 +402,31 @@ fn start(options: &PlaytestOptions) -> anyhow::Result<PlayerApp> {
             Err(flint_core::FlintError::SchemaDirs(e)) => return Err(e.into()),
             Err(e) => return Err(e).context("Failed to load schemas"),
         };
+    for script in &options.test_scripts {
+        if !flint_core::vfs::exists(script) {
+            anyhow::bail!(
+                "--test-script: no file at {}",
+                flint_core::project::shown(script)
+            );
+        }
+    }
     let input_script = options
         .input_script
         .as_deref()
         .map(crate::InputScript::load)
+        .transpose()?;
+    let save_seed = options
+        .save_from
+        .as_deref()
+        .map(|file| {
+            let text = flint_core::vfs::read_to_string(file)
+                .with_context(|| format!("--save-from: cannot read {}", file.display()))?;
+            anyhow::Ok(flint_runtime::SaveText {
+                text,
+                from: shown(file),
+                old_place: false,
+            })
+        })
         .transpose()?;
     #[cfg_attr(not(feature = "living"), allow(unused_mut))]
     let (world, mut scene_file) = flint_scene::load_scene(&scene, &registry)
@@ -329,6 +445,7 @@ fn start(options: &PlaytestOptions) -> anyhow::Result<PlayerApp> {
     );
     let launch = &mut app.launch;
     launch.saves_in_memory = true;
+    launch.save_seed = save_seed;
     launch.headless_screen = Some(options.screen);
     launch.window_size = (options.screen.0 as u32, options.screen.1 as u32);
     // An unattended run writes nothing beside the game
@@ -336,13 +453,132 @@ fn start(options: &PlaytestOptions) -> anyhow::Result<PlayerApp> {
     launch.scene_file_writable = false;
     app.apply_scene_settings(&scene_file);
     app.capture.input_script = input_script;
+    app.launch.test_scripts = options.test_scripts.clone();
+    app.capture.path = options.screenshot.clone();
+    app.capture.at = options.screenshot_at;
+    app.capture.every = options.screenshot_every;
     app.step_frames(Some(options.frame_step), options.seed);
     app.set_schemas(registry, schema_dirs);
     // Every named event, for the input script's `event` lines
     app.core.event_log = Some(Vec::new());
-    app.enter_scene(SceneEntry::Start)
-        .context("the scene did not start")?;
+    // A rendered run (#1191): a renderer on an offscreen target before the
+    // scene enters, so its models, styles and fonts load onto it
+    if options.render {
+        let (w, h) = target_size(options);
+        app.use_offscreen(super::offscreen::lend(w, h).context("--render")?);
+    }
+    if let Err(e) = app.enter_scene(SceneEntry::Start) {
+        finish(app);
+        return Err(e).context("the scene did not start");
+    }
     Ok(app)
+}
+
+/// A path as a report says it, the same on every platform.
+fn shown(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+/// What became of the `save_from` file: what loading it found, the data's
+/// version now, and whether the file still holds what it held.
+fn save_report(app: &PlayerApp, options: &PlaytestOptions) -> Option<SaveReport> {
+    let file = options.save_from.as_deref()?;
+    let before = app.launch.save_seed.as_ref()?;
+    let store = &app.core.store;
+    let mut report = SaveReport {
+        file: shown(file),
+        loaded: "read",
+        keys: 0,
+        version: 0,
+        game_version: store.game_version(),
+        version_at_end: store.version(),
+        error: None,
+        untouched: flint_core::vfs::read_to_string(file).ok().as_deref()
+            == Some(before.text.as_str()),
+    };
+    match &app.saves.loaded {
+        Some(flint_runtime::Loaded::Read { keys, version, .. }) => {
+            report.keys = *keys;
+            report.version = *version;
+        }
+        Some(flint_runtime::Loaded::Corrupt(c)) => {
+            report.loaded = "corrupt";
+            report.error = Some(c.error.clone());
+        }
+        // A seed is always there to read
+        _ => {}
+    }
+    Some(report)
+}
+
+/// The name of the entity the `n`th `--test-script` (from 0) is attached
+/// to: `playtest`, then `playtest_2`, `playtest_3` ...
+pub fn test_entity_name(n: usize) -> String {
+    match n {
+        0 => TEST_ENTITY.to_string(),
+        n => format!("{TEST_ENTITY}_{}", n + 1),
+    }
+}
+
+/// What the first `--test-script`'s entity is called.
+pub const TEST_ENTITY: &str = "playtest";
+
+impl PlayerApp {
+    /// Spawn an entity for each of `launch.test_scripts` (#1192) and attach
+    /// the script to it, as given (not searched for), after the scene's
+    /// scripts are pointed at and before they initialize, so its top level
+    /// and `on_init` run with theirs. Each scene the run enters gets them
+    /// afresh (a transition drops the old world's): a script's variables
+    /// start over there, its `test_*` records don't. The entity has a
+    /// `script` component naming the file and nothing else; a scene that
+    /// already has an entity of the name gets a `load` script error.
+    pub(super) fn attach_test_scripts(&mut self) {
+        for (n, path) in self.launch.test_scripts.clone().iter().enumerate() {
+            let name = test_entity_name(n);
+            let shown = flint_core::project::shown(path);
+            let id = match self.core.world.spawn(name.clone()) {
+                Ok(id) => id,
+                Err(_) => {
+                    self.core
+                        .script
+                        .record_error(flint_script::errors::Failure::load(
+                            &shown,
+                            &name,
+                            &format!(
+                                "--test-script: the scene already has an entity named `{name}`"
+                            ),
+                        ));
+                    continue;
+                }
+            };
+            let mut script = toml::map::Map::new();
+            script.insert("source".into(), toml::Value::String(shown));
+            let _ =
+                self.core
+                    .world
+                    .set_component(id, flint_core::components::SCRIPT, script.into());
+            self.core.script.attach_script_file(id, &name, path);
+        }
+    }
+}
+
+/// A rendered run's target in pixels: the screen scripts see, one pixel a
+/// point.
+fn target_size(options: &PlaytestOptions) -> (u32, u32) {
+    (
+        options.screen.0.round().max(1.0) as u32,
+        options.screen.1.round().max(1.0) as u32,
+    )
+}
+
+/// The run is over: its offscreen target, if it drew on one, goes back for
+/// the next run once the player that drew into it is gone.
+fn finish(app: PlayerApp) {
+    let gpu = app.offscreen();
+    drop(app);
+    if let Some(gpu) = gpu {
+        super::offscreen::give_back(gpu);
+    }
 }
 
 /// Play `options.scene` headless until it ends, and say how it went.
@@ -367,6 +603,16 @@ pub fn run(options: &PlaytestOptions) -> PlaytestReport {
     };
     let mut frames = 0u64;
     let mut fixed_steps = 0u64;
+    let mut drawn = options.render.then(|| {
+        let (width, height) = target_size(options);
+        RenderReport {
+            width,
+            height,
+            frames: 0,
+            draw_calls: 0,
+            culled_draws: 0,
+        }
+    });
     let ended = loop {
         let now = app.core.clock.total_time;
         if let Some(t) = exit_after {
@@ -382,6 +628,15 @@ pub fn run(options: &PlaytestOptions) -> PlaytestReport {
         app.tick();
         frames += 1;
         fixed_steps += app.core.fixed_steps as u64;
+        if let Some(drawn) = &mut drawn {
+            app.render_offscreen();
+            drawn.frames += 1;
+            if let Some(renderer) = &app.scene_renderer {
+                let stats = renderer.collect_stats();
+                drawn.draw_calls += stats.draw_calls as u64;
+                drawn.culled_draws += stats.culled_draws as u64;
+            }
+        }
         if app.core.script.test_decided() {
             let passed = app
                 .core
@@ -408,7 +663,20 @@ pub fn run(options: &PlaytestOptions) -> PlaytestReport {
     }
     let wall_ms = wall.elapsed().as_secs_f64() * 1000.0;
     let messages = warnings::end();
-    report(&app, options, ended, frames, fixed_steps, messages, wall_ms)
+    let mut report = report(&app, options, ended, frames, fixed_steps, messages, wall_ms);
+    report.render = drawn;
+    report.save = save_report(&app, options);
+    if let Some(save) = report.save.as_ref().filter(|s| !s.untouched) {
+        report.failures.push(Failure::new(
+            "save_from",
+            "the save file the run started from changed during it".to_string(),
+            Some(save.file.clone()),
+            None,
+        ));
+        report.passed = false;
+    }
+    finish(app);
+    report
 }
 
 fn report(
@@ -508,6 +776,21 @@ fn report(
             at: Some(now),
         });
     }
+    // The screenshots asked for that aren't on disk (#1191)
+    for why in app
+        .capture
+        .scripted_missing()
+        .into_iter()
+        .chain(app.capture.flag_missing())
+    {
+        failures.push(Failure {
+            kind: "screenshot",
+            message: why,
+            file: None,
+            line: None,
+            at: None,
+        });
+    }
     if options.strict {
         for w in messages.iter().filter(|w| w.at_load > 0) {
             failures.push(Failure {
@@ -597,5 +880,18 @@ fn report(
             wall_ms: options.timings.then_some(wall_ms),
             wall_ms_per_frame: options.timings.then(|| wall_ms / (frames.max(1) as f64)),
         },
+        render: None,
+        save: None,
+        screenshots: app
+            .capture
+            .shots
+            .iter()
+            .map(|s| ScreenshotReport {
+                file: s.path.to_string_lossy().replace('\\', "/"),
+                at: s.at,
+                width: s.width,
+                height: s.height,
+            })
+            .collect(),
     }
 }

@@ -1,6 +1,7 @@
 # Flint's CI. No GPU here, and AudioManager::new() / Gilrs::new() can fail
 # headless, so most of the native test suite stays local for now (`cargo
-# test`). The GPU tests and render goldens run on a software adapter (#314).
+# test`). The GPU tests, render goldens and the CLI's --json contract
+# (json_cli, #1268) run on a software adapter (#314).
 name: CI
 
 on:
@@ -118,19 +119,29 @@ jobs:
       - name: cargo check -p flint-cli --no-default-features
         run: bash scripts/headless-check.sh --build
 
+      # Every crate, schema file, script module and command belongs to one
+      # package's manifest (packages/<name>/package.toml, #1331), checked in
+      # the headless build. A lib test: the command tree is flint-cli's own.
+      # It is the build with no package at all (#1333), so `absent::` holds
+      # each left-out command to exit 2 naming its package.
+      - name: cargo test -p flint-cli --no-default-features --lib package:: absent::
+        run: cargo test -p flint-cli --no-default-features --lib -- package:: absent::
+
       # The book against the script API (#695): the generated reference
       # (docs/book/src/reference/script-api.md) and the scripting chapter's
       # script-api tables match the engine's declarations, and no chapter
       # calls a function the engine doesn't have (docs/book/script-api-allow.txt
-      # lists the Rust and shader names that aren't script calls). Same binary
-      # as the step above. Fix a stale page with `flint script api --book`.
+      # lists the Rust and shader names that aren't script calls). The book
+      # describes every package, so this binary has them all (`packages`,
+      # #1333) and still no device crate. Fix a stale page with
+      # `flint script api --book`.
       - name: flint script api --check-book
-        run: cargo run -p flint-cli --no-default-features --bin flint -- script api --check-book
+        run: cargo run -p flint-cli --no-default-features --features packages --bin flint -- script api --check-book
 
       # The book's environment page (#715) against the table every FLINT_*
       # switch is read through (flint_core::env). Fix it with `flint env --book`.
       - name: flint env --check-book
-        run: cargo run -p flint-cli --no-default-features --bin flint -- env --check-book
+        run: cargo run -p flint-cli --no-default-features --features packages --bin flint -- env --check-book
 
       # The book's prose against the CLI (#375): every `--flag` on a `flint`
       # command line in the book and the CLAUDE.md files is one that
@@ -143,6 +154,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/docs-check.py --flint target/debug/flint
+
+  # The package matrix (#1336, epic #1328): flint-player and flint-cli built
+  # with no package, the standard set alone (what a game listing none of the
+  # feature packages gets), each package alone and all of them, read from
+  # packages/*/package.toml. A package that compiles only when everything is
+  # on fails here, naming the configuration; so does a tree that links a
+  # crate of a package left out. Devices are off throughout, so no headers
+  # are installed. Every configuration shares the one target dir, and the
+  # run goes on past a failure, listing each.
+  # Run it locally with `bash scripts/package-check.sh --build`.
+  packages:
+    name: package matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: package-matrix
+          cache-on-failure: true
+
+      - name: scripts/package-check.sh --build
+        run: bash scripts/package-check.sh --build
 
   # The GPU tests and render goldens (#314) on WARP, the software DX12
   # adapter every Windows ships. A runner has no GPU, and these tests skip
@@ -239,6 +276,26 @@ jobs:
           target/debug/flint.exe goldens crates/flint-cli/tests/golden/stylize.goldens.toml
           --case invert --case edges-view --case pencil-full --case watercolor
           --require-gpu --out-dir target/tmp/stylize-goldens-fxc
+
+      # The global --json (#710) with the real binary: every windowless
+      # command answers with one JSON document, a window command refuses it,
+      # `play --list-keys` answers wherever --json goes. Here because this job
+      # has built flint (a second test binary is all it adds) and has an
+      # adapter, so the render cases run too. Before #1268 no CI job ran it:
+      # `flint play --json` exited 2 from #717 (the player's own --json
+      # shadowed the global) until #1184, and nobody saw the red test
+      - name: cargo test -p flint-cli --test json_cli
+        if: success() || failure()
+        run: cargo test -p flint-cli --test json_cli
+
+      # `flint schema` as data and `flint validate`'s references (#684),
+      # with the real binary. No GPU, but here for the same reason as the
+      # step above: flint is built. Before #1285 no CI job ran it, and its
+      # copy of `collider`'s fields was red on main from #729 (17 Nov) to
+      # #1054 (21 Nov), unseen
+      - name: cargo test -p flint-cli --test schema_cli
+        if: success() || failure()
+        run: cargo test -p flint-cli --test schema_cli
 
       - name: Goldens summary
         if: always()

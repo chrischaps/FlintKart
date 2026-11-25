@@ -307,6 +307,19 @@ impl SceneRenderer {
                     .map(|(t, _)| t.clone())
                     .ok_or("no grab");
             }
+            // A replay's overdraw view (#1203)
+            "overdraw_count" => {
+                return self
+                    .overdraw_textures()
+                    .map(|(count, _)| count.clone())
+                    .ok_or("no overdraw drawn");
+            }
+            "overdraw" => {
+                return self
+                    .overdraw_textures()
+                    .map(|(_, heat)| heat.clone())
+                    .ok_or("no overdraw drawn");
+            }
             _ => {}
         }
         let r = self.postprocess_resources.as_ref().ok_or("no HDR chain")?;
@@ -448,11 +461,12 @@ impl SceneRenderer {
             render_scale: self.render_scale,
             debug_mode: format!("{:?}", self.debug_state.mode),
             selected: self.selected_entity.map(name),
+            grid: self.show_grid(),
             motion_hold: self.motion_hold.state(&name),
             skinning: Vec::new(),
             // Only while a draw binds an asset's shared palette (an entity
-            // before its first own write): it holds whichever entity wrote
-            // last, which isn't the same entity every run
+            // before its first own write); it is its owner's, the lowest id
+            // that wrote the asset (#1177), so the same every run
             asset_bones: if skinning.bone_binds.values().any(|b| !b.from_entity) {
                 skinning
                     .asset_bone_matrices
@@ -517,8 +531,8 @@ impl SceneRenderer {
     /// bound and loaded: every bone, shadow and echo palette from
     /// `skinning` (`skinning.bin`'s bytes, indexed by `state.skinning`), the
     /// asset palettes, part tints and softness, which echoes lighten, the
-    /// motion hold's kept matrices and ticks, and the selected entity.
-    /// Entities are found in `world` by name; what names none is returned,
+    /// motion hold's kept matrices and ticks, the selected entity and the
+    /// floor grid. Entities are found in `world` by name; what names none is returned,
     /// a line each. Quality, MSAA, render scale and the config are the
     /// host's to set, as a load does.
     pub fn restore_replay_state(
@@ -606,6 +620,8 @@ impl SceneRenderer {
         self.motion_hold.restore(&state.motion_hold, &mut id_of);
         let selected = state.selected.as_deref().and_then(&mut id_of);
         self.set_selected_entity(selected);
+        // The floor grid, drawn in the scene pass (#1211)
+        self.set_show_grid(device, state.grid);
         let mut said: Vec<String> = unknown
             .into_iter()
             .map(|n| format!("the capture's renderer state names {n:?}, which the replay's world has no entity of"))

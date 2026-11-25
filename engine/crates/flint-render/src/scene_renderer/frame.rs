@@ -66,7 +66,7 @@ pub struct FrameInputs<'a> {
     pub shallow_wooze: &'a [(flint_core::EntityId, ShallowWoozeDraw)],
     /// The shading boil's drawing this frame (#214), from whoever owns the
     /// boil clock. The default boils nothing.
-    pub boil: flint_wooze::BoilFrame,
+    pub boil: flint_core::field_frame::BoilFrame,
     /// Physical pixels per logical point of the target: styles sized in
     /// points (ASCII cells, #265), comic panels' gutters and world lines'
     /// widths scale by it. Default 1, a headless target.
@@ -113,6 +113,17 @@ pub struct DrawControls {
     /// One pass drawn only up to its Nth draw (#1204); every other pass
     /// draws whole.
     pub limit: Option<DrawLimit>,
+    /// The scene pass's draws to time on the GPU, by their place in its
+    /// list as the description has them (#1203): a timestamp before and
+    /// after each, inside the pass, on a device with
+    /// `TIMESTAMP_QUERY_INSIDE_PASSES`. At most
+    /// [`DRAW_TIME_BATCH`](super::SceneRenderer::DRAW_TIME_BATCH) a frame;
+    /// read with [`read_draw_times`](super::SceneRenderer::read_draw_times).
+    pub time_draws: Option<std::ops::Range<usize>>,
+    /// Draw the scene pass's overdraw after it (#1203): how many of its
+    /// draws shade each pixel, as the `Overdraw` pass's `overdraw_count`
+    /// and its heat map `overdraw`.
+    pub overdraw: bool,
 }
 
 impl DrawControls {
@@ -265,6 +276,12 @@ impl SceneRenderer {
         }
         // and a captured one its copies (#1085)
         self.reset_frame_taps();
+        // A replay's draw times and overdraw (#1203); a game's frame names
+        // neither
+        let controls = inputs.draw_controls;
+        self.draw_times
+            .arm(device, queue, controls.and_then(|c| c.time_draws.clone()));
+        self.overdraw.wanted = controls.is_some_and(|c| c.overdraw);
         self.take_inputs(queue, inputs);
         self.update_from_world(world, device);
         match inputs.particles {
@@ -283,7 +300,7 @@ impl SceneRenderer {
         &mut self,
         device: &wgpu::Device,
         world: &FlintWorld,
-        boil: flint_wooze::BoilFrame,
+        boil: flint_core::field_frame::BoilFrame,
         shallow_wooze: &[(flint_core::EntityId, ShallowWoozeDraw)],
     ) {
         self.again_boil = Some(boil);
@@ -447,17 +464,24 @@ impl SceneRenderer {
         // description, while one is asked for (#1084): each part logs its
         // pass where it opens its scope.
         // With them a captured frame's copies (#1085): each pass's targets
-        // are read as it ends (`tap_pass`).
+        // are read as it ends (`tap_pass`), each timed in this queue's
+        // ticks (#1160: a still arms the capture after its `prepare`)
         let mut scopes = crate::frame_capture::FrameScopes {
             timer: self.gpu_timer.take(),
             log: self.frame_log.take(),
-            taps: self.frame_taps.take(),
+            taps: self.frame_taps.take().map(|mut taps| {
+                taps.times_in(queue);
+                taps
+            }),
             // A host's skip and repeat knobs (#1317), else None
             knobs: self.pass_knobs.take(),
         };
         self.begin_view_taps(&scopes);
         if let Some(log) = scopes.log() {
-            log.begin_view(self.surface_size.into());
+            log.begin_view(
+                self.surface_size.into(),
+                crate::frame_replay::CameraState::of(camera),
+            );
         }
         // The depth the scene draws against, in the description's names
         let sd = self.scene_depth_id();
@@ -688,6 +712,8 @@ impl SceneRenderer {
         });
 
         scopes.repeat(scene_times, |scopes| {
+            // A replay's draw times count the list from its start (#1203)
+            self.draw_times.begin_pass();
             if !self.water.grab_this_frame {
                 // Single-pass path (unchanged for scenes without an ocean), split
                 // before the translucent draws while the fog veil is drawn.
@@ -894,6 +920,18 @@ impl SceneRenderer {
                 self.log_scene_draws(pass, camera_pos);
             }
             self.tap_pass(device, &mut scopes, encoder, "Scene");
+        }
+        // A replay's draw times (#1203) toward their read-back, and its
+        // overdraw view of the pass just drawn
+        self.draw_times.resolve(encoder);
+        if self.overdraw.wanted {
+            let scope = scopes.begin(encoder, "Overdraw");
+            scopes.note("Overdraw", |p| {
+                p.writes(&["overdraw_count", "overdraw"]);
+            });
+            self.encode_overdraw(device, encoder);
+            scopes.end(encoder, scope);
+            self.tap_pass(device, &mut scopes, encoder, "Overdraw");
         }
 
         // The fog veil (#513): the translucent draws' weight, depth and

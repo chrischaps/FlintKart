@@ -1,17 +1,26 @@
 //! The `physics` and `physics_2d` modules: rays against colliders, the
 //! sprite plane's rectangle query and 2D bodies' velocities (ADR 0116).
 //! Rays and character moves take a layer mask (#729): a layer's name or a
-//! list of names from the project's `[project.physics] layers`.
+//! list of names from the project's `[project.physics] layers`. A
+//! collider's own layer and mask change with `set_collision_layer` and
+//! `set_collision_mask`, heard at the next step (#1221).
 
-use super::builder::kind::{Any, Array, Entity, Map as MapKind, Num};
+use super::builder::kind::{Any, Array, Entity, Map as MapKind, Num, Str};
 use super::builder::{Call, CallResult, ScriptApi};
 use crate::context::ScriptCommand;
+use flint_core::components as comp;
 use flint_physics::{EntityRaycastHit, LayerMask, PhysicsSystem};
 use rhai::{Dynamic, Map};
 
 /// A mask argument: one layer's name or an array of names. An unknown
 /// name, or anything else, is a script error at the call.
 fn read_mask(call: &Call, physics: &PhysicsSystem, mask: &Dynamic) -> CallResult<LayerMask> {
+    let names = mask_names(call, mask)?;
+    physics.layer_mask(&names).map_err(|e| call.error(e))
+}
+
+/// A mask argument's names, unchecked against the layers.
+fn mask_names(call: &Call, mask: &Dynamic) -> CallResult<Vec<String>> {
     let names: Vec<String> = if let Some(name) = mask.read_lock::<rhai::ImmutableString>() {
         vec![name.to_string()]
     } else if let Some(list) = mask.read_lock::<rhai::Array>() {
@@ -34,7 +43,24 @@ fn read_mask(call: &Call, physics: &PhysicsSystem, mask: &Dynamic) -> CallResult
             mask.type_name()
         )));
     };
-    physics.layer_mask(&names).map_err(|e| call.error(e))
+    Ok(names)
+}
+
+/// Write one field of an entity's collider, refused when it has none (a
+/// `collider` made here would have no body: physics never sees one alone).
+fn set_collider_field(
+    call: &mut Call,
+    id: flint_core::EntityId,
+    field: &str,
+    value: toml::Value,
+) -> CallResult<()> {
+    let world = call.world_mut()?;
+    if world.get_component(id, comp::COLLIDER).is_none() {
+        let name = world.get_name(id).unwrap_or("?").to_string();
+        return Err(call.error(format!("`{name}` has no collider")));
+    }
+    let _ = world.set_field(id, comp::COLLIDER, field, value);
+    Ok(())
 }
 
 fn hit_3d(hit: EntityRaycastHit) -> Dynamic {
@@ -207,6 +233,36 @@ pub(crate) fn register(api: &mut ScriptApi) {
         None => rhai::Array::new(),
     });
 
+    m.func(
+        "set_collision_layer",
+        "Put an entity's collider on another collision layer, from the next physics step: a power-up that walks through walls, a corpse that stops blocking bullets. It writes `collider.layer`, as `set_field` would, but an unknown layer is a script error here.",
+    )
+    .arg("id", Entity)
+    .arg("layer", Str)
+    .run(|call, (id, layer)| {
+        if let Some(p) = call.physics() {
+            if p.layers().bit(&layer).is_none() {
+                return Err(call.error(p.layers().unknown(&layer)));
+            }
+        }
+        set_collider_field(call, id, "layer", toml::Value::String(layer.to_string()))
+    });
+
+    m.func(
+        "set_collision_mask",
+        "Change the layers an entity's collider meets (a layer's name or an array of names), from the next physics step. It writes `collider.mask`; an unknown layer is a script error here.",
+    )
+    .arg("id", Entity)
+    .arg("mask", Any)
+    .run(|call, (id, mask)| {
+        let names = mask_names(call, &mask)?;
+        if let Some(p) = call.physics() {
+            p.layer_mask(&names).map_err(|e| call.error(e))?;
+        }
+        let list = names.into_iter().map(toml::Value::String).collect();
+        set_collider_field(call, id, "mask", toml::Value::Array(list))
+    });
+
     let mut m = api.module("physics_2d");
 
     m.func(
@@ -327,7 +383,7 @@ pub(crate) fn register(api: &mut ScriptApi) {
         .arg("id", Entity)
         .returns(
             MapKind,
-            "#{shape: \"box\", half_x, half_y, half_z}, #{shape: \"sphere\", radius}, #{shape: \"capsule\"|\"cylinder\", radius, half_height} or #{shape: \"mesh\"|\"convex\", half_x, half_y, half_z, centre_x, centre_y, centre_z} (its box); () with no collider or no physics",
+            "#{shape: \"box\", half_x, half_y, half_z}, #{shape: \"sphere\", radius}, #{shape: \"capsule\"|\"cylinder\", radius, half_height} or #{shape: \"mesh\"|\"convex\"|\"heightfield\", half_x, half_y, half_z, centre_x, centre_y, centre_z} (its box); () with no collider or no physics",
         )
         .run(|call, (id,)| {
             use flint_physics::ColliderExtents as E;
@@ -372,6 +428,10 @@ pub(crate) fn register(api: &mut ScriptApi) {
                 | E::Convex {
                     half_extents,
                     centre,
+                }
+                | E::Heightfield {
+                    half_extents,
+                    centre,
                 } => {
                     put("half_x", half_extents[0]);
                     put("half_y", half_extents[1]);
@@ -379,10 +439,10 @@ pub(crate) fn register(api: &mut ScriptApi) {
                     put("centre_x", centre[0]);
                     put("centre_y", centre[1]);
                     put("centre_z", centre[2]);
-                    if matches!(extents, E::Mesh { .. }) {
-                        "mesh"
-                    } else {
-                        "convex"
+                    match extents {
+                        E::Mesh { .. } => "mesh",
+                        E::Convex { .. } => "convex",
+                        _ => "heightfield",
                     }
                 }
             };

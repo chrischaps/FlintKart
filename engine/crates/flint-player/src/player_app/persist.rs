@@ -57,7 +57,9 @@ use crate::user_files;
 use flint_core::project::Project;
 use flint_core::vfs;
 use flint_runtime::{check_slot_name, SaveBackend, SaveText, DEFAULT_SLOT};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 use web_time::Instant;
 
 use super::PlayerApp;
@@ -162,7 +164,7 @@ fn web_suffix(game_id: &str) -> String {
 /// can't be one. An id is whatever the manifest says, so it is checked
 /// here rather than trusted: letters, digits, `_`, `-`, `.` and spaces, no
 /// leading dot, no trailing dot or space, none of Windows' device names.
-fn user_folder_name(id: &str) -> Result<&str, String> {
+pub(super) fn user_folder_name(id: &str) -> Result<&str, String> {
     let name = id.trim();
     let ok_char = |c: char| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | ' ');
     if name.is_empty() || name.len() > 64 {
@@ -189,7 +191,7 @@ fn user_folder_name(id: &str) -> Result<&str, String> {
 
 /// The id saves are keyed on: the manifest's, else the input config's
 /// `game_id` when a game set one (`flint` is the engine's default).
-fn save_id<'a>(project: &'a Project, input_game_id: &'a str) -> Option<&'a str> {
+pub(super) fn save_id<'a>(project: &'a Project, input_game_id: &'a str) -> Option<&'a str> {
     let input = Some(input_game_id.trim()).filter(|id| !id.is_empty() && *id != "flint");
     project.id.as_deref().or(input)
 }
@@ -379,6 +381,66 @@ impl SaveBackend for SaveFiles {
     }
 }
 
+/// A playtest's slots (#714, #1193): kept in memory for the run, so a
+/// script can switch slots and `persist_save()` and nothing is read from
+/// or written to the player's saves. The default slot can begin as a file's
+/// text (`--save-from`), read once before the run and handed over here:
+/// that file is never read again, written or set aside. A seed that doesn't
+/// parse is set aside in memory, so scripts see `persist_corrupt()` as they
+/// would in play, with the file left where it is.
+pub(super) struct MemorySaves {
+    /// Each slot's text and where it came from, by slot.
+    slots: Mutex<BTreeMap<String, (String, String)>>,
+}
+
+impl MemorySaves {
+    pub(super) fn new(seed: Option<SaveText>) -> Self {
+        let mut slots = BTreeMap::new();
+        if let Some(seed) = seed {
+            slots.insert(DEFAULT_SLOT.to_string(), (seed.text, seed.from));
+        }
+        Self {
+            slots: Mutex::new(slots),
+        }
+    }
+
+    fn held(&self) -> MutexGuard<'_, BTreeMap<String, (String, String)>> {
+        self.slots.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+impl SaveBackend for MemorySaves {
+    fn read(&self, slot: &str) -> Result<Option<SaveText>, String> {
+        Ok(self.held().get(slot).map(|(text, from)| SaveText {
+            text: text.clone(),
+            from: from.clone(),
+            old_place: false,
+        }))
+    }
+
+    fn write(&self, slot: &str, text: &str) -> Result<(), String> {
+        self.held()
+            .insert(slot.to_string(), (text.to_string(), self.place(slot)));
+        Ok(())
+    }
+
+    fn set_aside(&self, slot: &str) -> Result<String, String> {
+        // Out of the slot's way, as a file is renamed `.bak` in play
+        let Some((_, from)) = self.held().remove(slot) else {
+            return Err(format!("nothing is saved for slot '{slot}'"));
+        };
+        Ok(format!("{from}.bak (in memory; the file is left as it is)"))
+    }
+
+    fn slots(&self) -> Vec<String> {
+        self.held().keys().cloned().collect()
+    }
+
+    fn place(&self, slot: &str) -> String {
+        format!("memory:{slot}")
+    }
+}
+
 impl PlayerApp {
     /// Decide where this run's saves are kept, tell the store, and read
     /// the default slot. A missing file is not an error and creates
@@ -388,11 +450,19 @@ impl PlayerApp {
     pub(super) fn load_persistent_store(&mut self) {
         self.refresh_project();
         if self.launch.saves_in_memory {
-            // No backend: nothing read, `save_persistent_store` writes nothing
+            // Slots in memory: nothing on disk is read but the seed, which
+            // was read before the run, and nothing is written anywhere
             self.core
                 .store
                 .set_game_version(self.core.project.save_version);
+            let saves = MemorySaves::new(self.launch.save_seed.clone());
             tracing::info!("persist: saves are kept in memory for this run");
+            self.core.store.set_backend(Box::new(saves));
+            let loaded = self.core.store.load();
+            // A corrupt seed is what such a run is for, not an error of
+            // the run: the playtest's report says what the load found
+            tracing::info!("persist: {loaded}");
+            self.saves.loaded = Some(loaded);
             return;
         }
         let files = SaveFiles::locate(
@@ -476,6 +546,8 @@ impl PlayerApp {
         if self.saves.debounce.should_flush(now, force || asked) {
             self.save_persistent_store(reason);
         }
+        // The player's bus volumes ride the same three moments (#1217)
+        self.flush_user_audio(force);
     }
 }
 

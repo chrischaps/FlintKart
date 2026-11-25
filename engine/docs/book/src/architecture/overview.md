@@ -330,7 +330,7 @@ AI asset generation pipeline:
 - `BuildManifest` --- provenance tracking (provider, prompt, content hash) for all generated assets
 - `FlintConfig` --- layered configuration for API keys and provider settings
 - `Calls` --- what every provider request goes through: one `flint-ai-core` transport and retry policy, the run's `CostMeter` (asked before each paid call with the units it bills, recorded once the provider accepts it) and the job store. Providers are tested end to end over a `ScriptedTransport`
-- `JobStore` --- a Meshy task is a `GenerationJob` in `.flint/jobs/` from the moment Meshy accepts (and bills) it, updated as it is polled; `GenerationProvider::resume` finishes one a run didn't see through
+- `JobStore` --- a Meshy model (a preview task, then a refine of it, #1187) is a `GenerationJob` in `.flint/jobs/` from the moment Meshy accepts (and bills) the preview, naming both tasks (`remote_id`, `refine_id`) and updated as each is polled; `GenerationProvider::resume` finishes one a run didn't see through, from either stage
 
 ### flint-procgen
 
@@ -367,7 +367,7 @@ AI-assisted procedural generation (tool-time only):
 What every paid AI call in the tools goes through, shared by `flint-procgen-ai`, `flint-asset-gen` and the CLI (#721; tool-time only):
 - `http` --- the one-method `Transport` (GET and POST, byte bodies), `UreqTransport`, and `ScriptedTransport`, which replays canned responses and keeps every request, so a provider is tested with no network
 - `retry` --- one `RetryPolicy`: 408, 429, 5xx and 529 and network failures are retried, waiting the base delay and then twice that, or the provider's `retry-after`, at most a minute
-- `cost::PriceTable` --- the prices as data: `prices.toml` in the crate (Anthropic's per-token rates by model; Flux per megapixel, ElevenLabs per second, Meshy per task), under a project's `.flint/prices.toml`. An unknown model is priced as the dearest
+- `cost::PriceTable` --- the prices as data: `prices.toml` in the crate (Anthropic's per-token rates by model; Flux per megapixel, ElevenLabs per second, Meshy per credit), under a project's `.flint/prices.toml`. An unknown model is priced as the dearest
 - `CostLedger` --- `.flint/ai_costs.jsonl` at the project root, one JSON object per paid call (the procgen agent's older `.flint/procgen_costs.json` is read beside it); `CostSummary` is the report `flint gen --cost-report` and `flint asset costs` print
 - `CostMeter` --- `admit` (a token-billed reply: caps `max_tokens` or refuses) and `admit_call` (a call priced per unit) before a call, `record` / `record_call` after it; refuses with `cost ceiling reached` before any call that could pass `--max-cost`
 
@@ -406,7 +406,7 @@ Standalone player binary that wires together runtime, physics, audio, animation,
 
 ### flint-cli
 
-Binary crate with clap-derived command definitions. Routes commands to the appropriate subsystem crate. Commands: `init`, `entity`, `scene`, `query`, `schema`, `script`, `edit`, `validate`, `check`, `frame`, `profile`, `examples`, `env`, `bundle`, `export`, `music`, `goldens`, `prefab`, `asset`, `play`, `playtest`, `capture`, `gen`, `render`, `dxc` and `style`. `music` holds the rhythm-game tools (`validate`, `play`, `render`, `calibrate`, `chart play`, `chart replay`), top-level commands until #709; their old names ran for one release and are gone since #1141. The pre-`edit` tools (`serve`, `preview`, `gen-preview`, `tex-edit`, `terrain-edit`, `spline-edit`) survive as hidden subcommands. [The CLI reference](../cli-reference/overview.md) covers each one.
+Binary crate with clap-derived command definitions. Routes commands to the appropriate subsystem crate. Commands: `init`, `entity`, `scene`, `query`, `schema`, `script`, `edit`, `validate`, `check`, `frame`, `profile`, `examples`, `env`, `bundle`, `export`, `music`, `goldens`, `prefab`, `asset`, `package`, `build`, `play`, `playtest`, `capture`, `gen`, `render`, `dxc` and `style`. `music` holds the rhythm-game tools (`validate`, `play`, `render`, `calibrate`, `chart play`, `chart replay`), top-level commands until #709; their old names ran for one release and are gone since #1141. The pre-`edit` tools (`serve`, `preview`, `gen-preview`, `tex-edit`, `terrain-edit`, `spline-edit`) survive as hidden subcommands. [The CLI reference](../cli-reference/overview.md) covers each one.
 
 ### tools/arch-analyzer
 

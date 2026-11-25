@@ -117,6 +117,7 @@ fn summary(d: &FrameDescription, top: usize) -> Value {
         "scene": d.scene,
         "trigger": d.trigger,
         "notes": d.notes,
+        "camera": d.camera,
         "frame": {
             "index": f.index,
             "game_time": f.game_time,
@@ -183,6 +184,54 @@ fn ms(v: &Value) -> String {
 
 fn count(n: &Value) -> String {
     flint_render::format_count(n.as_u64().unwrap_or(0).min(u32::MAX as u64) as u32)
+}
+
+/// The frame's camera in a line (#1176): `perspective, fov 60°, near 0.1 m,
+/// far 1000 m, at (0, 2, 8) looking at (0, 1, 0)`. `None` for a capture
+/// that names none (written before it).
+fn camera_words(c: &Value) -> Option<String> {
+    let c = c.as_object()?;
+    let num = |k: &str| c.get(k).and_then(Value::as_f64).unwrap_or(0.0);
+    let point = |k: &str| {
+        let v: Vec<String> = c
+            .get(k)
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .map(|x| metres(x.as_f64().unwrap_or(0.0)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        format!("({})", v.join(", "))
+    };
+    let lens = if c.get("orthographic").and_then(Value::as_bool) == Some(true) {
+        // ortho_height is the half-height; 0 sizes it from the distance
+        let half = match num("ortho_height") {
+            h if h > 0.0 => h,
+            _ => num("distance") * (num("fov").to_radians() / 2.0).tan(),
+        };
+        format!("orthographic, {} m tall", metres(half * 2.0))
+    } else {
+        format!("perspective, fov {}°", metres(num("fov")))
+    };
+    Some(format!(
+        "{lens}, near {} m, far {} m, at {} looking at {}",
+        metres(num("near")),
+        metres(num("far")),
+        point("position"),
+        point("target")
+    ))
+}
+
+/// A length as few digits as say it: `0.1`, `12.5`, `1000`.
+fn metres(v: f64) -> String {
+    let s = format!("{v:.3}");
+    let s = s.trim_end_matches('0').trim_end_matches('.');
+    if s == "-0" {
+        "0".into()
+    } else {
+        s.into()
+    }
 }
 
 fn summary_text(shown: &str, s: &Value) -> String {
@@ -268,6 +317,9 @@ fn summary_text(shown: &str, s: &Value) -> String {
         let _ = write!(frame, ", debug {}", f["debug_mode"].as_str().unwrap_or(""));
     }
     line(&mut out, "Frame", frame);
+    if let Some(c) = camera_words(&s["camera"]) {
+        line(&mut out, "Camera", c);
+    }
     let t = &s["time"];
     let mut time = match t["gpu_frame_ms"].as_f64() {
         Some(g) => format!("GPU {g:.3} ms"),
@@ -380,7 +432,7 @@ fn summary_text(shown: &str, s: &Value) -> String {
         out.push_str(&t.render("  "));
     }
     out.push_str(
-        "\nViews: --passes, --draws [--pass P] [--entity E] [--sort tris] [--culled], --targets, --hitch\n",
+        "\nViews: --passes, --draws [--pass P] [--entity E] [--sort tris|gpu] [--culled], --targets, --hitch\n",
     );
     out
 }
@@ -487,6 +539,7 @@ fn draw_row(p: &PassAt, d: &DrawDescription) -> Value {
         "casts_shadow": d.casts_shadow,
         "double_sided": d.double_sided,
         "culled": d.culled,
+        "gpu_ms": d.gpu_ms,
     })
 }
 
@@ -554,13 +607,22 @@ fn draw_rows(d: &FrameDescription, args: &ShowArgs) -> Result<Vec<Value>> {
             bail!("no draw is of an entity named {pattern:?}{hint}");
         }
     }
-    if args.sort == Some(DrawSort::Tris) {
-        rows.sort_by_key(|r| std::cmp::Reverse(r["triangles"].as_u64().unwrap_or(0)));
+    match args.sort {
+        Some(DrawSort::Tris) => {
+            rows.sort_by_key(|r| std::cmp::Reverse(r["triangles"].as_u64().unwrap_or(0)));
+        }
+        Some(DrawSort::Gpu) => {
+            let ms = |r: &Value| r["gpu_ms"].as_f64().unwrap_or(-1.0);
+            rows.sort_by(|a, b| ms(b).total_cmp(&ms(a)));
+        }
+        Some(DrawSort::Pass) | None => {}
     }
     Ok(rows)
 }
 
 fn draws_text(rows: &[Value], culled: bool) -> String {
+    // A replay's draw times (#1203), when any draw has one
+    let timed = rows.iter().any(|r| r["gpu_ms"].is_number());
     let mut header = vec![
         "pass",
         "entity",
@@ -571,6 +633,9 @@ fn draws_text(rows: &[Value], culled: bool) -> String {
         ">triangles",
         ">inst",
     ];
+    if timed {
+        header.push(">GPU ms");
+    }
     if culled {
         header.push("culled");
     }
@@ -587,6 +652,13 @@ fn draws_text(rows: &[Value], culled: bool) -> String {
             count(&r["triangles"]),
             r["instances"].to_string(),
         ];
+        if timed {
+            row.push(
+                r["gpu_ms"]
+                    .as_f64()
+                    .map_or("-".into(), |ms| format!("{ms:.3}")),
+            );
+        }
         if culled {
             row.push(r["culled"].as_str().unwrap_or("").to_string());
         }
@@ -602,6 +674,10 @@ fn draws_text(rows: &[Value], culled: bool) -> String {
         "Draws: {drawn}, {} triangles",
         flint_render::format_count(tris.min(u32::MAX as u64) as u32)
     );
+    if timed {
+        let ms: f64 = rows.iter().filter_map(|r| r["gpu_ms"].as_f64()).sum();
+        let _ = write!(head, ", {ms:.3} GPU ms inside them");
+    }
     if culled {
         let _ = write!(head, "; {} culled", rows.len() - drawn);
     }
@@ -866,6 +942,26 @@ mod tests {
         let rows = draw_rows(&d, &a).unwrap();
         assert_eq!(rows[0]["entity"], "tree_oak");
         assert_eq!(rows[2]["entity"], "ground");
+    }
+
+    #[test]
+    fn draws_sort_by_gpu_time_untimed_last_and_show_the_column() {
+        let mut d = frame();
+        let scene = &mut d.passes[0];
+        scene.draws[0].gpu_ms = Some(0.02);
+        scene.draws[2].gpu_ms = Some(0.31);
+        let mut a = args();
+        a.sort = Some(DrawSort::Gpu);
+        let rows = draw_rows(&d, &a).unwrap();
+        let order: Vec<&str> = rows.iter().map(|r| r["entity"].as_str().unwrap()).collect();
+        assert_eq!(order, ["tree_oak", "crate", "ground"]);
+        let text = draws_text(&rows, false);
+        assert!(text.contains("GPU ms"), "{text}");
+        assert!(text.contains("0.310"), "{text}");
+        assert!(text.contains("0.330 GPU ms inside them"), "{text}");
+        // An untimed frame has no column
+        let rows = draw_rows(&frame(), &args()).unwrap();
+        assert!(!draws_text(&rows, false).contains("GPU ms"));
     }
 
     #[test]

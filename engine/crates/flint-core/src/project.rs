@@ -40,7 +40,8 @@
 //! marker and nothing more. Paths are relative to the root. A key of the
 //! wrong type, or a key in `[project]` this version doesn't know, is a
 //! [`ProjectError`] naming the file and the key, so a typo is never silently
-//! ignored. Tables other than `[project]` are left alone.
+//! ignored. `[packages]` (ADR 0136 decision 9, #1334) is read into
+//! [`Project::packages`]; other tables are left alone.
 //!
 //! ```
 //! use flint_core::project::{Found, Project};
@@ -168,6 +169,17 @@ pub enum ProjectError {
         message: String,
     },
 
+    /// A line of `[packages]` that can't be one (ADR 0136 decision 9,
+    /// #1334): a bad name, a version requirement that doesn't parse, a
+    /// table or `true`.
+    #[error("{}: `{key}`: {message}", file.display())]
+    BadPackages {
+        file: PathBuf,
+        /// `packages`, or `packages.<name>`.
+        key: String,
+        message: String,
+    },
+
     /// An entry of `[project.diagnostics] allow` that names no code a
     /// project may allow (#795), or a key of `[project.diagnostics]` other
     /// than `allow`.
@@ -208,6 +220,10 @@ pub struct Project {
     /// (#726). A save file at a lower one is handed to the scripts'
     /// `on_persist_migrate(from)`. 0 when the manifest doesn't say.
     pub save_version: i64,
+    /// `[packages]` (ADR 0136 decision 9, #1334): the packages the game
+    /// uses, as written. `None` when the manifest has no such table: every
+    /// package is in, as before the key existed.
+    pub packages: Option<crate::package::PackageList>,
     /// `[project.diagnostics] allow` (#795): the diagnostics this project
     /// accepts, left out of what `flint_scene::diagnose`, the loaders,
     /// `flint validate` and `flint check` report (they say how many).
@@ -321,6 +337,7 @@ impl Project {
             input: None,
             strict: false,
             save_version: 0,
+            packages: None,
             allow: Vec::new(),
             physics_layers: Vec::new(),
         }
@@ -351,6 +368,15 @@ impl Project {
                 file: file.to_path_buf(),
                 message: e.to_string().trim_end().to_string(),
             })?;
+        if let Some(value) = doc.get("packages") {
+            self.packages = Some(crate::package::PackageList::read(value, file).map_err(|e| {
+                ProjectError::BadPackages {
+                    file: file.to_path_buf(),
+                    key: e.key,
+                    message: e.message,
+                }
+            })?);
+        }
         let Some(section) = doc.get("project") else {
             return Ok(());
         };
@@ -581,6 +607,11 @@ pub struct SchemaDirs {
     /// flags name themselves. Empty otherwise.
     /// [`dropped_warnings`](Self::dropped_warnings) words them.
     pub dropped: Vec<PathBuf>,
+    /// The packages the project's `[packages]` lets in, held to the engine's
+    /// manifests (#1334): only theirs are among `dirs`. `None` with no
+    /// `[packages]` key (every package's schemas load), or with no engine
+    /// among the directories to read the manifests from.
+    pub packages: Option<crate::package::InUse>,
 }
 
 impl Default for SchemaDirs {
@@ -591,6 +622,7 @@ impl Default for SchemaDirs {
             dirs: Vec::new(),
             source: SchemaSource::Discovery,
             dropped: Vec::new(),
+            packages: None,
         }
     }
 }
@@ -607,6 +639,13 @@ pub enum SchemaDirsError {
     /// The project's manifest could not be read.
     #[error(transparent)]
     Project(#[from] ProjectError),
+    /// `[packages]` names a package the engine doesn't have, or leaves out
+    /// one that can't be (#1334): each line's `bad-manifest`.
+    #[error("{}: [packages]: {}", file.display(), problems.iter().map(|d| d.one_line()).collect::<Vec<_>>().join("; "))]
+    Packages {
+        file: PathBuf,
+        problems: Vec<crate::diagnostic::Diagnostic>,
+    },
 }
 
 /// The one answer to "which schema directories?" (ADR 0114, decision 3).
@@ -621,13 +660,26 @@ pub enum SchemaDirsError {
 /// A directory that a flag or the manifest names and that isn't there is an
 /// error naming it and who named it. Discovery only returns what exists, so
 /// its list may be empty.
+///
+/// Whichever way, an engine schema directory brings its packages' schemas
+/// right after it ([`package_schema_dirs`], #1332): `--schemas schemas` in
+/// this checkout is `schemas`, `packages/living/schemas`,
+/// `packages/music/schemas`.
 pub fn schema_dirs(
     scene: Option<&Path>,
     flags: &[impl AsRef<Path>],
 ) -> Result<SchemaDirs, SchemaDirsError> {
     if !flags.is_empty() {
         let dirs = flags.iter().map(|f| f.as_ref().to_path_buf()).collect();
-        let mut resolved = named(dirs, SchemaSource::Flags)?;
+        // The flags name the directories; the project still says which
+        // packages are in (a manifest that doesn't read lets every one in,
+        // as the flags never read it before)
+        let project = match scene {
+            Some(scene) => Project::for_path(scene),
+            None => Project::current(),
+        };
+        let list = project.ok().and_then(|p| p.packages);
+        let mut resolved = named(dirs, SchemaSource::Flags, list.as_ref())?;
         // TEMPORARY, for one release (ADR 0114 decision 3): what the old
         // rule would have added to these flags
         if let Some(scene) = scene {
@@ -645,7 +697,7 @@ pub fn schema_dirs(
     };
     if !project.schemas.is_empty() {
         let source = SchemaSource::Manifest(project.manifest_path());
-        return named(project.schema_dirs(), source);
+        return named(project.schema_dirs(), source, project.packages.as_ref());
     }
     let mut dirs = Vec::new();
     if vfs::is_dir("schemas") {
@@ -654,10 +706,12 @@ pub fn schema_dirs(
     if let Some(scene) = scene {
         add_dirs_beside(scene, &mut dirs);
     }
+    let (dirs, packages) = with_packages(dirs, project.packages.as_ref())?;
     Ok(SchemaDirs {
         dirs,
         source: SchemaSource::Discovery,
         dropped: Vec::new(),
+        packages,
     })
 }
 
@@ -677,9 +731,10 @@ pub fn host_schema_dirs(listed: &[impl AsRef<Path>], scene: Option<&Path>) -> Sc
         add_dirs_beside(scene, &mut dirs);
     }
     SchemaDirs {
-        dirs,
+        dirs: bring_packages(dirs),
         source: SchemaSource::Host,
         dropped: Vec::new(),
+        packages: None,
     }
 }
 
@@ -732,6 +787,7 @@ impl SchemaDirs {
             SchemaSource::Host => {
                 let mut next = self.clone();
                 add_dirs_beside(scene, &mut next.dirs);
+                next.dirs = bring_packages(next.dirs);
                 Ok(next)
             }
             SchemaSource::Manifest(_) | SchemaSource::Discovery => {
@@ -752,18 +808,170 @@ impl SchemaDirs {
 }
 
 /// A list somebody named: every directory in it has to be there.
-fn named(dirs: Vec<PathBuf>, source: SchemaSource) -> Result<SchemaDirs, SchemaDirsError> {
-    match dirs.iter().find(|d| !vfs::is_dir(d)) {
-        Some(dir) => Err(SchemaDirsError::Missing {
+fn named(
+    dirs: Vec<PathBuf>,
+    source: SchemaSource,
+    list: Option<&crate::package::PackageList>,
+) -> Result<SchemaDirs, SchemaDirsError> {
+    if let Some(dir) = dirs.iter().find(|d| !vfs::is_dir(d)) {
+        return Err(SchemaDirsError::Missing {
             dir: dir.clone(),
             named_by: source,
-        }),
-        None => Ok(SchemaDirs {
-            dirs,
-            source,
-            dropped: Vec::new(),
-        }),
+        });
     }
+    let (dirs, packages) = with_packages(dirs, list)?;
+    Ok(SchemaDirs {
+        dirs,
+        source,
+        dropped: Vec::new(),
+        packages,
+    })
+}
+
+/// The schema directories the engine's packages bring with an engine schema
+/// directory (ADR 0136 decision 8, #1332), as `(package, directory)` in the
+/// fixed order, by package name: `<engine>/packages/<name>/schemas` for each
+/// package that has one, spelled from `dir` (`schemas` brings
+/// `packages/living/schemas`, `engine/schemas` brings
+/// `engine/packages/living/schemas`).
+///
+/// `dir` is an engine schema directory when the kernel's manifest,
+/// `packages/engine/package.toml`, stands beside it: the engine's own
+/// checkout, a game's `engine/` subtree, `--schemas ../Flint/schemas`, an
+/// Android game's unpacked `engine/`. Any other directory brings nothing.
+/// Read through the vfs; nothing here is an error.
+pub fn package_schema_dirs(dir: &Path) -> Vec<(String, PathBuf)> {
+    let Some(engine) = dir.parent() else {
+        return Vec::new();
+    };
+    let packages = engine.join(crate::package::PACKAGES_DIR);
+    let kernel = packages
+        .join(KERNEL_PACKAGE)
+        .join(crate::package::MANIFEST_FILE);
+    if !vfs::is_file(&kernel) {
+        return Vec::new();
+    }
+    let mut found: Vec<(String, PathBuf)> = vfs::read_dir(&packages)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|package| {
+            let name = package.file_name()?.to_string_lossy().into_owned();
+            let schemas = package.join(PACKAGE_SCHEMAS_DIR);
+            vfs::is_dir(&schemas).then_some((name, schemas))
+        })
+        .collect();
+    found.sort();
+    found
+}
+
+/// The kernel's package, whose manifest marks an engine tree.
+const KERNEL_PACKAGE: &str = "engine";
+
+/// A package's schemas: the folder of that name beside its manifest, laid
+/// out as the engine's are (ADR 0136 decision 8).
+pub const PACKAGE_SCHEMAS_DIR: &str = "schemas";
+
+/// [`with_packages`] with every package in: a host's list, which the
+/// packer settled.
+fn bring_packages(dirs: Vec<PathBuf>) -> Vec<PathBuf> {
+    with_packages(dirs, None)
+        .map(|(dirs, _)| dirs)
+        .unwrap_or_default()
+}
+
+/// `dirs` with each engine schema directory followed by the package
+/// directories it brings ([`package_schema_dirs`]), in their fixed order. A
+/// package directory the list already names, anywhere, is left where the
+/// list put it, so a list that spells them out (a bundle's) reads the same.
+///
+/// With a `[packages]` list (#1334) only the packages it lets in are
+/// brought, and a package directory the list names for one it leaves out is
+/// dropped; the [`InUse`](crate::package::InUse) that decided it comes back
+/// beside them. Its mistakes are [`SchemaDirsError::Packages`]. With no
+/// engine among `dirs` there are no manifests to hold the list to, and
+/// nothing is left out.
+fn with_packages(
+    dirs: Vec<PathBuf>,
+    list: Option<&crate::package::PackageList>,
+) -> Result<(Vec<PathBuf>, Option<crate::package::InUse>), SchemaDirsError> {
+    let in_use = match list {
+        None => None,
+        Some(list) => match dirs.iter().find_map(|d| engine_packages_of(d)) {
+            None => None,
+            Some(packages_dir) => {
+                let packages = crate::package::Packages::read(&packages_dir);
+                Some(
+                    crate::package::InUse::resolve(list, &packages).map_err(|problems| {
+                        SchemaDirsError::Packages {
+                            file: list.file.clone(),
+                            problems,
+                        }
+                    })?,
+                )
+            }
+        },
+    };
+    let wanted = |name: &str| in_use.as_ref().is_none_or(|u| u.is_on(name));
+    let dirs: Vec<PathBuf> = dirs
+        .into_iter()
+        .filter(|d| package_of_schema_dir(d).is_none_or(|(_, name)| wanted(&name)))
+        .collect();
+    let mut listed: Vec<String> = Vec::new();
+    let mut out = Vec::with_capacity(dirs.len());
+    for dir in &dirs {
+        listed.push(same_dir_key(dir));
+    }
+    for dir in dirs {
+        let brings = package_schema_dirs(&dir);
+        out.push(dir);
+        for (name, package) in brings {
+            if !wanted(&name) {
+                continue;
+            }
+            let key = same_dir_key(&package);
+            if !listed.contains(&key) {
+                listed.push(key);
+                out.push(package);
+            }
+        }
+    }
+    Ok((out, in_use))
+}
+
+/// The engine's package folder (`<engine>/packages`) of the first engine
+/// schema directory, or package schema directory, in `dirs`: where the
+/// manifests that hold a `[packages]` list are read (#1334).
+pub fn engine_packages_for(dirs: &[PathBuf]) -> Option<PathBuf> {
+    dirs.iter().find_map(|d| engine_packages_of(d))
+}
+
+/// The engine package folder an engine schema directory, or a package's
+/// schema directory, belongs to: `<engine>/packages`.
+fn engine_packages_of(dir: &Path) -> Option<PathBuf> {
+    if let Some((packages, _)) = package_of_schema_dir(dir) {
+        return Some(packages);
+    }
+    let packages = dir.parent()?.join(crate::package::PACKAGES_DIR);
+    is_engine_packages(&packages).then_some(packages)
+}
+
+/// Whether `dir` is an engine's package folder: the kernel's manifest is
+/// in it.
+fn is_engine_packages(dir: &Path) -> bool {
+    vfs::is_file(dir.join(KERNEL_PACKAGE).join(crate::package::MANIFEST_FILE))
+}
+
+/// `(<engine>/packages, name)` when `dir` is a package's schema directory,
+/// `<engine>/packages/<name>/schemas`.
+fn package_of_schema_dir(dir: &Path) -> Option<(PathBuf, String)> {
+    if dir.file_name()? != PACKAGE_SCHEMAS_DIR {
+        return None;
+    }
+    let package = dir.parent()?;
+    let name = package.file_name()?.to_string_lossy().into_owned();
+    let packages = package.parent()?;
+    (packages.file_name()? == crate::package::PACKAGES_DIR && is_engine_packages(packages))
+        .then(|| (packages.to_path_buf(), name))
 }
 
 /// Whether `dir` is the root of a Flint engine checkout: the one marker
@@ -1940,6 +2148,95 @@ save_version = 1.5
                     paths(&dirs),
                     ["engine/schemas", "schemas", "levels/schemas"]
                 );
+            },
+        );
+    }
+
+    /// #1332: an engine schema directory brings its packages' schemas, right
+    /// after it and by package name, however the list was made. A directory
+    /// with no kernel manifest beside it brings nothing.
+    #[test]
+    fn an_engine_schema_directory_brings_its_packages_schemas() {
+        let engine = [
+            ("engine/schemas/", ""),
+            ("engine/packages/engine/package.toml", ""),
+            ("engine/packages/music/package.toml", ""),
+            ("engine/packages/music/schemas/", ""),
+            ("engine/packages/living/package.toml", ""),
+            ("engine/packages/living/schemas/", ""),
+            // a package with no schemas of its own brings no directory
+            ("engine/packages/rhythm/package.toml", ""),
+            ("schemas/", ""),
+            ("levels/a.scene.toml", ""),
+        ];
+        let game = [
+            "engine/schemas",
+            "engine/packages/living/schemas",
+            "engine/packages/music/schemas",
+            "schemas",
+        ];
+        let manifest = "[project]\nschemas = [\"engine/schemas\", \"schemas\"]\n";
+        let mut files = engine.to_vec();
+        files.push(("flint.toml", manifest));
+        with_files(&files, || {
+            let scene = Some(Path::new("levels/a.scene.toml"));
+            assert_eq!(
+                package_schema_dirs(Path::new("engine/schemas")),
+                [
+                    (
+                        "living".to_string(),
+                        PathBuf::from("engine/packages/living/schemas")
+                    ),
+                    (
+                        "music".to_string(),
+                        PathBuf::from("engine/packages/music/schemas")
+                    ),
+                ]
+            );
+            assert!(package_schema_dirs(Path::new("schemas")).is_empty());
+            // The manifest, flags and a host's list read alike
+            assert_eq!(paths(&schema_dirs(scene, NO_FLAGS).unwrap()), game);
+            assert_eq!(
+                paths(&schema_dirs(scene, &["engine/schemas", "schemas"]).unwrap()),
+                game
+            );
+            assert_eq!(
+                paths(&host_schema_dirs(&["engine/schemas", "schemas"], scene)),
+                game
+            );
+            // A list that spells them out already keeps its own order
+            let spelled = ["engine/schemas", "schemas", "engine/packages/music/schemas"];
+            assert_eq!(
+                paths(&host_schema_dirs(&spelled, scene)),
+                [
+                    "engine/schemas",
+                    "engine/packages/living/schemas",
+                    "schemas",
+                    "engine/packages/music/schemas"
+                ]
+            );
+        });
+        // No kernel manifest: the directory is a game's, and brings nothing
+        let mut files: Vec<_> = engine
+            .iter()
+            .copied()
+            .filter(|(p, _)| *p != "engine/packages/engine/package.toml")
+            .collect();
+        files.push(("flint.toml", manifest));
+        with_files(&files, || {
+            let dirs = schema_dirs(None, NO_FLAGS).unwrap();
+            assert_eq!(paths(&dirs), ["engine/schemas", "schemas"]);
+        });
+        // The engine's own checkout, discovered from its root
+        with_files(
+            &[
+                ("schemas/", ""),
+                ("packages/engine/package.toml", ""),
+                ("packages/living/schemas/", ""),
+            ],
+            || {
+                let dirs = schema_dirs(None, NO_FLAGS).unwrap();
+                assert_eq!(paths(&dirs), ["schemas", "packages/living/schemas"]);
             },
         );
     }

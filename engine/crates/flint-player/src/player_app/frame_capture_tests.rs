@@ -56,6 +56,10 @@ fn on_update() {
 }
 "#;
 
+/// When the hitch-capture test stages a machine's hitch (#1232): after the
+/// detector's floor comes down at 2.45 s, before the stall at 2.51 s.
+const STAGED_AT: f64 = 2.48;
+
 const CALM: &str = "fn on_update() { let t = total_time(); }";
 
 /// A game folder of its own under the temp directory: the scene, its
@@ -91,6 +95,7 @@ fn started(root: &Path, gpu: &'static HeadlessContext) -> PlayerApp {
             dirs: Vec::new(),
             source: SchemaSource::Flags,
             dropped: Vec::new(),
+            packages: None,
         },
     );
     app.scene_renderer = Some(SceneRenderer::new_headless(
@@ -166,7 +171,6 @@ fn frame(app: &mut PlayerApp, gpu: &'static HeadlessContext) {
     if armed {
         let facts = FrameFacts {
             world: &app.core.world,
-            camera: &app.camera,
             particles: None,
             scene_path: &app.core.scene_path,
             project: &app.core.project,
@@ -282,10 +286,15 @@ fn an_input_scripts_capture_line_writes_the_next_frame_without_waiting_on_it() {
         (inputs.frame.time - t).abs() < 1e-9,
         "the inputs are the frame's"
     );
-    assert_eq!(inputs.camera.position, {
+    // The camera is written once, in the manifest, as the frame drew it
+    // (#1176): the inputs point at it
+    assert_eq!(inputs.camera, None, "the manifest holds the camera");
+    let camera = inputs.camera_of(&manifest).expect("the manifest's camera");
+    assert_eq!(camera.position, {
         let p = app.camera.position;
         [p.x, p.y, p.z]
     });
+    assert_eq!((camera.near, camera.far), (app.camera.near, app.camera.far));
     let world = std::fs::read_to_string(dir.join("replay/world.toml")).unwrap();
     assert!(world.contains("[entities.card"), "{world}");
 
@@ -302,9 +311,39 @@ fn a_hitch_is_captured_on_the_next_frame_with_its_window_and_cause() {
     let mut app = started(&root, gpu);
     app.capture_frames(Vec::new(), 1, Some(root.join("out")));
     assert!(app.core.script.timing(), "hitches name their script");
-    // A busy machine's own hiccups (several agents build on this one) don't
-    // count: the stall is 150 ms
-    app.stats.hitches.thresholds.floor_ms = 60.0;
+    // A busy machine's own hiccups (several agents build on this one) mustn't
+    // be the hitch that asks (#1236): `--capture-on-hitch 1` takes the first
+    // past the start, so until just before the stall no frame is judged one,
+    // and from then a hitch is 120 ms over the median, which the 150 ms
+    // stall makes on top of whatever the frame cost
+    app.stats.hitches.thresholds.floor_ms = f32::INFINITY;
+    while app.core.clock.total_time < 2.45 {
+        frame(&mut app, gpu);
+    }
+    app.stats.hitches.thresholds.floor_ms = 120.0;
+    // A machine's hitch between then and the stall would still be the first
+    // (#1232), so one is staged there, at 2.48 s, and every run meets it: a
+    // 200 ms block at sync, outside the script. The capture is handed its
+    // one hitch on the tick that judges the stall's frame and no other. The
+    // detector judges a frame on the tick after it (the clock's tick
+    // measures the frame just closed), so that is the frame after the one
+    // whose tick crosses 2.51 s. Passing over the start is
+    // `hitch_log_tests::a_hitch_capture_passes_over_the_start_unless_asked_to_take_it`.
+    app.core
+        .subsystems
+        .push(Box::new(super::hitch_log_tests::Hiccup(STAGED_AT)));
+    app.frame_captures.on_hitch = 0;
+    while app.core.clock.total_time < 2.51 {
+        frame(&mut app, gpu);
+    }
+    app.frame_captures.on_hitch = 1;
+    frame(&mut app, gpu);
+    assert_eq!(
+        app.frame_captures.on_hitch,
+        0,
+        "the stall's frame was judged a hitch and asked for the capture: {:?}",
+        app.stats.hitches.last()
+    );
     while app.core.clock.total_time < 3.1 {
         frame(&mut app, gpu);
     }
@@ -336,8 +375,48 @@ fn a_hitch_is_captured_on_the_next_frame_with_its_window_and_cause() {
     assert!(record.hitch);
     assert!(record.phases_ms["scripts"] >= 140.0, "{record:?}");
     assert!(cpu.window.first().unwrap().index < hitch.frame);
-    // Just the one hitch: the capture's own frames weren't counted
-    assert_eq!(app.stats.hitches.session().hitches, 1);
+    // Just the hitches the stall and the staged block made, and the
+    // capture's own frames weren't counted. A busy machine may still add
+    // hitches of its own after the stall (#1236: a second frame of this
+    // GPU-backed run passed a 60 ms floor in a parallel run with builds
+    // beside it), so the count is of the long ones and of the frames the
+    // capture marked, not the session's total.
+    let found: Vec<_> = app.stats.hitches.hitches().iter().collect();
+    let all: Vec<String> = found
+        .iter()
+        .map(|h| format!("#{} t={:.3} {:.1} ms", h.index, h.game_time, h.ms))
+        .collect();
+    let staged = found
+        .iter()
+        .find(|h| (STAGED_AT..STAGED_AT + STEP).contains(&h.game_time))
+        .unwrap_or_else(|| panic!("the staged hitch is counted: {all:?}"));
+    assert_ne!(staged.index, hitch.frame, "and it isn't the one captured");
+    let stalls: Vec<u64> = found
+        .iter()
+        .filter(|h| h.ms >= 140.0)
+        .map(|h| h.index)
+        .collect();
+    assert_eq!(
+        stalls,
+        [staged.index, hitch.frame],
+        "the staged block's and the stall's alone: {all:?}"
+    );
+    let history = &*app.stats.perf;
+    let marked: Vec<u64> = history
+        .frames()
+        .iter()
+        .filter(|f| f.capturing)
+        .map(|f| f.index)
+        .collect();
+    assert!(
+        history.frame(captured).is_some_and(|f| f.capturing),
+        "the captured frame is marked: {marked:?}"
+    );
+    assert!(marked.len() >= 2, "drawn, then handed off: {marked:?}");
+    assert!(
+        found.iter().all(|h| !marked.contains(&h.index)),
+        "no hitch on the capture's frames {marked:?}: {all:?}"
+    );
     assert_eq!(
         app.frame_captures.on_hitch, 0,
         "--capture-on-hitch 1 is spent"

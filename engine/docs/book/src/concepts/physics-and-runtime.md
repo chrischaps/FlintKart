@@ -1,5 +1,7 @@
 # Physics and Runtime
 
+> **Package:** `engine`: every game has it. Its physics is grouped in the engine's manifest as the package it becomes in a later phase, with no switch yet ([Packages](packages.md)).
+
 Flint's runtime layer transforms static scenes into interactive, playable experiences. The `flint-runtime` crate provides the game loop infrastructure, and `flint-physics` integrates the Rapier 3D physics engine for collision detection and character movement.
 
 ## The Game Loop
@@ -61,7 +63,17 @@ Four component schemas define physics properties:
 - `start_yaw`: the facing the scene starts with, degrees about +Y (0 faces +Z, 90 faces +X)
 - `look_sensitivity` (0.172 degrees per unit of raw mouse motion) and `pitch_limit` (80 degrees from level)
 - `gravity_scale` (1, times the physics world's gravity), `step_height` (0.5, the tallest ledge walked up; 0 turns it off), `snap_to_ground` (0.2; 0 turns it off)
-- `height` (the eye sits at 0.85 of it), and `radius` and `camera_mode`, which nothing reads yet
+- `height` (the eye sits at 0.85 of it). The capsule is the entity's `collider`, and the camera is first person: the `radius` and `camera_mode` fields went in #1212, and a scene that still writes one is told so (`unknown-field`, with why)
+
+**One player.** The player is the first entity by name with a `character_controller`; another one's controller is never read. A scene with two says so at load and in `flint check`:
+
+```text
+warning[second-player] entity 'zed' component 'character_controller': `hero` is the player (the first entity by name with a `character_controller`), so this one's controller is never read
+```
+
+A character a script walks needs no controller: `move_character(id, dx, dy, dz)` moves any entity's collider and slides it along what it meets.
+
+**The actions it reads** are `move_forward`, `move_backward`, `move_left`, `move_right`, `sprint` and `jump`. A game binds its own keys and pads to them in its input config ([Input Configuration Files](#input-configuration-files)); the names themselves are fixed ([ADR 0134](https://github.com/chrischaps/Flint/blob/main/docs/adr/0134-the-character-controller-stays-in-physics-with-fixed-action-names.md)).
 
 Mouse look and the jump press are taken once a frame, and the walk once a fixed step. So a turn is the same at 30, 60 or 144 frames a second, and a jump pressed on a frame that runs no physics step still jumps at the next one.
 
@@ -202,8 +214,13 @@ sphere, a rotated box) the shape takes the nearest it can, the largest axis
 for a sphere, and the engine warns once for the entity. A sheared matrix is
 still placed by its rotation alone, with a warning.
 
-A collider is made when its body is: a script's `set_scale` afterwards does
-not resize it.
+A scale that changes later is heard at the next physics step (#1221): a
+script's `set_scale` on a growing crate, or on a parent of the collider's
+entity, remakes the collider at the new size, its `offset` too, and wakes
+the body, so a ball resting on a crate that doubles is lifted onto its new
+top. A change under a part in a thousand from the size the shape was made
+at keeps the shape, and a `mesh` or `convex` remade at a scale another
+entity of its model already has takes that entity's shape.
 
 ## Mesh and convex colliders
 
@@ -234,8 +251,21 @@ Several entities of one model and one scale share one shape.
 - **`collider.model`** names a different model for the triangles, such as a
   low-poly collision model beside a detailed drawn one, or one for an entity
   that draws nothing.
-- **No triangles** (no model, a file that isn't found, a model made at
-  runtime by procgen) is a box of `size`, with a warning naming the entity.
+- **A procgen model** (a `specs/<name>.procgen.toml` names it) gives the
+  triangles its spec generated, the ones it draws, ahead of a file of the
+  same name. One the frame-budgeted queue makes later
+  (`ProcGenMode::Deferred`) is a box of `size` until it is made, without a
+  warning, and its collider is made again from it on the next frame.
+- **A runtime mesh** (`model.runtime = true`, from a game binary's
+  `upload_mesh_with(.., MeshOptions { ray_target: true })`) gives the
+  triangles the renderer keeps for ray targets, so `raycast()`, a body and
+  `raycast_meshes` all meet what draws. The game uploads after the scene's
+  bodies are made, so the collider is a box of `size` until the upload and
+  is made again on the frame after each one. A mesh uploaded without
+  `ray_target` keeps no triangles: the collider stays as it was, with a
+  warning.
+- **No triangles** (no model, a file that isn't found) is a box of `size`,
+  with a warning naming the entity.
 - `collider.offset` and `rotation` move and turn the triangles, and the
   entity's scale stretches them, exactly.
 - `get_collider_extents(id)` gives a mesh's or hull's box:
@@ -276,10 +306,42 @@ mask = ["world", "enemy"]
 ```
 
 A collider that names no layer is on `default` and meets everything, as
-every collider did before layers. A name that is no layer is reported once
-(with the nearest) and read as `default` in `layer`, or left out of a
-`mask`. Terrain and spline colliders are on `default`, or on the layer their
-entity's `collider` table names. Layers are read when the body is made.
+every collider did before layers. A name that is no layer is read as
+`default` in `layer`, or left out of a `mask`, and is `bad-enum-value` with
+the nearest layer named. `flint check` and `flint validate` find it before
+the game runs, and the player says the same once when the body is made:
+
+```text
+error[bad-enum-value] entity 'hero' collider.layer: "playr" is not a collision layer
+    hint: did you mean `player`?; it is read as `default`
+error[bad-enum-value] entity 'hero' collider.mask[1]: "pikcup" is not a collision layer
+    hint: did you mean `pickup`?; it is left out
+```
+
+A project with no `[project.physics]` has only `default`, so a collider
+naming any other layer is told the line to add to `flint.toml`. Terrain and spline colliders are on `default`, or on the layer their
+entity's `collider` table names.
+
+A layer or mask can change while the game runs, from the next physics
+step (#1221): a power-up that lets the player walk through walls, a corpse
+that stops blocking bullets. `set_collision_layer(id, "ghost")` and
+`set_collision_mask(id, ["world"])` write the collider's `layer` and
+`mask`, and a name that is no layer is a script error at the call; a
+`set_field(id, "collider", "layer", ..)` is heard too, and a bad name in it
+is reported once, as in the scene. A body at rest is woken, so it falls
+through what it no longer meets.
+
+```rhai
+fn on_trigger_enter(other) {
+    // The ghost potion: walls stop holding the player
+    set_collision_mask(get_entity("player"), ["default", "pickup"]);
+}
+```
+
+A step where nothing was written costs less than before: each collider's
+entity, and its ancestors, carry a write stamp (`FlintWorld::write_stamp`),
+and a collider whose stamps haven't moved isn't read at all. A dynamic
+body's own pose, written back each step, doesn't count.
 
 [`flint-examples/collision_layers.scene.toml`](https://github.com/chrischaps/flint-examples/blob/main/collision_layers.scene.toml) is the bench: a glass tray on `glass`
 whose mask meets only `default` holds the amber balls while the blue ones, on

@@ -14,8 +14,8 @@
 //! - **What the renderer keeps across frames**, as data: motion holds' kept
 //!   matrices and ticks (a fresh `MotionHold` would draw the live matrix),
 //!   part tints, softness and which entities' echoes only lighten, the drawn
-//!   config's style settings, the quality, MSAA, render scale, debug mode and
-//!   the selected entity.
+//!   config's style settings, the quality, MSAA, render scale, debug mode,
+//!   the selected entity and whether the floor grid was drawn.
 //!
 //! Everything is keyed by entity **name** (ADR 0126: ids move between a
 //! captured world and its replay). A host starts one with
@@ -138,6 +138,10 @@ pub struct ReplayRenderer {
     pub debug_mode: String,
     /// The entity the selection outline draws round, by name.
     pub selected: Option<String>,
+    /// Whether the floor grid was drawn (`set_show_grid`; a still `flint
+    /// render` draws it unless `--no-grid`, #1211). A capture from before
+    /// this field reads `false`, as its replay always drew.
+    pub grid: bool,
     pub motion_hold: MotionHoldState,
     /// The palette index of `replay/skinning.bin` ([`PaletteEntry`]).
     pub skinning: Vec<PaletteEntry>,
@@ -508,7 +512,7 @@ impl OwnedFrameInputs {
             grass_time: s.grass_time,
             grass_wooze: s.grass_wooze.as_ref().map(WoozeDrawState::draw),
             shallow_wooze: &self.shallow_wooze,
-            boil: flint_wooze::BoilFrame {
+            boil: flint_core::field_frame::BoilFrame {
                 seed: s.boil_seed,
                 amount: s.boil_amount,
                 step: s.boil_step,
@@ -795,10 +799,26 @@ pub struct ReplayInputs {
     /// [`FrameInputsState`]'s version: 1.
     pub version: u32,
     pub frame: FrameInputsState,
-    pub camera: CameraState,
+    /// The camera, in a capture written before #1176. Since, it is the
+    /// manifest's `camera` (`FrameDescription::camera`, what the frame drew
+    /// with) and left out here, so the two can't disagree:
+    /// [`camera_of`](Self::camera_of) reads either.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub camera: Option<CameraState>,
     pub renderer: ReplayRenderer,
     /// The particle draws of `particles.bin`.
     pub particles: Vec<EmitterDraw>,
+}
+
+impl ReplayInputs {
+    /// The camera a replay of the frame `description` describes draws with:
+    /// the manifest's, else (a capture from before #1176) these inputs'.
+    pub fn camera_of<'a>(
+        &'a self,
+        description: &'a crate::frame_capture::FrameDescription,
+    ) -> Option<&'a CameraState> {
+        description.camera.as_ref().or(self.camera.as_ref())
+    }
 }
 
 /// What a replay of this frame draws fresh rather than as captured
@@ -974,5 +994,8 @@ mod tests {
         // A field a later engine adds is no reason to refuse it
         let old: ReplayRenderer = serde_json::from_str(r#"{"msaa":1,"later":true}"#).unwrap();
         assert_eq!(old.msaa, 1);
+        // A capture from before the grid was recorded replays as it always
+        // did, without one (#1211)
+        assert!(!old.grid);
     }
 }

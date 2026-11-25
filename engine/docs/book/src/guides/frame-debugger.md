@@ -28,9 +28,9 @@ On its own it shows what the frame did, as captured. A capture that holds its re
 
 **The image**, in the middle, is the selected pass's output as the GPU held it. HDR targets are float EXRs and depth is f32, so the viewer works on the real values:
 
-- **Mode**: `Auto` is what `flint frame image` makes. That means HDR exposed at the frame's exposure and ACES-tonemapped, depth stretched over the depths the frame drew (near white), integer ids a colour each, and a distance past 1 on a log scale. `Linear`, `As stored`, `Depth`, `Ids`, `Log` and `Signed` force one.
+- **Mode**: `Auto` is what `flint frame image` makes. That means HDR exposed at the frame's exposure and ACES-tonemapped, the scene's depth in metres from the camera on a log scale (near white; a capture from before #1176, which names no camera, and a shadow map stretch the stored depths instead), integer ids a colour each, and a distance past 1 on a log scale. `Linear`, `As stored`, `Depth`, `Metres`, `Ids`, `Log` and `Signed` force one.
 - **Channel**: RGB, one of R, G, B and A in grey, or luma.
-- **EV** shifts the exposure in stops over the frame's, and a depth image takes its range by hand (`drawn` puts it back). These change on the GPU, so a slider moves the picture the frame it moves.
+- **EV** shifts the exposure in stops over the frame's, and a depth image takes its range by hand, in stored values under `Depth` and in metres under `Metres` (`drawn` puts it back). These change on the GPU, so a slider moves the picture the frame it moves.
 - **Zoom and pan**: scroll zooms about the cursor and dragging pans. Double-click or **F** fits the image, and **1** is one texel a pixel. Past twelve pixels a texel a grid appears between texels.
 - **The readout** under the image gives the texel under the cursor and its stored values: an 8-bit PNG's 0-255, an EXR's floats, a depth's `Z`. A swatch shows its displayed colour.
 - **A pass that wrote no image**, or was skipped, shows the last image an earlier pass left, and says whose. Stepping through the frame never goes blank.
@@ -95,6 +95,18 @@ flint frame replay grove.flintframe --hide oak_03 --skip Bloom --out without.fli
 flint frame diff grove.flintframe without.flintframe         # what the oak cost, pass by pass
 flint frame open grove.flintframe --draws 193 --screenshot step.png
 ```
+
+**What each draw costs, and where a pass draws over itself** (#1203). The bars time whole passes. Two replay flags look inside the scene pass, and neither changes a pixel of the frame:
+
+```bash
+flint frame replay grove.flintframe --draw-times --overdraw --out grove-cost.flintframe
+flint frame show grove-cost.flintframe --draws --pass Scene --sort gpu
+flint frame image grove-cost.flintframe Overdraw --target overdraw -o heat.png
+```
+
+`--draw-times` writes a timestamp before and after each scene draw, inside the pass, and puts the difference on the draw as `gpu_ms`. The replay lists the costliest draws and the cost by kind, `show --sort gpu` sorts by it, and opened in the window, the draws table gets a **GPU ms** column that sorts the same way. The timestamps are taken in frames drawn before the captured one, so the captured frame's pass times carry none of them. A frame with more than 2,048 scene draws is timed a batch of 2,048 a frame. On the woozy grove at 1920x1080 (RTX 4070, Vulkan), all 808 draws were timed in one frame: 8.57 ms inside them of the scene pass's 10.35 ms, the rest being the sky and the gaps between draws. The grass cost the most (1.17 ms), then the ground (0.48 ms), then each skinned oak (about 0.2 ms). A draw's time runs from the draws before it finishing to it finishing, so a draw that overlaps the one before is charged only for what it adds. Timestamps inside a pass need `TIMESTAMP_QUERY_INSIDE_PASSES`, which Vulkan, DX12 and Metal have and WebGPU doesn't; without it the replay says so and times nothing.
+
+`--overdraw` draws the scene pass again after it, each draw adding one to every pixel it shades, and writes that count (`overdraw_count`, a float EXR) and a heat map of it (`overdraw`) as the `Overdraw` pass's images. Each colour of the heat map is twice the draws of the one before: night for none, then indigo (1), plum (3), rose (7), coral (15) and cream (31 or more). Each draw goes through a twin of its own pipeline, with the same vertex stage and depth test, so a draw hidden behind an earlier one adds nothing, just as early depth spares it in the frame. The water is drawn for its depth alone, and the sky and editor grid aren't counted. A fragment the draw's shader discards (an alpha cut-out) is counted, since it was still shaded. The count is one sample a pixel, whatever the frame's MSAA. The replay prints the mean over the shaded pixels, the most draws on one pixel and where, and the share of pixels drawn more than four times. On the grove, a shaded pixel is drawn 2.86 times on average, 12.3% of pixels more than four times, and one pixel 69 times, inside a canopy where the echoes stack.
 
 **How it replays** (ADR 0126 decision 4): the authored scene is loaded the way `flint render` loads it (models, splines, living props, terrain and grass), the captured world is laid over it by entity name, and no game step runs: no scripts, physics, animation or particle simulation. Then the renderer's own state goes back (bone, shadow and echo palettes, part tints, motion holds, the selection), with the camera, the drawn post-process config, the quality and the frame's inputs. A capture the player wrote has its scene's procgen assets resolved as the player resolves them (a render resolves them only for living props), and its final image is compared at the renderer's last pass, since the HUD's `UI` pass is the player's and a replay doesn't draw it. Measured exact: the tavern captured by `flint render` and by the running player at t = 1 s (scripts' torches, particles, an animated patron, a procgen floor), the woozy grove (living trees with echoes, compute grass, shallow wooze), and the fixture scenes. Hiding the lantern of `two_crates` draws every pass image as the same scene written without the lantern does.
 
